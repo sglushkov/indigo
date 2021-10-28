@@ -756,6 +756,8 @@ static indigo_result mfp_enumerate_properties(indigo_device *device, indigo_clie
 			indigo_define_property(device, X_COILS_MODE_PROPERTY, NULL);
 		if (indigo_property_match(X_SETTLE_TIME_PROPERTY, property))
 			indigo_define_property(device, X_SETTLE_TIME_PROPERTY, NULL);
+		if (indigo_property_match(X_LENSTEMPERATURE_PROPERTY, property))
+			indigo_define_property(device, X_LENSTEMPERATURE_PROPERTY, NULL);
 	}
 	return indigo_focuser_enumerate_properties(device, NULL, NULL);
 }
