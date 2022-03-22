@@ -25,7 +25,7 @@
  \file indigo_gps_nmea.c
  */
 
-#define DRIVER_VERSION 0x000A
+#define DRIVER_VERSION 0x000B
 #define DRIVER_NAME	"idnigo_gps_nmea"
 
 #include <stdlib.h>
@@ -82,7 +82,7 @@ static void gps_close(indigo_device *device) {
 
 static char **parse(char *buffer) {
 	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "%s", buffer);
-	if (strncmp("$GP", buffer, 3))
+	if (strncmp("$GP", buffer, 3) && strncmp("$GN", buffer, 3))
 		return NULL;
 	char *index = strchr(buffer, '*');
 	if (index) {
@@ -251,6 +251,7 @@ static indigo_result gps_attach(indigo_device *device) {
 		GPS_GEOGRAPHIC_COORDINATES_PROPERTY->count = 3;
 		GPS_UTC_TIME_PROPERTY->hidden = false;
 		GPS_UTC_TIME_PROPERTY->count = 1;
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 #ifdef INDIGO_LINUX
 		for (int i = 0; i < DEVICE_PORTS_PROPERTY->count; i++) {
 			if (strstr(DEVICE_PORTS_PROPERTY->items[i].name, "ttyGPS")) {

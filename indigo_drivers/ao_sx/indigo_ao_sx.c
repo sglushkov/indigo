@@ -23,7 +23,7 @@
  \file indigo_ao_sx.c
  */
 
-#define DRIVER_VERSION 0x0006
+#define DRIVER_VERSION 0x0007
 #define DRIVER_NAME	"indigo_ao_sx"
 
 #include <stdlib.h>
@@ -150,6 +150,7 @@ static indigo_result ao_attach(indigo_device *device) {
 		DEVICE_PORT_PROPERTY->hidden = false;
 		DEVICE_PORTS_PROPERTY->hidden = false;
 		AO_GUIDE_NORTH_ITEM->number.max = AO_GUIDE_SOUTH_ITEM->number.max = AO_GUIDE_EAST_ITEM->number.max = AO_GUIDE_WEST_ITEM->number.max = 50;
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		pthread_mutex_init(&PRIVATE_DATA->mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_ao_enumerate_properties(device, NULL, NULL);
@@ -253,16 +254,22 @@ static indigo_result ao_change_property(indigo_device *device, indigo_client *cl
 	} else if (indigo_property_match(AO_GUIDE_DEC_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- AO_GUIDE_DEC
 		indigo_property_copy_values(AO_GUIDE_DEC_PROPERTY, property, false);
+		AO_GUIDE_DEC_PROPERTY->state = INDIGO_BUSY_STATE;
+		indigo_update_property(device, AO_GUIDE_DEC_PROPERTY, NULL);
 		indigo_set_timer(device, 0, ao_guide_dec_handler, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match(AO_GUIDE_RA_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- AO_GUIDE_RA
 		indigo_property_copy_values(AO_GUIDE_RA_PROPERTY, property, false);
+		AO_GUIDE_RA_PROPERTY->state = INDIGO_BUSY_STATE;
+		indigo_update_property(device, AO_GUIDE_RA_PROPERTY, NULL);
 		indigo_set_timer(device, 0, ao_guide_ra_handler, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match(AO_RESET_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- AO_RESET
 		indigo_property_copy_values(AO_RESET_PROPERTY, property, false);
+		AO_RESET_PROPERTY->state = INDIGO_BUSY_STATE;
+		indigo_update_property(device, AO_RESET_PROPERTY, NULL);
 		indigo_set_timer(device, 0, ao_reset_handler, NULL);
 		return INDIGO_OK;
 		// --------------------------------------------------------------------------------

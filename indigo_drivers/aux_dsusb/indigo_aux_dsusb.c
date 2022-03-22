@@ -23,7 +23,7 @@
  \file indigo_aux_dsusb.c
  */
 
-#define DRIVER_VERSION 0x0006
+#define DRIVER_VERSION 0x0008
 #define DRIVER_NAME "indigo_aux_dsusb"
 
 #include <stdlib.h>
@@ -139,14 +139,10 @@ static void aux_connection_handler(indigo_device *device) {
 
 static void aux_exposure_handler(indigo_device *device) {
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
-	if (X_CCD_EXPOSURE_PROPERTY->state != INDIGO_BUSY_STATE) {
-		X_CCD_EXPOSURE_PROPERTY->state = INDIGO_BUSY_STATE;
-		libdsusb_focus(PRIVATE_DATA->device_context);
-		indigo_usleep(100000);
-		libdsusb_start(PRIVATE_DATA->device_context);
-		indigo_set_timer(device, X_CCD_EXPOSURE_ITEM->number.value < 1 ? X_CCD_EXPOSURE_ITEM->number.value : 1, aux_timer_callback, &PRIVATE_DATA->timer_callback);
-	}
-	indigo_update_property(device, X_CCD_EXPOSURE_PROPERTY, NULL);
+	libdsusb_focus(PRIVATE_DATA->device_context);
+	indigo_usleep(100000);
+	libdsusb_start(PRIVATE_DATA->device_context);
+	indigo_set_timer(device, X_CCD_EXPOSURE_ITEM->number.value < 1 ? X_CCD_EXPOSURE_ITEM->number.value : 1, aux_timer_callback, &PRIVATE_DATA->timer_callback);
 	pthread_mutex_unlock(&PRIVATE_DATA->mutex);
 }
 
@@ -180,11 +176,15 @@ static indigo_result aux_change_property(indigo_device *device, indigo_client *c
 		// -------------------------------------------------------------------------------- X_CCD_EXPOSURE
 	} else if (indigo_property_match(X_CCD_EXPOSURE_PROPERTY, property)) {
 		indigo_property_copy_values(X_CCD_EXPOSURE_PROPERTY, property, false);
+		X_CCD_EXPOSURE_PROPERTY->state = INDIGO_BUSY_STATE;
+		indigo_update_property(device, X_CCD_EXPOSURE_PROPERTY, NULL);
 		indigo_set_timer(device, 0, aux_exposure_handler, NULL);
 		return INDIGO_OK;
 		// -------------------------------------------------------------------------------- X_CCD_ABORT_EXPOSURE
 	} else if (indigo_property_match(X_CCD_ABORT_EXPOSURE_PROPERTY, property)) {
 		indigo_property_copy_values(X_CCD_ABORT_EXPOSURE_PROPERTY, property, false);
+		X_CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_BUSY_STATE;
+		indigo_update_property(device, X_CCD_EXPOSURE_PROPERTY, NULL);
 		indigo_set_timer(device, 0, aux_abort_handler, NULL);
 		return INDIGO_OK;
 		// --------------------------------------------------------------------------------
@@ -210,8 +210,9 @@ static indigo_result aux_detach(indigo_device *device) {
 #define MAX_DEVICES                   3
 
 static indigo_device *devices[MAX_DEVICES];
+static pthread_mutex_t hotplug_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static int hotplug_callback(libusb_context *ctx, libusb_device *dev, libusb_hotplug_event event, void *user_data) {
+static void process_plug_event(libusb_device *dev) {
 	static indigo_device aux_template = INDIGO_DEVICE_INITIALIZER(
 		"",
 		aux_attach,
@@ -220,42 +221,53 @@ static int hotplug_callback(libusb_context *ctx, libusb_device *dev, libusb_hotp
 		NULL,
 		aux_detach
 	);
+	const char *name;
+	pthread_mutex_lock(&hotplug_mutex);
+	if (libdsusb_shutter(dev, &name)) {
+		dsusb_private_data *private_data = indigo_safe_malloc(sizeof(dsusb_private_data));
+		private_data->dev = dev;
+		libusb_ref_device(dev);
+		indigo_device *device = indigo_safe_malloc_copy(sizeof(indigo_device), &aux_template);
+		indigo_copy_name(device->name, name);
+		device->private_data = private_data;
+		for (int j = 0; j < MAX_DEVICES; j++) {
+			if (devices[j] == NULL) {
+				indigo_async((void *)(void *)indigo_attach_device, devices[j] = device);
+				break;
+			}
+		}
+	}
+	pthread_mutex_unlock(&hotplug_mutex);
+}
 
+static void process_unplug_event(libusb_device *dev) {
+	pthread_mutex_lock(&hotplug_mutex);
+	for (int j = 0; j < MAX_DEVICES; j++) {
+		if (devices[j] != NULL) {
+			indigo_device *device = devices[j];
+			if (PRIVATE_DATA->dev == dev) {
+				indigo_detach_device(device);
+				if (PRIVATE_DATA != NULL) {
+					libusb_unref_device(dev);
+					free(PRIVATE_DATA);
+				}
+				free(device);
+				devices[j] = NULL;
+				break;
+			}
+		}
+	}
+	pthread_mutex_unlock(&hotplug_mutex);
+}
+
+static int hotplug_callback(libusb_context *ctx, libusb_device *dev, libusb_hotplug_event event, void *user_data) {
 	switch (event) {
 		case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED: {
-			const char *name;
-      if (libdsusb_shutter(dev, &name)) {
-        dsusb_private_data *private_data = indigo_safe_malloc(sizeof(dsusb_private_data));
-        private_data->dev = dev;
-        libusb_ref_device(dev);
-        indigo_device *device = indigo_safe_malloc_copy(sizeof(indigo_device), &aux_template);
-        indigo_copy_name(device->name, name);
-        device->private_data = private_data;
-        for (int j = 0; j < MAX_DEVICES; j++) {
-          if (devices[j] == NULL) {
-            indigo_async((void *)(void *)indigo_attach_device, devices[j] = device);
-            break;
-          }
-        }
-      }
+			INDIGO_ASYNC(process_plug_event, dev);
 			break;
 		}
 		case LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT: {
-			for (int j = 0; j < MAX_DEVICES; j++) {
-				if (devices[j] != NULL) {
-					indigo_device *device = devices[j];
-					if (PRIVATE_DATA->dev == dev) {
-						indigo_detach_device(device);
-						if (PRIVATE_DATA != NULL) {
-							libusb_unref_device(dev);
-							free(PRIVATE_DATA);
-						}
-						free(device);
-						devices[j] = NULL;
-						break;
-					}
-				}
-			}
+			process_unplug_event(dev);
 			break;
 		}
 	}

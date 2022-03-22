@@ -2,6 +2,200 @@
 
 All notable changes to INDIGO framework will be documented in this file.
 
+## [2.0-170] - 05 Mar Sat 2022
+### Overall
+- indigo_platesolver: do not fail the whole process if platesolve during recalculate fails
+- indigo_platesolver: implement refraction compensation for polar alignment
+- indigo_platesolver: start_exposure() checks for available camera
+- indigo_platesolver: better error handling
+- indigo_platesolver: start_exposure() checks if the camera is available
+- indigo_platesolver: better AGENT_PLATESOLVER_PA_STATE property state transitions
+- Makefile: libhidapi-libhidraw.a replaced with libhidapi-libusb.a
+
+### Driver fixes
+- indigo_astrometry_agent:
+	- see overall: indigo_platesolver
+
+- indigo_astap_agent:
+	- see overall: indigo_platesolver
+
+- indigo_ccd_atik:
+	- EFW1/2 SDK support added to the CCD driver
+
+- indigo_wheel_atik:
+	- usb rules fixed
+
+- indigo_ccd_simulator:
+	- set more reasonable value for default image in Guider Camera
+
+- indigo_ccd_svb:
+	- initialization fixed
+	- workatound for prematurely ended exposures
+
+## [2.0-168] - Mon Feb 21 2022
+### Overall
+- added WRITE_ONLY BLOBs
+- indigo_platesolver: added 3 point polar alignment
+- indigo_platesolver: local files can be uploaded for solving
+- indigo_platesolver: code refactored
+- indigo_platesolver: add processes
+- indigo_prop_tool: add support for WRITE_ONLY BLOBs
+- indigo_libs: libnovas fixed for arm64 linux machines
+- indigo_libs: HIDAPI switched from libraw to libusb on linux
+- indigo_docs: POLAR_ALIGNMENT.md added
+- ccd_driver: byte_order_rgb interpreted correctly for TIFF format
+
+### New drivers
+- indigo_astap_agent:
+	- plate solver agent using ASTAP
+	- has all the features as Astrometry agent
+
+- indigo_ccd_svb:
+	- driver for SvBony cameras
+
+### Driver fixes
+- indigo_astrometry_agent:
+	- solving can be triggered by a processes
+	- added 3-point polar alignment
+	- local files can be uploaded for solving
+	- solution can be transformed to JNow
+	- fix abort function
+	- fixed cleanup of the temporary files
+
+- indigo_agent_imager:
+	- dithering can skip frames
+
+- indigo_agent_scripting:
+	- race fixed
+
+- indigo_ccd_simulator:
+	- Hipparcos data is used for real sky images from "CCD Guider Simulator"
+	- add polar error simulation
+	- images from "CCD Guider Simulator" can be in JNow or J2000
+	- "CCD Guider Simulator" frame size is user defined
+
+- indigo_ccd_asi:
+	- use SDK v1.21
+	- fix array overrun
+	- number.target vs. number.value cleanup
+
+- indigo_gps_nmea:
+	- support for Glonass messages
+
+- indigo_ccd_qhy:
+	- provde hack for missing pthread_yield() call
+
+- indigo_mount_synscan:
+	- add support for "StarSeek" mounts
+
+- indigo_ccd_ptp:
+	- Fuji driver improved, tested with XT1
+	- add Canon EOS 250D
+	- add Fujifilm X-S10
+	- generalised image download code for Fujifilm
+	- Sony A7R4 compatibility fixes
+
+- indigo_mount_lx200:
+	- add experimental support for ZWO AM5 mount
+	- 10micron bugfixes
+	- guiding commands made synchronous
+	- mount type override fixed
+
+- indigo_mount_ioptron:
+	- guiding commands made synchronous
+
+- indigo_mount_pmc8:
+	- new firmware support added
+	- rounding issues fixed
+
+- indigo_focuser_fcusb:
+	- rules file added
+
+## [2.0-166] - Tue Nov 30 2021
+### Overall
+- indigo_raw_utils: new API for RMS contrast estimator
+- IMAGING_AF_TUNING: updated to reflect the latest AF changes
+- indigo_process_image(): fix sending of a wrong error message
+
+### Driver fixes
+- indigo_agent_imager:
+	- complete rewrite of RMS contrast estimator
+	- RMS AF supports RGB images
+	- RMS AF is not confused by saturated areas any more
+
+- indigo_ccd_touptek:
+	- SDK updated to 50.19728.20211022
+
+- indigo_ccd_atik:
+	- SDK updated to SDK_2021_11_02
+
+- indigo_ccd_asi:
+	- SDK updated to 1.20.3
+
+- indigo_ccd_qhy2:
+	- SDK updated to V2021.10.12 (x86 driver uses the old version - QHY dropped 32bit Linux support)
+
+- indigo_ccd_qhy/indigo_ccd_qhy2:
+	- camera firmware update
+
+- indigo_ccd_uvc:
+	- image buffer overrun fixed
+
+- indigo_ccd_mi:
+	- Update ibgxccd for MacOS to version 0.5.1 (fixes issue with Monterey when camera did not connect the first time after power on)
+
+- indigo_mount_simulator:
+	- fix MOUNT_TRACKING property state transitions
+
+## [2.0-164] - Fri Nov 05 2021
+### Overall
+- indigo_dtos(): call fixed formatting issues
+- indigo_stod(): fix for values [-1, 0] represented as positive
+- libusb: updated
+
+### Driver fixes
+- indigo_agent_solver:
+	- more reliable "Sync and center"
+	- FOV unit parsing fixed
+
+- indigo_agent_imager:
+	- Peak/HFD focus failed criteria fixed
+	- BEST_FOCUS_DEVIATION item added as a measure of the deviation of the final focus quality compared to the best of the run
+	- return to initial on failure fixed
+	- fix memory leak in capture_raw_frame()
+	- prevent abort_process() from aborting all devices on the bus when no focuser selected
+	- do not evaluate RMS contrast on frame restoration as contrast changes dramatically when frame is changed
+
+- indigo_agent_guider:
+	- fixed calibration near the poles
+
+- indigo_ccd_ptp:
+	- Fuji camera BULB exposure fixed
+	- Fuji X-T2 support
+
+- indigo_focuser_mypro2:
+	- fix proeprty handling
+
+- indigo_mount_lx200:
+	- OnStep compatibility issue fixed
+
+- indigo_mount_ioptron:
+	- search for mechanical zero position added for CEM45, CEM70 and CEM120
+	- MOUNT_PARK_SET implemented for 2.5 and 3.0 protocols
+
+- indigo_ccd_asi:
+	- lower the camera stress at exposure start
+	- fix ASI120 issues
+	- SDK updated v.1.20.2.1103
+
+- indigo_ccd_simulator:
+	- backlash simulation added
+	- add declination to the drift to simulate high declination guiding
+	- change GUIDER_IMAGE to SIMULATION_SETUP property
+
+- indigo_ccd_uvc:
+	- libuvc updated
+
 ## [2.0-162] - Fri Oct 15 2021
 ### Overall
 - indigo_filter: device and related device validation callback added

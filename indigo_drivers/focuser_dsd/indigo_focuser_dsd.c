@@ -23,7 +23,7 @@
  \file indigo_focuser_dsd.c
  */
 
-#define DRIVER_VERSION 0x000B
+#define DRIVER_VERSION 0x000D
 #define DRIVER_NAME "indigo_focuser_dsd"
 
 #include <stdlib.h>
@@ -603,6 +603,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_focuser_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
 		pthread_mutex_init(&PRIVATE_DATA->port_mutex, NULL);
+		PRIVATE_DATA->handle = -1;
 		// -------------------------------------------------------------------------------- SIMULATION
 		SIMULATION_PROPERTY->hidden = true;
 		// -------------------------------------------------------------------------------- DEVICE_PORT
@@ -640,6 +641,8 @@ static indigo_result focuser_attach(indigo_device *device) {
 		FOCUSER_ON_POSITION_SET_PROPERTY->hidden = false;
 		FOCUSER_REVERSE_MOTION_PROPERTY->hidden = false;
 		FOCUSER_BACKLASH_PROPERTY->hidden = false;
+
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 
 		// -------------------------------------------------------------------------- DSD_MODEL_HINT_PROPERTY
 		DSD_MODEL_HINT_PROPERTY = indigo_init_switch_property(NULL, device->name, DSD_MODEL_HINT_PROPERTY_NAME, MAIN_GROUP, "Focuser model hint", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 2);
@@ -987,25 +990,30 @@ static indigo_result focuser_change_property(indigo_device *device, indigo_clien
 		return INDIGO_OK;
 	} else if (indigo_property_match_w(FOCUSER_POSITION_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- FOCUSER_POSITION
+		if (!IS_CONNECTED) return INDIGO_OK;
 		indigo_property_copy_values(FOCUSER_POSITION_PROPERTY, property, false);
 		if (FOCUSER_POSITION_ITEM->number.target < 0 || FOCUSER_POSITION_ITEM->number.target > FOCUSER_POSITION_ITEM->number.max) {
 			FOCUSER_POSITION_PROPERTY->state = INDIGO_ALERT_STATE;
 			FOCUSER_STEPS_PROPERTY->state = INDIGO_ALERT_STATE;
+			indigo_update_property(device, FOCUSER_STEPS_PROPERTY, NULL);
+			indigo_update_property(device, FOCUSER_POSITION_PROPERTY, NULL);
 		} else if (FOCUSER_POSITION_ITEM->number.target == PRIVATE_DATA->current_position) {
 			FOCUSER_POSITION_PROPERTY->state = INDIGO_OK_STATE;
 			FOCUSER_STEPS_PROPERTY->state = INDIGO_OK_STATE;
+			indigo_update_property(device, FOCUSER_STEPS_PROPERTY, NULL);
+			indigo_update_property(device, FOCUSER_POSITION_PROPERTY, NULL);
 		} else { /* GOTO position */
 			FOCUSER_POSITION_PROPERTY->state = INDIGO_BUSY_STATE;
 			FOCUSER_STEPS_PROPERTY->state = INDIGO_BUSY_STATE;
 			PRIVATE_DATA->target_position = FOCUSER_POSITION_ITEM->number.target;
 			FOCUSER_POSITION_ITEM->number.value = PRIVATE_DATA->current_position;
+			indigo_update_property(device, FOCUSER_STEPS_PROPERTY, NULL);
+			indigo_update_property(device, FOCUSER_POSITION_PROPERTY, NULL);
 			if (FOCUSER_ON_POSITION_SET_GOTO_ITEM->sw.value) { /* GOTO POSITION */
 				FOCUSER_POSITION_PROPERTY->state = INDIGO_BUSY_STATE;
 				FOCUSER_STEPS_PROPERTY->state = INDIGO_BUSY_STATE;
 				if (!dsd_goto_position_bl(device, (uint32_t)PRIVATE_DATA->target_position)) {
 					INDIGO_DRIVER_ERROR(DRIVER_NAME, "dsd_goto_position_bl(%d, %d) failed", PRIVATE_DATA->handle, PRIVATE_DATA->target_position);
-					FOCUSER_POSITION_PROPERTY->state = INDIGO_ALERT_STATE;
-					FOCUSER_STEPS_PROPERTY->state = INDIGO_ALERT_STATE;
 				}
 				indigo_set_timer(device, 0.5, focuser_timer_callback, &PRIVATE_DATA->focuser_timer);
 			} else { /* RESET CURRENT POSITION */
@@ -1024,10 +1032,10 @@ static indigo_result focuser_change_property(indigo_device *device, indigo_clien
 				} else {
 					FOCUSER_POSITION_ITEM->number.value = PRIVATE_DATA->current_position = (double)position;
 				}
+				indigo_update_property(device, FOCUSER_STEPS_PROPERTY, NULL);
+				indigo_update_property(device, FOCUSER_POSITION_PROPERTY, NULL);
 			}
 		}
-		indigo_update_property(device, FOCUSER_STEPS_PROPERTY, NULL);
-		indigo_update_property(device, FOCUSER_POSITION_PROPERTY, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match(FOCUSER_LIMITS_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- FOCUSER_LIMITS
@@ -1063,13 +1071,18 @@ static indigo_result focuser_change_property(indigo_device *device, indigo_clien
 		return INDIGO_OK;
 	} else if (indigo_property_match(FOCUSER_STEPS_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- FOCUSER_STEPS
+		if (!IS_CONNECTED) return INDIGO_OK;
 		indigo_property_copy_values(FOCUSER_STEPS_PROPERTY, property, false);
 		if (FOCUSER_STEPS_ITEM->number.value < 0 || FOCUSER_STEPS_ITEM->number.value > FOCUSER_STEPS_ITEM->number.max) {
 			FOCUSER_STEPS_PROPERTY->state = INDIGO_ALERT_STATE;
 			FOCUSER_POSITION_PROPERTY->state = INDIGO_ALERT_STATE;
+			indigo_update_property(device, FOCUSER_STEPS_PROPERTY, NULL);
+			indigo_update_property(device, FOCUSER_POSITION_PROPERTY, NULL);
 		} else {
 			FOCUSER_STEPS_PROPERTY->state = INDIGO_BUSY_STATE;
 			FOCUSER_POSITION_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_update_property(device, FOCUSER_STEPS_PROPERTY, NULL);
+			indigo_update_property(device, FOCUSER_POSITION_PROPERTY, NULL);
 			uint32_t position;
 			if (!dsd_get_position(device, &position)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "dsd_get_position(%d) failed", PRIVATE_DATA->handle);
@@ -1093,13 +1106,9 @@ static indigo_result focuser_change_property(indigo_device *device, indigo_clien
 			FOCUSER_POSITION_ITEM->number.value = PRIVATE_DATA->current_position;
 			if (!dsd_goto_position_bl(device, (uint32_t)PRIVATE_DATA->target_position)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "dsd_goto_position_bl(%d, %d) failed", PRIVATE_DATA->handle, PRIVATE_DATA->target_position);
-				FOCUSER_STEPS_PROPERTY->state = INDIGO_ALERT_STATE;
-				FOCUSER_POSITION_PROPERTY->state = INDIGO_ALERT_STATE;
 			}
 			indigo_set_timer(device, 0.5, focuser_timer_callback, &PRIVATE_DATA->focuser_timer);
 		}
-		indigo_update_property(device, FOCUSER_STEPS_PROPERTY, NULL);
-		indigo_update_property(device, FOCUSER_POSITION_PROPERTY, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match(FOCUSER_ABORT_MOTION_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- FOCUSER_ABORT_MOTION
@@ -1349,12 +1358,10 @@ static indigo_result focuser_detach(indigo_device *device) {
 
 
 // --------------------------------------------------------------------------------
-#define MAX_DEVICES 8
-static int device_number = 1;
-static dsd_private_data *private_data[MAX_DEVICES] = {NULL};
-static indigo_device *focuser[MAX_DEVICES] = {NULL};
 
 indigo_result indigo_focuser_dsd(indigo_driver_action action, indigo_driver_info *info) {
+	static dsd_private_data *private_data = NULL;
+	static indigo_device *focuser = NULL;
 	static indigo_device focuser_template = INDIGO_DEVICE_INITIALIZER(
 		FOCUSER_DSD_NAME,
 		focuser_attach,
@@ -1374,38 +1381,23 @@ indigo_result indigo_focuser_dsd(indigo_driver_action action, indigo_driver_info
 	switch (action) {
 	case INDIGO_DRIVER_INIT:
 		last_action = action;
-
-		/* figure out the number of devices to expose */
-		if (getenv("FOCUSER_DSD_DEVICE_NUMBER") != NULL) {
-			device_number = atoi(getenv("FOCUSER_DSD_DEVICE_NUMBER"));
-			if (device_number < 1) device_number = 1;
-			if (device_number > MAX_DEVICES) device_number = MAX_DEVICES;
-		}
-
-		for (int index = 0; index < device_number; index++) {
-			private_data[index] = indigo_safe_malloc(sizeof(dsd_private_data));
-			private_data[index]->handle = -1;
-			focuser[index] = indigo_safe_malloc_copy(sizeof(indigo_device), &focuser_template);
-			focuser[index]->private_data = private_data[index];
-			sprintf(focuser[index]->name, "%s #%d", FOCUSER_DSD_NAME, index);
-			indigo_attach_device(focuser[index]);
-		}
+		private_data = indigo_safe_malloc(sizeof(dsd_private_data));
+		focuser = indigo_safe_malloc_copy(sizeof(indigo_device), &focuser_template);
+		focuser->private_data = private_data;
+		indigo_attach_device(focuser);
 		break;
 
 	case INDIGO_DRIVER_SHUTDOWN:
-		for (int i = 0; i < MAX_DEVICES; i++)
-			VERIFY_NOT_CONNECTED(focuser[i]);
+		VERIFY_NOT_CONNECTED(focuser);
 		last_action = action;
-		for (int index = 0; index < device_number; index++) {
-			if (focuser[index] != NULL) {
-				indigo_detach_device(focuser[index]);
-				free(focuser[index]);
-				focuser[index] = NULL;
-			}
-			if (private_data[index] != NULL) {
-				free(private_data[index]);
-				private_data[index] = NULL;
-			}
+		if (focuser != NULL) {
+			indigo_detach_device(focuser);
+			free(focuser);
+			focuser = NULL;
+		}
+		if (private_data != NULL) {
+			free(private_data);
+			private_data = NULL;
 		}
 		break;
 

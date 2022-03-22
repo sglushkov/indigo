@@ -747,7 +747,7 @@ static void mount_handle_utc(indigo_device *device) {
 	} else if (res != RC_OK) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "tc_set_time(%d) = %d (%s)", PRIVATE_DATA->dev_id, res, strerror(errno));
 		MOUNT_UTC_TIME_PROPERTY->state = INDIGO_ALERT_STATE;
-		indigo_send_message(device, "Can't set mount date/time.");
+		indigo_send_message(device, "Failed to set date/time.");
 	} else {
 		MOUNT_UTC_TIME_PROPERTY->state = INDIGO_OK_STATE;
 	}
@@ -811,6 +811,7 @@ static indigo_result mount_attach(indigo_device *device) {
 		strncpy(MOUNT_GUIDE_RATE_PROPERTY->label,"ST4 guide rate", INDIGO_VALUE_SIZE);
 		MOUNT_TRACK_RATE_PROPERTY->hidden = true;
 		MOUNT_SLEW_RATE_PROPERTY->hidden = false;
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_mount_enumerate_properties(device, NULL, NULL);
 	}
@@ -1322,7 +1323,7 @@ indigo_result indigo_mount_nexstar(indigo_driver_action action, indigo_driver_in
 	if (action == last_action)
 		return INDIGO_OK;
 
-	INDIGO_DEBUG(tc_debug = indigo_debug);
+	//INDIGO_DEBUG(tc_debug = indigo_debug);
 
 	switch (action) {
 	case INDIGO_DRIVER_INIT:

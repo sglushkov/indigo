@@ -104,7 +104,7 @@ This is the list of requirements taken into the consideration:
 74. Lunatico Astronomy Dragonfly Dome / Relay Controller GPIO driver
 75. Rotator Simulator Driver
 76. Lunatico AAG CloudWacher driver
-77. Baader Planetarium Classic (Rotating) dome driver 
+77. Baader Planetarium Classic (Rotating) dome driver
 78. MGBox driver
 79. Manual wheel driver
 80. PMC8 mount controller driver
@@ -136,7 +136,7 @@ It is advised to remove libraw1394-dev
 
 #### Fedora
 
-`dnf install automake autoconf cmake libtool gcc gcc-c++ libusb-devel avahi-compat-libdns_sd-devel libudev-devel git curl`
+`dnf install automake autoconf cmake libtool gcc gcc-c++ libusb-devel avahi-compat-libdns_sd-devel libudev-devel git curl curl-devel zlib-devel`
 
 It is advised to remove libraw1394-devel
 
@@ -157,3 +157,10 @@ Install XCode and download and build autoconf, automake and libtool (use tools/c
 `build/bin/indigo_server -v -s`
 
 and connect from any INDIGO/INDI client or web browser to localhost on port 7624...
+
+### No pthread_yield()
+New linux distributions come with the latest glibc that does not provide pthread_yield() However libqhy.a depends on it. We do not have control over this library and it is not officially supprted by QHY any more. So if you get complaints by the linker for missing *pthread_yield* call please execute the folowing command in *indigo_drivers/ccd_qhy/bin_externals/pthread_yield_compat/*:
+
+`make patchlib`
+
+and rerun the build

@@ -24,7 +24,7 @@
  \file indigo_mount_simulator.c
  */
 
-#define DRIVER_VERSION 0x0006
+#define DRIVER_VERSION 0x0007
 #define DRIVER_NAME "indigo_mount_simulator"
 
 #include <stdlib.h>
@@ -54,6 +54,11 @@ static void position_timer_callback(indigo_device *device) {
 	pthread_mutex_lock(&PRIVATE_DATA->position_mutex);
 	if (IS_CONNECTED) {
 		double diffRA = MOUNT_RAW_COORDINATES_RA_ITEM->number.target - MOUNT_RAW_COORDINATES_RA_ITEM->number.value;
+		if (diffRA > 12)
+			diffRA = -(24 - diffRA);
+		else if (diffRA < -12) {
+			diffRA = (24 - diffRA);
+		}
 		double diffDec = MOUNT_RAW_COORDINATES_DEC_ITEM->number.target - MOUNT_RAW_COORDINATES_DEC_ITEM->number.value;
 		if (PRIVATE_DATA->slew_in_progress) {
 			if (diffRA == 0 && diffDec == 0) {
@@ -66,6 +71,7 @@ static void position_timer_callback(indigo_device *device) {
 					PRIVATE_DATA->parking = false;
 					PRIVATE_DATA->parked = true;
 					indigo_set_switch(MOUNT_TRACKING_PROPERTY, MOUNT_TRACKING_OFF_ITEM, true);
+					MOUNT_TRACKING_PROPERTY->state = INDIGO_OK_STATE;
 					indigo_update_property(device, MOUNT_TRACKING_PROPERTY, NULL);
 					MOUNT_PARK_PROPERTY->state = INDIGO_OK_STATE;
 					indigo_update_property(device, MOUNT_PARK_PROPERTY, "Parked");
@@ -80,12 +86,17 @@ static void position_timer_callback(indigo_device *device) {
 			} else {
 				double speedRA = 0.2;
 				double speedDec = 1.5;
-				if (fabs(diffRA) < speedRA)
+				if (fabs(diffRA) < speedRA) {
 					MOUNT_RAW_COORDINATES_RA_ITEM->number.value = MOUNT_RAW_COORDINATES_RA_ITEM->number.target;
-				else if (diffRA > 0)
+				} else if (diffRA > 0) {
 					MOUNT_RAW_COORDINATES_RA_ITEM->number.value += speedRA;
-				else if (diffRA < 0)
+					if (MOUNT_RAW_COORDINATES_RA_ITEM->number.value > 24)
+						MOUNT_RAW_COORDINATES_RA_ITEM->number.value -= 24;
+				} else if (diffRA < 0) {
 					MOUNT_RAW_COORDINATES_RA_ITEM->number.value -= speedRA;
+					if (MOUNT_RAW_COORDINATES_RA_ITEM->number.value < 0)
+						MOUNT_RAW_COORDINATES_RA_ITEM->number.value += 24;
+				}
 				if (fabs(diffDec) < speedDec)
 					MOUNT_RAW_COORDINATES_DEC_ITEM->number.value = MOUNT_RAW_COORDINATES_DEC_ITEM->number.target;
 				else if (diffDec > 0)
@@ -183,6 +194,7 @@ static indigo_result mount_attach(indigo_device *device) {
 		AUTHENTICATION_PROPERTY->hidden = false;
 		AUTHENTICATION_PROPERTY->count = 1;
 		// --------------------------------------------------------------------------------
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_mount_enumerate_properties(device, NULL, NULL);
 	}
@@ -224,7 +236,7 @@ static indigo_result mount_change_property(indigo_device *device, indigo_client 
 	} else if (indigo_property_match(MOUNT_PARK_PROPERTY, property)) {
 			// -------------------------------------------------------------------------------- MOUNT_PARK
 		indigo_property_copy_values(MOUNT_PARK_PROPERTY, property, false);
-		if (MOUNT_PARK_PARKED_ITEM->sw.value) {
+		if (MOUNT_PARK_PARKED_ITEM->sw.value && !(PRIVATE_DATA->parking || PRIVATE_DATA->parked)) {
 			MOUNT_PARK_PROPERTY->state = INDIGO_BUSY_STATE;
 			indigo_update_property(device, MOUNT_PARK_PROPERTY, "Parking...");
 			MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target = fmod(indigo_lst(NULL, MOUNT_GEOGRAPHIC_COORDINATES_LONGITUDE_ITEM->number.value) - (PRIVATE_DATA->ha = MOUNT_PARK_POSITION_HA_ITEM->number.value) + 24, 24);
@@ -235,8 +247,9 @@ static indigo_result mount_change_property(indigo_device *device, indigo_client 
 			PRIVATE_DATA->slew_in_progress = true;
 			MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = MOUNT_RAW_COORDINATES_PROPERTY->state = INDIGO_BUSY_STATE;
 			indigo_update_coordinates(device, NULL);
-		} else {
+		} else if (MOUNT_PARK_UNPARKED_ITEM->sw.value && (PRIVATE_DATA->parking || PRIVATE_DATA->parked)) {
 			indigo_set_switch(MOUNT_TRACKING_PROPERTY, MOUNT_TRACKING_ON_ITEM, true);
+			MOUNT_TRACKING_PROPERTY->state = INDIGO_OK_STATE;
 			indigo_update_property(device, MOUNT_TRACKING_PROPERTY, NULL);
 			MOUNT_PARK_PROPERTY->state = INDIGO_OK_STATE;
 			indigo_update_property(device, MOUNT_PARK_PROPERTY, "Unparked");

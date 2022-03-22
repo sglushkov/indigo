@@ -23,7 +23,7 @@
  \file indigo_dome_talon6ror.c
  */
 
-#define DRIVER_VERSION 0x0001
+#define DRIVER_VERSION 0x0002
 #define DRIVER_NAME	"indigo_dome_talon6ror"
 
 #include <stdlib.h>
@@ -481,10 +481,14 @@ static void dome_close_handler(indigo_device *device) {
 
 static void dome_abort_handler(indigo_device *device) {
 	uint8_t response[RESPONSE_LENGTH];
-	if (talon6ror_command(device, "S", response))
+	if (talon6ror_command(device, "S", response)) {
+		DOME_SHUTTER_CLOSED_ITEM->sw.value = DOME_SHUTTER_OPENED_ITEM->sw.value = false;
+		DOME_SHUTTER_PROPERTY->state = INDIGO_ALERT_STATE;
+		indigo_update_property(device, DOME_SHUTTER_PROPERTY, NULL);
 		DOME_ABORT_MOTION_PROPERTY->state = INDIGO_OK_STATE;
-	else
+	} else {
 		DOME_ABORT_MOTION_PROPERTY->state = INDIGO_ALERT_STATE;
+	}
 	indigo_update_property(device, DOME_ABORT_MOTION_PROPERTY, NULL);
 }
 
@@ -613,6 +617,7 @@ static indigo_result dome_attach(indigo_device *device) {
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_STATUS_VOLTAGE_ITEM, X_STATUS_VOLTAGE_ITEM_NAME, "Voltage", 0, 10000, 1, 0);
 		// --------------------------------------------------------------------------------
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		pthread_mutex_init(&PRIVATE_DATA->mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return dome_enumerate_properties(device, NULL, NULL);
@@ -661,7 +666,6 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		if (DOME_ABORT_MOTION_ITEM->sw.value && DOME_SHUTTER_PROPERTY->state == INDIGO_BUSY_STATE) {
 			DOME_ABORT_MOTION_ITEM->sw.value = false;
 			DOME_ABORT_MOTION_PROPERTY->state = INDIGO_BUSY_STATE;
-			DOME_SHUTTER_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, DOME_ABORT_MOTION_PROPERTY, NULL);
 			indigo_set_timer(device, 0, dome_abort_handler, NULL);
 		} else {

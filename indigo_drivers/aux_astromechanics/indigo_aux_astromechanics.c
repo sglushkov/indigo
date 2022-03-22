@@ -24,7 +24,7 @@
  */
 
 
-#define DRIVER_VERSION 0x0001
+#define DRIVER_VERSION 0x0002
 #define DRIVER_NAME "indigo_aux_astromechanics"
 
 #include <stdlib.h>
@@ -117,6 +117,7 @@ static indigo_result aux_attach(indigo_device *device) {
 		// -------------------------------------------------------------------------------- INFO
 		strcpy(INFO_DEVICE_MODEL_ITEM->text.value, "ASTROMECHANICS Light Pollution Meter");
 		// --------------------------------------------------------------------------------
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		pthread_mutex_init(&PRIVATE_DATA->mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_aux_enumerate_properties(device, NULL, NULL);

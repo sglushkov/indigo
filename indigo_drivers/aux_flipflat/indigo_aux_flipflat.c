@@ -23,7 +23,7 @@
  \file indigo_aux_flipflat.c
  */
 
-#define DRIVER_VERSION 0x0005
+#define DRIVER_VERSION 0x0006
 #define DRIVER_NAME "indigo_aux_flipflat"
 
 #include <stdlib.h>
@@ -114,6 +114,7 @@ static indigo_result aux_attach(indigo_device *device) {
 		strcpy(DEVICE_PORT_ITEM->text.value, "/dev/ttyUSB0");
 #endif
 		// --------------------------------------------------------------------------------
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		pthread_mutex_init(&PRIVATE_DATA->mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_aux_enumerate_properties(device, NULL, NULL);
@@ -308,20 +309,29 @@ static indigo_result aux_change_property(indigo_device *device, indigo_client *c
 		// -------------------------------------------------------------------------------- AUX_LIGHT_SWITCH
 	} else if (indigo_property_match(AUX_LIGHT_SWITCH_PROPERTY, property)) {
 		indigo_property_copy_values(AUX_LIGHT_SWITCH_PROPERTY, property, false);
-		if (IS_CONNECTED)
+		if (IS_CONNECTED) {
+			AUX_LIGHT_SWITCH_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_update_property(device, AUX_LIGHT_SWITCH_PROPERTY, NULL);
 			indigo_set_timer(device, 0, aux_switch_handler, NULL);
+		}
 		return INDIGO_OK;
 		// -------------------------------------------------------------------------------- AUX_LIGHT_INTENSITY
 	} else if (indigo_property_match(AUX_LIGHT_INTENSITY_PROPERTY, property)) {
 		indigo_property_copy_values(AUX_LIGHT_INTENSITY_PROPERTY, property, false);
-		if (IS_CONNECTED)
+		if (IS_CONNECTED) {
+			AUX_LIGHT_INTENSITY_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_update_property(device, AUX_LIGHT_INTENSITY_PROPERTY, NULL);
 			indigo_set_timer(device, 0, aux_intensity_handler, NULL);
+		}
 		return INDIGO_OK;
 		// -------------------------------------------------------------------------------- AUX_COVER
 	} else if (indigo_property_match(AUX_COVER_PROPERTY, property)) {
 		indigo_property_copy_values(AUX_COVER_PROPERTY, property, false);
-		if (IS_CONNECTED)
+		if (IS_CONNECTED) {
+			AUX_COVER_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_update_property(device, AUX_COVER_PROPERTY, NULL);
 			indigo_set_timer(device, 0, aux_cover_handler, NULL);
+		}
 		return INDIGO_OK;
 	}
 	return indigo_aux_change_property(device, client, property);

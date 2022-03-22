@@ -23,7 +23,7 @@
  \file indigo_dome_skyroof.c
  */
 
-#define DRIVER_VERSION 0x0006
+#define DRIVER_VERSION 0x0007
 #define DRIVER_NAME	"indigo_dome_skyroof"
 
 #include <stdlib.h>
@@ -235,10 +235,13 @@ static void dome_close_handler(indigo_device *device) {
 
 static void dome_abort_handler(indigo_device *device) {
 	char response[RESPONSE_LENGTH];
-	if (skyroof_command(device, "Stop#", response) && !strcmp(response, "0#"))
+	if (skyroof_command(device, "Stop#", response) && !strcmp(response, "0#")) {
+		DOME_SHUTTER_PROPERTY->state = INDIGO_ALERT_STATE;
+		indigo_update_property(device, DOME_SHUTTER_PROPERTY, NULL);
 		DOME_ABORT_MOTION_PROPERTY->state = INDIGO_OK_STATE;
-	else
+	} else {
 		DOME_ABORT_MOTION_PROPERTY->state = INDIGO_ALERT_STATE;
+	}
 	indigo_update_property(device, DOME_ABORT_MOTION_PROPERTY, NULL);
 }
 
@@ -290,6 +293,7 @@ static indigo_result dome_attach(indigo_device *device) {
 		indigo_init_switch_item(X_HEATER_CONTROL_OFF_ITEM, X_HEATER_CONTROL_OFF_ITEM_NAME, "Off", true);
 		indigo_init_switch_item(X_HEATER_CONTROL_ON_ITEM, X_HEATER_CONTROL_ON_ITEM_NAME, "On", false);
 		// --------------------------------------------------------------------------------
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		pthread_mutex_init(&PRIVATE_DATA->mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return dome_enumerate_properties(device, NULL, NULL);
@@ -327,7 +331,6 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		if (DOME_ABORT_MOTION_ITEM->sw.value && DOME_SHUTTER_PROPERTY->state == INDIGO_BUSY_STATE) {
 			DOME_ABORT_MOTION_ITEM->sw.value = false;
 			DOME_ABORT_MOTION_PROPERTY->state = INDIGO_BUSY_STATE;
-			DOME_SHUTTER_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, DOME_ABORT_MOTION_PROPERTY, NULL);
 			indigo_set_timer(device, 0, dome_abort_handler, NULL);
 		} else {
@@ -342,9 +345,11 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 			indigo_property_copy_values(DOME_SHUTTER_PROPERTY, property, false);
 			if (DOME_SHUTTER_OPENED_ITEM->sw.value && (PRIVATE_DATA->closed || DOME_SHUTTER_PROPERTY->state != INDIGO_OK_STATE)) {
 				DOME_SHUTTER_PROPERTY->state = INDIGO_BUSY_STATE;
+				indigo_update_property(device, DOME_SHUTTER_PROPERTY, NULL);
 				indigo_set_timer(device, 0, dome_open_handler, NULL);
 			} else if (DOME_SHUTTER_CLOSED_ITEM->sw.value && (!PRIVATE_DATA->closed || DOME_SHUTTER_PROPERTY->state != INDIGO_OK_STATE)) {
 				DOME_SHUTTER_PROPERTY->state = INDIGO_BUSY_STATE;
+				indigo_update_property(device, DOME_SHUTTER_PROPERTY, NULL);
 				indigo_set_timer(device, 0, dome_close_handler, NULL);
 			}
 		}

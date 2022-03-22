@@ -25,7 +25,7 @@
  \NOTE: This file should be .cpp as qhy headers are in C++
  */
 
-#define DRIVER_VERSION 0x0011
+#define DRIVER_VERSION 0x0013
 
 #include <stdlib.h>
 #include <string.h>
@@ -1541,7 +1541,7 @@ static indigo_result wheel_detach(indigo_device *device) {
 
 // -------------------------------------------------------------------------------- hot-plug support
 
-static pthread_mutex_t device_mutex = PTHREAD_MUTEX_INITIALIZER;
+//static pthread_mutex_t device_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #define MAX_DEVICES                   32
 #define NOT_FOUND                    (-1)
@@ -1682,7 +1682,7 @@ static void process_plug_event() {
 	qhy_private_data *private_data = (qhy_private_data*)indigo_safe_malloc(sizeof(qhy_private_data));
 	sprintf(private_data->dev_sid, "%s", sid);
 	device->private_data = private_data;
-	indigo_async((void *(*)(void *))indigo_attach_device, device);
+	indigo_attach_device(device);
 	devices[slot]=device;
 
 	if (check_st4 == QHYCCD_SUCCESS) {
@@ -1698,7 +1698,7 @@ static void process_plug_event() {
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		private_data->fw_count = FW_COUNT; /* No way to get it from SDK but all QHY FWs have 5 or 7 slots */
 		device->private_data = private_data;
-		indigo_async((void *(*)(void *))indigo_attach_device, device);
+		indigo_attach_device(device);
 		devices[slot]=device;
 	}
 
@@ -1714,7 +1714,7 @@ static void process_plug_event() {
 		sprintf(device->name, "%s Wheel #%s", dev_name, dev_usbpath);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		device->private_data = private_data;
-		indigo_async((void *(*)(void *))indigo_attach_device, device);
+		indigo_attach_device(device);
 		devices[slot]=device;
 	}
 
@@ -1856,7 +1856,7 @@ static void add_all_devices() {
 		memset(private_data, 0, sizeof(qhy_private_data));
 		sprintf(private_data->dev_sid, "%s", sid);
 		device->private_data = private_data;
-		indigo_async((void *(*)(void *))indigo_attach_device, device);
+		indigo_attach_device(device);
 		devices[slot++] = device;
 		if (slot == MAX_DEVICES)
 			break;
@@ -1869,7 +1869,7 @@ static void add_all_devices() {
 			INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 			private_data->fw_count = FW_COUNT;
 			device->private_data = private_data;
-			indigo_async((void *(*)(void *))indigo_attach_device, device);
+			indigo_attach_device(device);
 			devices[slot++] = device;
 		}
 		if (slot == MAX_DEVICES)
@@ -1882,7 +1882,7 @@ static void add_all_devices() {
 			sprintf(device->name, "%s Wheel #%s", dev_name, dev_usbpath);
 			INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 			device->private_data = private_data;
-			indigo_async((void *(*)(void *))indigo_attach_device, device);
+			indigo_attach_device(device);
 			devices[slot++] = device;
 		}
 	}
@@ -1937,7 +1937,7 @@ indigo_result INDIGO_CCD_QHY(indigo_driver_action action, indigo_driver_info *in
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "libusb_hotplug_register_callback ->  %s", rc < 0 ? libusb_error_name(rc) : "OK");
 			return rc >= 0 ? INDIGO_OK : INDIGO_FAILED;
 #else
-			add_all_devices();
+			INDIGO_ASYNC(add_all_devices, NULL);
 			return INDIGO_OK;
 #endif
 
@@ -1966,7 +1966,7 @@ indigo_result INDIGO_CCD_QHY(indigo_driver_action action, indigo_driver_info *in
 	static indigo_driver_action last_action = INDIGO_DRIVER_SHUTDOWN;
 
 	SET_DRIVER_INFO(info, DRIVER_DESCRIPTION, __FUNCTION__, DRIVER_VERSION, true, last_action);
-	
+
 	switch(action) {
 		case INDIGO_DRIVER_INIT:
 		case INDIGO_DRIVER_SHUTDOWN:

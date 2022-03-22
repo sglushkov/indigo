@@ -33,6 +33,21 @@
 #include <indigo/indigo_names.h>
 #include <indigo/indigo_timer.h>
 
+#ifdef INDIGO_LINUX
+#include <malloc.h>
+#define MALLOCED_SIZE malloc_usable_size
+#endif
+
+#ifdef INDIGO_MACOS
+#include <malloc/malloc.h>
+#define MALLOCED_SIZE malloc_size
+#endif
+
+#ifdef INDIGO_WINDOWS
+#include <malloc.h>
+#define MALLOCED_SIZE _msize
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -179,7 +194,17 @@ extern "C" {
 /** Client name for saved configuration reader.
  */
 
+/** ADDITIONAL_INSTANCES  property pointer, property is optional, property change request is handled by indigo_device_change_property.
+ */
+#define ADDITIONAL_INSTANCES_PROPERTY					(DEVICE_CONTEXT->device_inst_property)
+
+/** ADDITIONAL_INSTANCES.COUNT property item pointer.
+ */
+#define ADDITIONAL_INSTANCES_COUNT_ITEM			(ADDITIONAL_INSTANCES_PROPERTY->items+0)
+
+
 #define CONFIG_READER								"CONFIG_READER"
+#define MAX_ADDITIONAL_INSTANCES		4
 
 /** Device driver entrypoint actions
  */
@@ -223,6 +248,9 @@ typedef struct {
 	indigo_property *device_baudrate_property;///< DEVICE_BAUDRATE property pointer
 	indigo_property *device_ports_property;		///< DEVICE_PORTS property pointer
 	indigo_property *device_auth_property;		///< SECURITY property pointer
+	indigo_property *device_inst_property;		///< ADDITIONAL_INSTANCES  property pointer
+	indigo_device *base_device;								///< base instance for additional devices
+	indigo_device *additional_device_instances[MAX_ADDITIONAL_INSTANCES]; ///< additional device instances
 } indigo_device_context;
 
 /** log macros
@@ -256,6 +284,12 @@ typedef struct {
 	if (device) {\
 		if (!IS_DISCONNECTED)\
 			return INDIGO_BUSY;\
+		for (int i = 0; i < MAX_ADDITIONAL_INSTANCES; i++) {\
+			indigo_device *tmp = DEVICE_CONTEXT->additional_device_instances[i];\
+			indigo_device *device = tmp;\
+			if (device != NULL && !IS_DISCONNECTED)\
+				return INDIGO_BUSY;\
+		}\
 		indigo_usleep(100000);\
 	}\
 }

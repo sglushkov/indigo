@@ -67,11 +67,13 @@
 #include <indigo/indigo_names.h>
 #include <indigo/indigo_io.h>
 
+#define MAX_SLAVE_DEVICES 10
+
 indigo_result indigo_try_global_lock(indigo_device *device) {
 	if (indigo_is_sandboxed)
 		return INDIGO_OK;
 	char tmp_lock_file[255] = "/tmp/indigo_lock_";
-	if (device->master_device) {
+	if (device->master_device != NULL && device->master_device != device) {
 		if (device->master_device->lock > 0) return INDIGO_FAILED;
 		strncat(tmp_lock_file, device->master_device->name, 250);
 	} else {
@@ -338,7 +340,23 @@ indigo_result indigo_device_attach(indigo_device *device, const char* driver_nam
 		AUTHENTICATION_PROPERTY->hidden = true;
 		indigo_init_text_item(AUTHENTICATION_PASSWORD_ITEM, AUTHENTICATION_PASSWORD_ITEM_NAME, "Password", "");
 		indigo_init_text_item(AUTHENTICATION_USER_ITEM, AUTHENTICATION_USER_ITEM_NAME, "User name", "");
+		// -------------------------------------------------------------------------------- ADDITIONAL_INSTANCES
+		ADDITIONAL_INSTANCES_PROPERTY = indigo_init_number_property(NULL, device->name, ADDITIONAL_INSTANCES_PROPERTY_NAME, MAIN_GROUP, "Additional instances", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
+		if (ADDITIONAL_INSTANCES_PROPERTY == NULL)
+			return INDIGO_FAILED;
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = true;
+		indigo_init_number_item(ADDITIONAL_INSTANCES_COUNT_ITEM, ADDITIONAL_INSTANCES_COUNT_ITEM_NAME, "Count", 0, MAX_ADDITIONAL_INSTANCES, 1, 0);
 		pthread_mutex_init(&DEVICE_CONTEXT->config_mutex, NULL);
+		indigo_device *master_device = device->master_device;
+		if (DEVICE_CONTEXT->base_device == NULL && master_device != NULL && master_device != device) {
+			// create the same number of additional devices as defined on the master device
+			int count = ((((indigo_device_context *)master_device->device_context)->device_inst_property)->items)->number.value;
+			if (count > 0) {
+				const char *names[] = { ADDITIONAL_INSTANCES_COUNT_ITEM_NAME };
+				const double values[] = { count };
+				indigo_change_number_property(NULL, device->name, ADDITIONAL_INSTANCES_PROPERTY_NAME, 1, names, values);
+			}
+		}
 		return INDIGO_OK;
 	}
 	return INDIGO_FAILED;
@@ -363,6 +381,8 @@ indigo_result indigo_device_enumerate_properties(indigo_device *device, indigo_c
 		indigo_define_property(device, DEVICE_PORTS_PROPERTY, NULL);
 	if (indigo_property_match(AUTHENTICATION_PROPERTY, property) && !AUTHENTICATION_PROPERTY->hidden)
 		indigo_define_property(device, AUTHENTICATION_PROPERTY, NULL);
+	if (indigo_property_match(ADDITIONAL_INSTANCES_PROPERTY, property) && !ADDITIONAL_INSTANCES_PROPERTY->hidden)
+		indigo_define_property(device, ADDITIONAL_INSTANCES_PROPERTY, NULL);
 	if (indigo_property_match(CONNECTION_PROPERTY, property) && !CONNECTION_PROPERTY->hidden)
 		indigo_define_property(device, CONNECTION_PROPERTY, NULL);
 	return INDIGO_OK;
@@ -404,6 +424,8 @@ indigo_result indigo_device_change_property(indigo_device *device, indigo_client
 			indigo_save_property(device, NULL, SIMULATION_PROPERTY);
 			indigo_save_property(device, NULL, DEVICE_PORT_PROPERTY);
 			indigo_save_property(device, NULL, DEVICE_BAUDRATE_PROPERTY);
+			if (DEVICE_CONTEXT->base_device == NULL)
+				indigo_save_property(device, NULL, ADDITIONAL_INSTANCES_PROPERTY);
 			if (DEVICE_CONTEXT->property_save_file_handle) {
 				CONFIG_PROPERTY->state = INDIGO_OK_STATE;
 				close(DEVICE_CONTEXT->property_save_file_handle);
@@ -431,7 +453,7 @@ indigo_result indigo_device_change_property(indigo_device *device, indigo_client
 		if (*DEVICE_PORT_ITEM->text.value == '/') {
 			if (!access(DEVICE_PORT_ITEM->text.value, R_OK)) {
 				DEVICE_PORT_PROPERTY->state = INDIGO_OK_STATE;
-				indigo_save_property(device, NULL, DEVICE_PORT_PROPERTY);
+				//indigo_save_property(device, NULL, DEVICE_PORT_PROPERTY);
 				indigo_update_property(device, DEVICE_PORT_PROPERTY, NULL);
 			} else {
 				DEVICE_PORT_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -439,7 +461,7 @@ indigo_result indigo_device_change_property(indigo_device *device, indigo_client
 			}
 		} else {
 			DEVICE_PORT_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_save_property(device, NULL, DEVICE_PORT_PROPERTY);
+			//indigo_save_property(device, NULL, DEVICE_PORT_PROPERTY);
 			indigo_update_property(device, DEVICE_PORT_PROPERTY, NULL);
 		}
 	} else if (indigo_property_match_w(DEVICE_BAUDRATE_PROPERTY, property)) {
@@ -468,7 +490,7 @@ indigo_result indigo_device_change_property(indigo_device *device, indigo_client
 			DEVICE_PORT_PROPERTY->state = INDIGO_ALERT_STATE;
 		} else {
 			DEVICE_PORT_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_save_property(device, NULL, DEVICE_PORT_PROPERTY);
+			//indigo_save_property(device, NULL, DEVICE_PORT_PROPERTY);
 		}
 		indigo_update_property(device, DEVICE_PORT_PROPERTY, NULL);
 		DEVICE_PORTS_PROPERTY->state = INDIGO_OK_STATE;
@@ -478,6 +500,86 @@ indigo_result indigo_device_change_property(indigo_device *device, indigo_client
 		indigo_property_copy_values(AUTHENTICATION_PROPERTY, property, false);
 		PROFILE_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_update_property(device, AUTHENTICATION_PROPERTY, NULL);
+	} else if (indigo_property_match(ADDITIONAL_INSTANCES_PROPERTY, property)) {
+		// -------------------------------------------------------------------------------- ADDITIONAL_INSTANCES
+		assert(DEVICE_CONTEXT->base_device == NULL);
+		indigo_device *slave_devices[MAX_SLAVE_DEVICES];
+		int saved_count = ADDITIONAL_INSTANCES_COUNT_ITEM->number.value;
+		indigo_property_copy_values(ADDITIONAL_INSTANCES_PROPERTY, property, false);
+		int count = ADDITIONAL_INSTANCES_COUNT_ITEM->number.value;
+		if (device->master_device == NULL || device->master_device == device) {
+			for (int i = count; i < MAX_ADDITIONAL_INSTANCES; i++) {
+				indigo_device *additional_device = DEVICE_CONTEXT->additional_device_instances[i];
+				if (additional_device != NULL) {
+					if (((indigo_device_context *)additional_device->device_context)->connection_property->items->sw.value) {
+						ADDITIONAL_INSTANCES_COUNT_ITEM->number.target = ADDITIONAL_INSTANCES_COUNT_ITEM->number.value = saved_count;
+						ADDITIONAL_INSTANCES_PROPERTY->state = INDIGO_ALERT_STATE;
+						indigo_update_property(device, ADDITIONAL_INSTANCES_PROPERTY, "Device %s is connected", additional_device->name);
+						return INDIGO_OK;
+					}
+					int slave_count = indigo_query_slave_devices(device, slave_devices, MAX_SLAVE_DEVICES);
+					for (int j = 0; j < slave_count; j++) {
+						indigo_device *slave_device = slave_devices[j];
+						for (int k = count; k < MAX_ADDITIONAL_INSTANCES; k++) {
+							indigo_device *additional_device = ((indigo_device_context *)slave_device->device_context)->additional_device_instances[k];
+							if (additional_device != NULL && ((indigo_device_context *)additional_device->device_context)->connection_property->items->sw.value) {
+								ADDITIONAL_INSTANCES_COUNT_ITEM->number.target = ADDITIONAL_INSTANCES_COUNT_ITEM->number.value = saved_count;
+								ADDITIONAL_INSTANCES_PROPERTY->state = INDIGO_ALERT_STATE;
+								indigo_update_property(device, ADDITIONAL_INSTANCES_PROPERTY, "Device %s is connected", additional_device->name);
+								return INDIGO_OK;
+							}
+						}
+					}
+				}
+			}
+		}
+		for (int i = 0; i < count; i++) {
+			if (DEVICE_CONTEXT->additional_device_instances[i] == NULL) {
+				indigo_device *additional_device = indigo_safe_malloc_copy(sizeof(indigo_device), device);
+				snprintf(additional_device->name, INDIGO_NAME_SIZE, "%s #%d", device->name, i + 2);
+				additional_device->lock = -1;
+				additional_device->is_remote = false;
+				additional_device->gp_bits = 0;
+				additional_device->last_result = 0;
+				additional_device->access_token = 0;
+				additional_device->device_context = indigo_safe_malloc(MALLOCED_SIZE(device->device_context));
+				if (device->master_device == NULL) {
+					additional_device->master_device = NULL;
+					additional_device->private_data = indigo_safe_malloc(MALLOCED_SIZE(device->private_data));
+				} else if (device->master_device == device) {
+					additional_device->master_device = additional_device;
+					additional_device->private_data = indigo_safe_malloc(MALLOCED_SIZE(device->private_data));
+				} else {
+					indigo_device *master_device = ((indigo_device_context *)device->master_device->device_context)->additional_device_instances[i];
+					additional_device->master_device = master_device;
+					additional_device->private_data = master_device->private_data;
+				}
+				((indigo_device_context *)additional_device->device_context)->base_device = device;
+				indigo_attach_device(additional_device);
+				DEVICE_CONTEXT->additional_device_instances[i] = additional_device;
+			}
+		}
+		if (device->master_device == NULL || device->master_device == device) {
+			int slave_count = indigo_query_slave_devices(device, slave_devices, MAX_SLAVE_DEVICES);
+			for (int j = 0; j < slave_count; j++) {
+				const char *names[] = { ADDITIONAL_INSTANCES_COUNT_ITEM_NAME };
+				const double values[] = { count };
+				indigo_change_number_property(client, slave_devices[j]->name, ADDITIONAL_INSTANCES_PROPERTY_NAME, 1, names, values);
+			}
+		}
+		for (int i = count; i < MAX_ADDITIONAL_INSTANCES; i++) {
+			indigo_device *additional_device = DEVICE_CONTEXT->additional_device_instances[i];
+			if (additional_device != NULL) {
+				if (indigo_detach_device(additional_device) != INDIGO_NOT_FOUND) {
+					if (additional_device->master_device == NULL || additional_device->master_device == additional_device)
+						free(additional_device->private_data);
+					free(additional_device);
+				}
+				DEVICE_CONTEXT->additional_device_instances[i] = NULL;
+			}
+		}
+		ADDITIONAL_INSTANCES_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, ADDITIONAL_INSTANCES_PROPERTY, NULL);
 		// --------------------------------------------------------------------------------
 	}
 	return INDIGO_OK;
@@ -485,6 +587,19 @@ indigo_result indigo_device_change_property(indigo_device *device, indigo_client
 
 indigo_result indigo_device_detach(indigo_device *device) {
 	assert(device != NULL);
+	if (DEVICE_CONTEXT->base_device == NULL) {
+		for (int i = 0; i < MAX_ADDITIONAL_INSTANCES; i++) {
+			indigo_device *additional_device = DEVICE_CONTEXT->additional_device_instances[i];
+			if (additional_device != NULL) {
+				if (indigo_detach_device(additional_device) != INDIGO_NOT_FOUND) {
+					if (additional_device->master_device == NULL || additional_device->master_device == additional_device)
+						free(additional_device->private_data);
+					free(additional_device);
+				}
+				DEVICE_CONTEXT->additional_device_instances[i] = NULL;
+			}
+		}
+	}
 	indigo_cancel_all_timers(device);
 	indigo_release_property(CONNECTION_PROPERTY);
 	indigo_release_property(INFO_PROPERTY);
@@ -495,6 +610,7 @@ indigo_result indigo_device_detach(indigo_device *device) {
 	indigo_release_property(CONFIG_PROPERTY);
 	indigo_release_property(PROFILE_PROPERTY);
 	indigo_release_property(AUTHENTICATION_PROPERTY);
+	indigo_release_property(ADDITIONAL_INSTANCES_PROPERTY);
 	indigo_property *all_properties = indigo_init_text_property(NULL, device->name, "", "", "", INDIGO_OK_STATE, INDIGO_RO_PERM, 0);
 	indigo_delete_property(device, all_properties, NULL);
 	indigo_release_property(all_properties);

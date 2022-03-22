@@ -630,7 +630,7 @@ static duk_ret_t delete_property(duk_context *ctx) {
 
 static void timer_handler(indigo_device *device, void *data) {
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
-	uintptr_t index = (int)data;
+	uintptr_t index = (uintptr_t)data;
 	duk_push_global_object(PRIVATE_DATA->ctx);
 	duk_get_prop_string(PRIVATE_DATA->ctx, -1, "indigo_timers");
 	duk_push_number(PRIVATE_DATA->ctx, (double)(index - 1));
@@ -723,8 +723,12 @@ static indigo_result agent_device_attach(indigo_device *device) {
 		CONNECTION_PROPERTY->hidden = true;
 		CONFIG_PROPERTY->hidden = true;
 		PROFILE_PROPERTY->hidden = true;
-		PRIVATE_DATA->ctx = duk_create_heap_default();
-		if (PRIVATE_DATA->ctx) {
+    pthread_mutexattr_t Attr;
+    pthread_mutexattr_init(&Attr);
+    pthread_mutexattr_settype(&Attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&PRIVATE_DATA->mutex, &Attr);
+		if ((PRIVATE_DATA->ctx = duk_create_heap_default())) {
+      pthread_mutex_lock(&PRIVATE_DATA->mutex);
 			duk_push_c_function(PRIVATE_DATA->ctx, error_message, 1);
 			duk_put_global_string(PRIVATE_DATA->ctx, "indigo_error");
 			duk_push_c_function(PRIVATE_DATA->ctx, log_message, 1);
@@ -772,11 +776,8 @@ static indigo_result agent_device_attach(indigo_device *device) {
 			} else {
 				INDIGO_DRIVER_DEBUG(DRIVER_NAME, "boot.js executed");
 			}
+      pthread_mutex_unlock(&PRIVATE_DATA->mutex);
 		}
-		pthread_mutexattr_t Attr;
-		pthread_mutexattr_init(&Attr);
-		pthread_mutexattr_settype(&Attr, PTHREAD_MUTEX_RECURSIVE);
-		pthread_mutex_init(&PRIVATE_DATA->mutex, &Attr);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return agent_enumerate_properties(device, NULL, NULL);
 	}
@@ -1023,19 +1024,21 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 			}
 		}
 	}
-	pthread_mutex_lock(&PRIVATE_DATA->mutex);
-	duk_push_global_object(PRIVATE_DATA->ctx);
-	if (duk_get_prop_string(PRIVATE_DATA->ctx, -1, "indigo_on_change_property")) {
-		duk_push_string(PRIVATE_DATA->ctx, property->device);
-		duk_push_string(PRIVATE_DATA->ctx, property->name);
-		push_items(property, true);
-		push_state(property->state);
-		if (duk_pcall(PRIVATE_DATA->ctx, 4)) {
-			INDIGO_DRIVER_ERROR(DRIVER_NAME, "indigo_on_change_property() call failed (%s)", duk_safe_to_string(PRIVATE_DATA->ctx, -1));
-		}
-	}
-	duk_pop_2(PRIVATE_DATA->ctx);
-	pthread_mutex_unlock(&PRIVATE_DATA->mutex);
+  if (PRIVATE_DATA->ctx) {
+    pthread_mutex_lock(&PRIVATE_DATA->mutex);
+    duk_push_global_object(PRIVATE_DATA->ctx);
+    if (duk_get_prop_string(PRIVATE_DATA->ctx, -1, "indigo_on_change_property")) {
+      duk_push_string(PRIVATE_DATA->ctx, property->device);
+      duk_push_string(PRIVATE_DATA->ctx, property->name);
+      push_items(property, true);
+      push_state(property->state);
+      if (duk_pcall(PRIVATE_DATA->ctx, 4)) {
+        INDIGO_DRIVER_ERROR(DRIVER_NAME, "indigo_on_change_property() call failed (%s)", duk_safe_to_string(PRIVATE_DATA->ctx, -1));
+      }
+    }
+    duk_pop_2(PRIVATE_DATA->ctx);
+    pthread_mutex_unlock(&PRIVATE_DATA->mutex);
+  }
 	return indigo_device_change_property(device, client, property);
 }
 

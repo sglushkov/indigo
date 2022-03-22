@@ -71,6 +71,7 @@ bool is_10micron = false;
 bool is_gemini = false;
 bool is_avalon = false;
 bool is_onstep = false;
+bool is_zwo = false;
 
 int date_day = 1;
 int date_month = 1;
@@ -100,7 +101,7 @@ char tracking_rate = 'Q';
 char slew_rate = 'M';
 
 bool is_slewing = false;
-bool is_tracking = true;
+bool is_tracking = false;
 bool is_parked = false;
 
 char ra_guiding_speed[3] = "50";
@@ -174,6 +175,37 @@ void setup() {
   DISPLAY_END();
 	Serial.begin(9600);
   Serial.setTimeout(1000);
+  if (is_onstep) {
+    Serial.print(
+      "MSG: OnStep 4.24j\n"
+      "MSG: MCU =\n"
+      "ESP32, Pinmap = ESP32 Essential v1\n"
+      "MSG: Init HAL\n"
+      "MSG: Init serial\n"
+      "MSG: Init pins\n"
+      "MSG: Init TLS\n"
+      "MSG: Start NV 4096 Bytes\n"
+      "MSG: Init NV Axis1 defaults\n"
+      "MSG: Init NV Axis2 defaults\n"
+      "MSG: Init NV Axis3 defaults\n"
+      "MSG: Init NV Axis4 defaults\n"
+      "MSG: Init NV Axis5 defaults\n"
+      "MSG: Read NV settings\n"
+      "MSG: Init startup settings\n"
+      "MSG: Init library/catalogs\n"
+      "MSG: Init guiding\n"
+      "MSG: Init weather\n"
+      "MSG: Init sidereal timer\n"
+      "MSG: Init motor timers\n"
+      "MSG: Axis1/2 stepper drivers enabled\n"
+      "MSG: Axis1/2 stepper drivers disabled\n"
+      "MSG: Serial buffer flush\n"
+      "MSG: OnStep is ready\n");
+  }
+  if (is_10micron) {
+    is_tracking = false;
+    is_parked = true;
+  }
   while (!Serial)
     ;
 }
@@ -199,6 +231,15 @@ void loop() {
 					Serial.print("Avalon#");
 				else if (is_onstep)
 					Serial.print("On-Step#");
+				else if (is_zwo)
+					Serial.print("ZWO AM5#");
+			} else if (!strcmp(buffer, "GV")) {
+				Serial.print("1.0.0#");
+      } else if (!strcmp(buffer, "GU")) {
+        Serial.print("G");
+        Serial.print(is_tracking ? "" : "n");
+        Serial.print(is_slewing ? "" : "N");        
+        Serial.print("#");
       } else if (!strcmp(buffer, "GVF")) {
 				Serial.print("ETX Autostar|A|43Eg|Apr 03 2007@11:25:53#");
       } else if (!strcmp(buffer, "GVN")) {
@@ -211,7 +252,7 @@ void loop() {
 				date_day = atoi(buffer + 5);
 				date_month = atoi(buffer + 2);
 				date_year = 2000 + atoi(buffer + 8);
-        if (is_onstep)
+        if (is_onstep || is_zwo)
           Serial.print("1");
         else
   				Serial.print("1Updating planetary data#                        #");
@@ -367,7 +408,7 @@ void loop() {
           Serial.print("m11#");
         else
           Serial.print("m00#");
-      } else if (!strcmp(buffer, "hP") || !strcmp(buffer, "hC") || !strcmp(buffer, "X362") || !strcmp(buffer, "Ch")) {
+      } else if (!strcmp(buffer, "hP") || !strcmp(buffer, "hC") || !strcmp(buffer, "X362") || !strcmp(buffer, "Ch") || !strcmp(buffer, "KA")) {
         target_ra = 0;
         target_dec = 90L * 360000L;
         is_tracking = false;

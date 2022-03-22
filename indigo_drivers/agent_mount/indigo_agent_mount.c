@@ -23,7 +23,7 @@
  \file indigo_agent_mount.c
  */
 
-#define DRIVER_VERSION 0x0009
+#define DRIVER_VERSION 0x000C
 #define DRIVER_NAME	"indigo_agent_mount"
 
 #include <stdlib.h>
@@ -42,6 +42,7 @@
 #include <indigo/indigo_filter.h>
 #include <indigo/indigo_io.h>
 #include <indigo/indigo_mount_driver.h>
+#include <indigo/indigo_align.h>
 
 #include "indigo_agent_mount.h"
 
@@ -69,6 +70,7 @@
 
 #define AGENT_LX200_CONFIGURATION_PROPERTY						(DEVICE_PRIVATE_DATA->agent_lx200_configuration_property)
 #define AGENT_LX200_CONFIGURATION_PORT_ITEM						(AGENT_LX200_CONFIGURATION_PROPERTY->items+0)
+#define AGENT_LX200_CONFIGURATION_EPOCH_ITEM					(AGENT_LX200_CONFIGURATION_PROPERTY->items+1)
 
 #define AGENT_LIMITS_PROPERTY													(DEVICE_PRIVATE_DATA->agent_limits_property)
 #define AGENT_HA_TRACKING_LIMIT_ITEM									(AGENT_LIMITS_PROPERTY->items+0)
@@ -108,6 +110,7 @@ static void save_config(indigo_device *device) {
 		indigo_save_property(device, NULL, AGENT_LX200_CONFIGURATION_PROPERTY);
 		indigo_save_property(device, NULL, AGENT_MOUNT_FOV_PROPERTY);
 		indigo_save_property(device, NULL, AGENT_SET_HOST_TIME_PROPERTY);
+		indigo_save_property(device, NULL, ADDITIONAL_INSTANCES_PROPERTY);
 		double tmp_ha_tracking_limit = AGENT_HA_TRACKING_LIMIT_ITEM->number.value;
 		AGENT_HA_TRACKING_LIMIT_ITEM->number.value = AGENT_HA_TRACKING_LIMIT_ITEM->number.target;
 		double tmp_local_time_limit = AGENT_LOCAL_TIME_LIMIT_ITEM->number.value;
@@ -265,10 +268,11 @@ static indigo_result agent_device_attach(indigo_device *device) {
 			return INDIGO_FAILED;
 		indigo_init_switch_item(AGENT_LX200_SERVER_STARTED_ITEM, AGENT_LX200_SERVER_STARTED_ITEM_NAME, "Start LX200 server", false);
 		indigo_init_switch_item(AGENT_LX200_SERVER_STOPPED_ITEM, AGENT_LX200_SERVER_STOPPED_ITEM_NAME, "Stop LX200 server", true);
-		AGENT_LX200_CONFIGURATION_PROPERTY = indigo_init_number_property(NULL, device->name, AGENT_LX200_CONFIGURATION_PROPERTY_NAME, "Agent", "LX200 Server configuration", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
+		AGENT_LX200_CONFIGURATION_PROPERTY = indigo_init_number_property(NULL, device->name, AGENT_LX200_CONFIGURATION_PROPERTY_NAME, "Agent", "LX200 Server configuration", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
 		if (AGENT_LX200_CONFIGURATION_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(AGENT_LX200_CONFIGURATION_PORT_ITEM, AGENT_LX200_CONFIGURATION_PORT_ITEM_NAME, "Server port", 0, 0xFFFF, 0, 4030);
+		indigo_init_number_item(AGENT_LX200_CONFIGURATION_EPOCH_ITEM, AGENT_LX200_CONFIGURATION_EPOCH_ITEM_NAME, "Epoch (0 = JNow)", 0, 2050, 0, 0);
 		// -------------------------------------------------------------------------------- AGENT_LIMITS
 		AGENT_LIMITS_PROPERTY = indigo_init_number_property(NULL, device->name, AGENT_LIMITS_PROPERTY_NAME, "Agent", "Limits", INDIGO_OK_STATE, INDIGO_RW_PERM, 3);
 		if (AGENT_LIMITS_PROPERTY == NULL)
@@ -285,6 +289,7 @@ static indigo_result agent_device_attach(indigo_device *device) {
 		indigo_init_sexagesimal_number_item(AGENT_MOUNT_FOV_HEIGHT_ITEM, AGENT_MOUNT_FOV_HEIGHT_ITEM_NAME, "Height (°)", 0, 360, 0, 0);
 		// --------------------------------------------------------------------------------
 		CONNECTION_PROPERTY->hidden = true;
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		pthread_mutex_init(&DEVICE_PRIVATE_DATA->mutex, NULL);
 		indigo_load_properties(device, false);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
@@ -382,9 +387,15 @@ static void worker_thread(handler_data *data) {
 			if (strcmp(buffer_in, "GVP") == 0) {
 				strcpy(buffer_out, "indigo#");
 			} else if (strcmp(buffer_in, "GR") == 0) {
-				strcpy(buffer_out, doubleToSexa(DEVICE_PRIVATE_DATA->mount_ra, "%02d:%02d:%02d#"));
+				double ra = DEVICE_PRIVATE_DATA->mount_ra;
+				double dec = DEVICE_PRIVATE_DATA->mount_dec;
+				indigo_j2k_to_eq(AGENT_LX200_CONFIGURATION_EPOCH_ITEM->number.value, &ra, &dec);
+				strcpy(buffer_out, doubleToSexa(ra, "%02d:%02d:%02d#"));
 			} else if (strcmp(buffer_in, "GD") == 0) {
-				strcpy(buffer_out, doubleToSexa(DEVICE_PRIVATE_DATA->mount_dec, "%+03d*%02d'%02d#"));
+				double ra = DEVICE_PRIVATE_DATA->mount_ra;
+				double dec = DEVICE_PRIVATE_DATA->mount_dec;
+				indigo_j2k_to_eq(AGENT_LX200_CONFIGURATION_EPOCH_ITEM->number.value, &ra, &dec);
+				strcpy(buffer_out, doubleToSexa(dec, "%+03d*%02d'%02d#"));
 			} else if (strncmp(buffer_in, "Sr", 2) == 0) {
 				int h = 0, m = 0;
 				double s = 0;
@@ -414,13 +425,19 @@ static void worker_thread(handler_data *data) {
 			} else if (strncmp(buffer_in, "MS", 2) == 0) {
 				indigo_change_switch_property_1(FILTER_DEVICE_CONTEXT->client, mount_name, MOUNT_PARK_PROPERTY_NAME, MOUNT_PARK_UNPARKED_ITEM_NAME, true);
 				indigo_change_switch_property_1(FILTER_DEVICE_CONTEXT->client, mount_name, MOUNT_ON_COORDINATES_SET_PROPERTY_NAME, MOUNT_ON_COORDINATES_SET_TRACK_ITEM_NAME, true);
-				double values[] = { DEVICE_PRIVATE_DATA->mount_target_ra, DEVICE_PRIVATE_DATA->mount_target_dec };
+				double ra = DEVICE_PRIVATE_DATA->mount_target_ra;
+				double dec = DEVICE_PRIVATE_DATA->mount_target_dec;
+				indigo_eq_to_j2k(AGENT_LX200_CONFIGURATION_EPOCH_ITEM->number.value, &ra, &dec);
+				double values[] = { ra, dec };
 				indigo_change_number_property(FILTER_DEVICE_CONTEXT->client, mount_name, MOUNT_EQUATORIAL_COORDINATES_PROPERTY_NAME, 2, COORDINATE_NAMES, values);
 				strcpy(buffer_out, "0");
 			} else if (strncmp(buffer_in, "CM", 2) == 0) {
 				indigo_change_switch_property_1(FILTER_DEVICE_CONTEXT->client, mount_name, MOUNT_PARK_PROPERTY_NAME, MOUNT_PARK_UNPARKED_ITEM_NAME, true);
 				indigo_change_switch_property_1(FILTER_DEVICE_CONTEXT->client, mount_name, MOUNT_ON_COORDINATES_SET_PROPERTY_NAME, MOUNT_ON_COORDINATES_SET_SYNC_ITEM_NAME, true);
-				double values[] = { DEVICE_PRIVATE_DATA->mount_target_ra, DEVICE_PRIVATE_DATA->mount_target_dec };
+				double ra = DEVICE_PRIVATE_DATA->mount_target_ra;
+				double dec = DEVICE_PRIVATE_DATA->mount_target_dec;
+				indigo_eq_to_j2k(AGENT_LX200_CONFIGURATION_EPOCH_ITEM->number.value, &ra, &dec);
+				double values[] = { ra, dec };
 				indigo_change_number_property(FILTER_DEVICE_CONTEXT->client, mount_name, MOUNT_EQUATORIAL_COORDINATES_PROPERTY_NAME, 2, COORDINATE_NAMES, values);
 				strcpy(buffer_out, "OK#");
 			} else if (strcmp(buffer_in, "RG") == 0) {
@@ -614,7 +631,7 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 		indigo_property_copy_values(AGENT_LX200_CONFIGURATION_PROPERTY, property, false);
 		AGENT_LX200_CONFIGURATION_PROPERTY->state = INDIGO_OK_STATE;
 		save_config(device);
-		indigo_update_property(device, AGENT_LX200_SERVER_PROPERTY, NULL);
+		indigo_update_property(device, AGENT_LX200_CONFIGURATION_PROPERTY, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match(AGENT_LIMITS_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- AGENT_LIMITS
@@ -629,6 +646,12 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 		AGENT_MOUNT_FOV_PROPERTY->state = INDIGO_OK_STATE;
 		save_config(device);
 		indigo_update_property(device, AGENT_MOUNT_FOV_PROPERTY, NULL);
+		return INDIGO_OK;
+		// -------------------------------------------------------------------------------- ADDITIONAL_INSTANCES
+	} else if (indigo_property_match(ADDITIONAL_INSTANCES_PROPERTY, property)) {
+		if (indigo_filter_change_property(device, client, property) == INDIGO_OK) {
+			save_config(device);
+		}
 		return INDIGO_OK;
 	}
 	return indigo_filter_change_property(device, client, property);
@@ -734,8 +757,8 @@ static void process_snooping(indigo_client *client, indigo_device *device, indig
 					indigo_property *agent_park_property;
 					if (indigo_filter_cached_property(FILTER_CLIENT_CONTEXT->device, INDIGO_FILTER_MOUNT_INDEX, MOUNT_PARK_PROPERTY_NAME, NULL, &agent_park_property) && agent_park_property->state == INDIGO_OK_STATE) {
 						for (int j = 0; j < agent_park_property->count; j++) {
-							if (!strcmp(agent_park_property->items[j].name, MOUNT_PARK_UNPARKED_ITEM_NAME)) {
-								if (agent_park_property->items[j].sw.value) {
+							if (!strcmp(agent_park_property->items[j].name, MOUNT_PARK_PARKED_ITEM_NAME)) {
+								if (!agent_park_property->items[j].sw.value) {
 									bool park = false;
 									if (ha > CLIENT_PRIVATE_DATA->agent_limits_property->items[0].number.target) {
 										park = true;

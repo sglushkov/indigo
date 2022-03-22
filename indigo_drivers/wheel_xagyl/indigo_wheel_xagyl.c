@@ -116,8 +116,6 @@ static void xagyl_query(indigo_device *device) {
 
 static void xagyl_goto(indigo_device *device, int slot) {
 	indigo_printf(PRIVATE_DATA->handle, "G%d", slot);
-	WHEEL_SLOT_PROPERTY->state = INDIGO_BUSY_STATE;
-	indigo_update_property(device, WHEEL_SLOT_PROPERTY, NULL);
 	indigo_set_timer(device, 1, xagyl_query, NULL);
 }
 
@@ -138,6 +136,7 @@ static indigo_result wheel_attach(indigo_device *device) {
 		DEVICE_PORT_PROPERTY->hidden = false;
 		DEVICE_PORTS_PROPERTY->hidden = false;
 		INFO_PROPERTY->count = 8;
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_wheel_enumerate_properties(device, NULL, NULL);
 	}

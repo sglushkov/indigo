@@ -933,7 +933,7 @@ bool ptp_open(indigo_device *device) {
 			rc = libusb_claim_interface(handle, interface_number);
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "libusb_claim_interface(%d) -> %s", interface_number, rc < 0 ? libusb_error_name(rc) : "OK");
 			if (rc == LIBUSB_ERROR_ACCESS) {
-				indigo_send_message(device, "The camera is probably used by another program!");
+				indigo_send_message(device, "Failed to connect, the camera is probably used by another program!");
 				indigo_usleep((i + 1) * ONE_SECOND_DELAY);
 			} else {
 				break;
@@ -1222,6 +1222,8 @@ bool ptp_update_property(indigo_device *device, ptp_property *property) {
 				if (property->property->count != property->count) {
 					if (property->count > property->property->count)
 						property->property = indigo_resize_property(property->property, property->count);
+					else
+						property->property->count = property->count;
 					define = true;
 				}
 				char str[INDIGO_NAME_SIZE];
@@ -1308,6 +1310,20 @@ bool ptp_update_property(indigo_device *device, ptp_property *property) {
 		}
 	}
 	return true;
+}
+
+bool ptp_refresh_property(indigo_device *device, ptp_property *property) {
+	bool result = false;
+	if (property) {
+		void *buffer = NULL;
+		uint32_t size = 0;
+		if (ptp_transaction_1_0_i(device, ptp_operation_GetDevicePropDesc, property->code, &buffer, &size)) {
+			result = ptp_decode_property(buffer, size, device, property);
+		}
+		if (buffer)
+			free(buffer);
+	}
+	return result;
 }
 
 bool ptp_get_event(indigo_device *device) {
@@ -1488,7 +1504,7 @@ bool ptp_check_jpeg_ext(const char *ext) {
 	return strcmp(ext, ".JPG") == 0 || strcmp(ext, ".jpg") == 0 || strcmp(ext, ".JPEG") == 0 || strcmp(ext, ".jpeg") == 0;
 }
 
-double timestamp() {
+double timestamp(void) {
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
 	return ts.tv_sec + ts.tv_nsec / 1000000000.0;

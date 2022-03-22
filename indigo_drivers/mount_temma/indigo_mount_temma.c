@@ -184,7 +184,6 @@ static bool temma_command(indigo_device *device, char *command, bool wait) {
 	if (wait) {
 		char buffer[128];
 		int index = 0;
-		int timeout = 3;
 		int max = sizeof(buffer) - 1;
 		while (index < max) {
 			fd_set readout;
@@ -192,7 +191,6 @@ static bool temma_command(indigo_device *device, char *command, bool wait) {
 			FD_SET(PRIVATE_DATA->handle, &readout);
 			tv.tv_sec = 0;
 			tv.tv_usec = 300000;
-			timeout = 0;
 			long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
 			if (result <= 0) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "select failed from %s -> %s (%d)", DEVICE_PORT_ITEM->text.value, strerror(errno), errno);
@@ -381,6 +379,7 @@ static indigo_result mount_attach(indigo_device *device) {
 			return INDIGO_FAILED;
 		indigo_init_switch_item(ZENITH_EAST_ITEM, ZENITH_EAST_ITEM_NAME, "East zenith", false);
 		indigo_init_switch_item(ZENITH_WEST_ITEM, ZENITH_WEST_ITEM_NAME, "West zenith", false);
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 
 		pthread_mutex_init(&PRIVATE_DATA->port_mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);

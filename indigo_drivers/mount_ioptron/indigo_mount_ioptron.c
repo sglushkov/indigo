@@ -23,7 +23,7 @@
  \file indigo_mount_ioptron.c
  */
 
-#define DRIVER_VERSION 0x001C
+#define DRIVER_VERSION 0x0021
 #define DRIVER_NAME	"indigo_mount_ioptron"
 
 #include <stdlib.h>
@@ -322,9 +322,13 @@ static void position_timer_callback(indigo_device *device) {
 						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
 						break;
 					case '2': // slewing
-					case '3': // guiding
-					case '4': // meridian flipping
 						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_BUSY_STATE;
+						break;
+					case '3': // guiding
+						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
+						break;
+					case '4': // meridian flipping
+						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
 						break;
 					case '1': // tracking with PEC disabled
 					case '5': // tracking with PEC enabled (only for non-encoder edition)
@@ -449,9 +453,13 @@ static void position_timer_callback(indigo_device *device) {
 						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
 						break;
 					case '2': // slewing
-					case '3': // guiding
-					case '4': // meridian flipping
 						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_BUSY_STATE;
+						break;
+					case '3': // guiding
+						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
+						break;
+					case '4': // meridian flipping
+						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
 						break;
 					case '1': // tracking with PEC disabled
 					case '5': // tracking with PEC enabled (only for non-encoder edition)
@@ -555,9 +563,13 @@ static void position_timer_callback(indigo_device *device) {
 						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
 						break;
 					case '2': // slewing
-					case '3': // guiding
-					case '4': // meridian flipping
 						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_BUSY_STATE;
+						break;
+					case '3': // guiding
+						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
+						break;
+					case '4': // meridian flipping
+						MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
 						break;
 					case '1': // tracking with PEC disabled
 					case '5': // tracking with PEC enabled (only for non-encoder edition)
@@ -763,11 +775,11 @@ static void mount_connect_callback(indigo_device *device) {
 						PRIVATE_DATA->protocol = 0x0300;
 						PRIVATE_DATA->no_park = false;
 					}
-					if (strncmp("201030", response, 6) <= 0 && (product == 26 || product == 28)) {
+					if (strncmp("201030", response, 6) <= 0 && (product == 26 || product == 27 || product == 28)) {
 						PRIVATE_DATA->protocol = 0x0300;
 						PRIVATE_DATA->no_park = false;
 					}
-					if (strncmp("210101", response, 6) <= 0 && (product == 27 || product == 29 || product == 40  || product == 41 || product == 43  || product == 44)) {
+					if (strncmp("210101", response, 6) <= 0 && (product == 29 || product == 40  || product == 41 || product == 43  || product == 44)) {
 						PRIVATE_DATA->protocol = 0x0300;
 						PRIVATE_DATA->no_park = false;
 					}
@@ -1838,9 +1850,11 @@ static void guider_guide_dec_callback(indigo_device *device) {
 	if (GUIDER_GUIDE_NORTH_ITEM->number.value > 0) {
 		sprintf(command, ":Mn%05d#", (int)GUIDER_GUIDE_NORTH_ITEM->number.value);
 		ieq_command(device, command, NULL, 0);
+		indigo_usleep(1000 * (int)GUIDER_GUIDE_NORTH_ITEM->number.value);
 	} else if (GUIDER_GUIDE_SOUTH_ITEM->number.value > 0) {
 		sprintf(command, ":Ms%05d#", (int)GUIDER_GUIDE_SOUTH_ITEM->number.value);
 		ieq_command(device, command, NULL, 0);
+		indigo_usleep(1000 * (int)GUIDER_GUIDE_SOUTH_ITEM->number.value);
 	}
 	GUIDER_GUIDE_NORTH_ITEM->number.value = GUIDER_GUIDE_SOUTH_ITEM->number.value = 0;
 	GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_OK_STATE;
@@ -1855,9 +1869,11 @@ static void guider_guide_ra_callback(indigo_device *device) {
 	if (GUIDER_GUIDE_WEST_ITEM->number.value > 0) {
 		sprintf(command, ":Mw%05d#", (int)GUIDER_GUIDE_WEST_ITEM->number.value);
 		ieq_command(device, command, NULL, 0);
+		indigo_usleep(1000 * (int)GUIDER_GUIDE_WEST_ITEM->number.value);
 	} else if (GUIDER_GUIDE_EAST_ITEM->number.value > 0) {
 		sprintf(command, ":Me%05d#", (int)GUIDER_GUIDE_EAST_ITEM->number.value);
 		ieq_command(device, command, NULL, 0);
+		indigo_usleep(1000 * (int)GUIDER_GUIDE_EAST_ITEM->number.value);
 	}
 	GUIDER_GUIDE_WEST_ITEM->number.value = GUIDER_GUIDE_EAST_ITEM->number.value = 0;
 	GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_OK_STATE;
@@ -1900,6 +1916,7 @@ static indigo_result mount_attach(indigo_device *device) {
 		indigo_init_switch_item(MOUNT_HOME_SEARCH_ITEM, MOUNT_HOME_SEARCH_ITEM_NAME, "Search mechanical zero position", false);
 		MOUNT_HOME_PROPERTY->count = 1;
 		// --------------------------------------------------------------------------------
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_mount_enumerate_properties(device, NULL, NULL);
 	}
@@ -1936,10 +1953,13 @@ static indigo_result mount_change_property(indigo_device *device, indigo_client 
 		return INDIGO_OK;
 	} else if (indigo_property_match(MOUNT_PARK_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- MOUNT_PARK
+		bool parked = MOUNT_PARK_PARKED_ITEM->sw.value;
 		indigo_property_copy_values(MOUNT_PARK_PROPERTY, property, false);
-		MOUNT_PARK_PROPERTY->state = INDIGO_BUSY_STATE;
-		indigo_update_property(device, MOUNT_PARK_PROPERTY, NULL);
-		indigo_set_timer(device, 0, mount_park_callback, NULL);
+		if (parked != MOUNT_PARK_PARKED_ITEM->sw.value) {
+			MOUNT_PARK_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_update_property(device, MOUNT_PARK_PROPERTY, NULL);
+			indigo_set_timer(device, 0, mount_park_callback, NULL);
+		}
 		return INDIGO_OK;
 	} else if (indigo_property_match(MOUNT_HOME_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- MOUNT_HOME
@@ -2082,6 +2102,7 @@ static indigo_result guider_attach(indigo_device *device) {
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_guider_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
 		GUIDER_RATE_PROPERTY->hidden = false;
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_guider_enumerate_properties(device, NULL, NULL);
 	}
@@ -2102,11 +2123,15 @@ static indigo_result guider_change_property(indigo_device *device, indigo_client
 	} else if (indigo_property_match(GUIDER_GUIDE_DEC_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- GUIDER_GUIDE_DEC
 		indigo_property_copy_values(GUIDER_GUIDE_DEC_PROPERTY, property, false);
+		GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_BUSY_STATE;
+		indigo_update_property(device, GUIDER_GUIDE_DEC_PROPERTY, NULL);
 		indigo_set_timer(device, 0, guider_guide_dec_callback, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match(GUIDER_GUIDE_RA_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- GUIDER_GUIDE_RA
 		indigo_property_copy_values(GUIDER_GUIDE_RA_PROPERTY, property, false);
+		GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_BUSY_STATE;
+		indigo_update_property(device, GUIDER_GUIDE_RA_PROPERTY, NULL);
 		indigo_set_timer(device, 0, guider_guide_ra_callback, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match(GUIDER_RATE_PROPERTY, property)) {

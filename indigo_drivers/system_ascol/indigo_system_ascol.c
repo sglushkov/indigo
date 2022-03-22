@@ -616,8 +616,8 @@ static void mount_handle_t3_speed(indigo_device *device) {
 
 static void mount_handle_tracking(indigo_device *device) {
 	int res = ASCOL_OK;
-	char *description;
-	uint16_t condition;
+	char *description = NULL;
+	uint16_t condition = 0;
 	pthread_mutex_lock(&PRIVATE_DATA->net_mutex);
 	if (MOUNT_TRACKING_ON_ITEM->sw.value) {
 		condition = asocol_check_conditions(PRIVATE_DATA->glst, ASCOL_COND_TE_ON, &description);
@@ -676,8 +676,8 @@ static void mount_handle_oil_power(indigo_device *device) {
 
 static void mount_handle_telescope_power(indigo_device *device) {
 	int res = ASCOL_OK;
-	char *description;
-	uint16_t condition;
+	char *description = NULL;
+	uint16_t condition = 0;
 	pthread_mutex_lock(&PRIVATE_DATA->net_mutex);
 	if (TELESCOPE_ON_ITEM->sw.value) {
 		condition = asocol_check_conditions(PRIVATE_DATA->glst, ASCOL_COND_OIL_ON, &description);
@@ -712,8 +712,8 @@ static void mount_handle_telescope_power(indigo_device *device) {
 
 static void mount_handle_ra_calibration(indigo_device *device) {
 	int res = ASCOL_OK;
-	char *description;
-	uint16_t condition;
+	char *description = NULL;
+	uint16_t condition = 0;
 	pthread_mutex_lock(&PRIVATE_DATA->net_mutex);
 	if (RA_CALIBRATION_START_ITEM->sw.value) {
 		condition = asocol_check_conditions(PRIVATE_DATA->glst, ASCOL_COND_OIL_ON | ASCOL_COND_TE_ON | ASCOL_COND_TE_STOP | ASCOL_COND_BRIGE_PARKED, &description);
@@ -748,8 +748,8 @@ static void mount_handle_ra_calibration(indigo_device *device) {
 
 static void mount_handle_dec_calibration(indigo_device *device) {
 	int res = ASCOL_OK;
-	char *description;
-	uint16_t condition;
+	char *description = NULL;
+	uint16_t condition = 0;
 	pthread_mutex_lock(&PRIVATE_DATA->net_mutex);
 	if (DEC_CALIBRATION_START_ITEM->sw.value) {
 		condition = asocol_check_conditions(PRIVATE_DATA->glst, ASCOL_COND_OIL_ON | ASCOL_COND_TE_ON | ASCOL_COND_TE_STOP | ASCOL_COND_BRIGE_PARKED, &description);
@@ -1100,11 +1100,9 @@ static void mount_update_state() {
 
 	static ascol_glst_t prev_glst = {0};
 	static ascol_oimv_t prev_oimv = {0};
-	static ascol_glme_t prev_glme = {0};
 	static bool update_all = true;
 
 	char *descr, *descrs;
-	int index;
 
 	if (update_all || (prev_glst.state_bits != PRIVATE_DATA->glst.state_bits)) {
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Updating AXIS_CALIBRATED_PROPERTY (dev = %d)", PRIVATE_DATA->dev_id);
@@ -1703,7 +1701,6 @@ static indigo_result mount_change_property(indigo_device *device, indigo_client 
 		if (CONNECTION_CONNECTED_ITEM->sw.value) {
 			if (!device->is_connected) {
 				if (ascol_device_open(device)) {
-					int dev_id = PRIVATE_DATA->dev_id;
 					CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 					indigo_define_property(device, OIL_POWER_PROPERTY, NULL);
 					indigo_define_property(device, OIL_STATE_PROPERTY, NULL);
@@ -2127,7 +2124,7 @@ static indigo_result guider_change_property(indigo_device *device, indigo_client
 		indigo_property_copy_values(GUIDER_GUIDE_DEC_PROPERTY, property, false);
 		GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_OK_STATE;
 
-		double ra_gv, dec_gv, new_dec_gv;
+		double ra_gv, dec_gv, new_dec_gv = 0;
 		pthread_mutex_lock(&PRIVATE_DATA->net_mutex);
 		int res = ascol_TRGV(PRIVATE_DATA->dev_id, &ra_gv, &dec_gv);
 		pthread_mutex_unlock(&PRIVATE_DATA->net_mutex);
@@ -2164,7 +2161,7 @@ static indigo_result guider_change_property(indigo_device *device, indigo_client
 		indigo_cancel_timer(device, &PRIVATE_DATA->guider_timer_ra);
 		indigo_property_copy_values(GUIDER_GUIDE_RA_PROPERTY, property, false);
 		GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_OK_STATE;
-		double ra_gv, dec_gv, new_ra_gv;
+		double ra_gv, dec_gv, new_ra_gv = 0;
 		pthread_mutex_lock(&PRIVATE_DATA->net_mutex);
 		int res = ascol_TRGV(PRIVATE_DATA->dev_id, &ra_gv, &dec_gv);
 		pthread_mutex_unlock(&PRIVATE_DATA->net_mutex);
@@ -2601,7 +2598,6 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		if (CONNECTION_CONNECTED_ITEM->sw.value) {
 			if (!device->is_connected) {
 				if (ascol_device_open(device)) {
-					int dev_id = PRIVATE_DATA->dev_id;
 					CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 					indigo_define_property(device, DOME_POWER_PROPERTY, NULL);
 					indigo_define_property(device, DOME_STATE_PROPERTY, NULL);
@@ -2929,7 +2925,6 @@ static indigo_result focuser_change_property(indigo_device *device, indigo_clien
 		if (CONNECTION_CONNECTED_ITEM->sw.value) {
 			if (!device->is_connected) {
 				if (ascol_device_open(device)) {
-					int dev_id = PRIVATE_DATA->dev_id;
 					CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 					indigo_define_property(device, FOCUSER_STATE_PROPERTY, NULL);
 					device->is_connected = true;
@@ -3069,7 +3064,7 @@ static void panel_timer_callback(indigo_device *device) {
 	static ascol_glst_t prev_glst = {0};
 	static ascol_glme_t prev_glme = {0};
 	static bool update_all = true;
-	char *descr, *descrs;
+	char *descr;
 	int index;
 
 	pthread_mutex_lock(&PRIVATE_DATA->net_mutex);

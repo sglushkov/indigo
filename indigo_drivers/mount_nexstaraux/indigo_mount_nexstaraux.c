@@ -23,7 +23,7 @@
  \file indigo_mount_nexstaraux.c
  */
 
-#define DRIVER_VERSION 0x0001
+#define DRIVER_VERSION 0x0002
 #define DRIVER_NAME	"indigo_mount_nexstaraux"
 
 #include <stdlib.h>
@@ -302,6 +302,7 @@ static indigo_result mount_attach(indigo_device *device) {
 		// -------------------------------------------------------------------------------- MOUNT_SIDE_OF_PIER
 		MOUNT_SIDE_OF_PIER_PROPERTY->hidden = true;
 		// --------------------------------------------------------------------------------
+		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		pthread_mutex_init(&PRIVATE_DATA->port_mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return mount_enumerate_properties(device, NULL, NULL);
@@ -396,8 +397,6 @@ static void mount_tracking_handler(indigo_device *device) {
 
 static void mount_equatorial_coordinates_handler(indigo_device *device) {
 	unsigned char reply[16] = { 0 };
-	MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_BUSY_STATE;
-	indigo_update_property(device, MOUNT_EQUATORIAL_COORDINATES_PROPERTY, NULL);
 	double lst = indigo_lst(NULL, MOUNT_GEOGRAPHIC_COORDINATES_LONGITUDE_ITEM->number.value);
 	double ha_angle = fmod(lst - MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target + 24, 24);
 	double dec_angle = MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target;
@@ -615,6 +614,8 @@ static indigo_result mount_change_property(indigo_device *device, indigo_client 
 			indigo_property_copy_values(MOUNT_EQUATORIAL_COORDINATES_PROPERTY, property, false);
 			MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value = ra;
 			MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.value = dec;
+			MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_update_property(device, MOUNT_EQUATORIAL_COORDINATES_PROPERTY, NULL);
 			indigo_set_timer(device, 0, mount_equatorial_coordinates_handler, NULL);
 		}
 	} else if (indigo_property_match(MOUNT_ABORT_MOTION_PROPERTY, property)) {
@@ -731,8 +732,6 @@ static void guider_timer_ra_handler(indigo_device *device) {
 	unsigned char rate = 1;
 	unsigned duration = 0;
 	commands direction = 0;
-	GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_BUSY_STATE;
-	indigo_update_property(device, GUIDER_GUIDE_RA_PROPERTY, NULL);
 	if (GUIDER_GUIDE_EAST_ITEM->number.value > 0) {
 		direction = MC_MOVE_POS;
 		duration = GUIDER_GUIDE_EAST_ITEM->number.value;
@@ -764,8 +763,6 @@ static void guider_timer_dec_handler(indigo_device *device) {
 	unsigned char rate = 1;
 	unsigned duration = 0;
 	commands direction = 0;
-	GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_BUSY_STATE;
-	indigo_update_property(device, GUIDER_GUIDE_DEC_PROPERTY, NULL);
 	if (GUIDER_GUIDE_NORTH_ITEM->number.value > 0) {
 		direction = MC_MOVE_POS;
 		duration = GUIDER_GUIDE_NORTH_ITEM->number.value;
@@ -809,13 +806,18 @@ static indigo_result guider_change_property(indigo_device *device, indigo_client
 		indigo_cancel_timer(device, &PRIVATE_DATA->guider_timer_dec);
 		indigo_property_copy_values(GUIDER_GUIDE_DEC_PROPERTY, property, false);
 		if (PRIVATE_DATA->guider_timer_dec == NULL) {
+			GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_update_property(device, GUIDER_GUIDE_DEC_PROPERTY, NULL);
 			indigo_set_timer(device, 0, guider_timer_dec_handler, &PRIVATE_DATA->guider_timer_dec);
 		}
 		return INDIGO_OK;
 	} else if (indigo_property_match(GUIDER_GUIDE_RA_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- GUIDER_GUIDE_RA
+		indigo_cancel_timer(device, &PRIVATE_DATA->guider_timer_ra);
 		indigo_property_copy_values(GUIDER_GUIDE_RA_PROPERTY, property, false);
 		if (PRIVATE_DATA->guider_timer_ra == NULL) {
+			GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_update_property(device, GUIDER_GUIDE_RA_PROPERTY, NULL);
 			indigo_set_timer(device, 0, guider_timer_ra_handler, &PRIVATE_DATA->guider_timer_ra);
 		}
 		return INDIGO_OK;

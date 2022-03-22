@@ -25,7 +25,7 @@
 
 #include "indigo_dome_dragonfly.h"
 
-#define DRIVER_VERSION         0x0004
+#define DRIVER_VERSION         0x0005
 
 #define DOME_DRAGONFLY_NAME    "Dome Dragonfly"
 #define AUX_DRAGONFLY_NAME     "Dragonfly Controller"
@@ -189,13 +189,10 @@ typedef struct {
 	lunatico_private_data *private_data;
 } lunatico_device_data;
 
-static void compensate_focus(indigo_device *device, double new_temp);
-
 static lunatico_device_data device_data[MAX_PHYSICAL_DEVICES] = {0};
 
 static void create_port_device(int p_device_index, int l_device_index, device_type_t type);
 static void delete_port_device(int p_device_index, int l_device_index);
-
 
 #include "../aux_dragonfly/shared/dragonfly_shared.c"
 
@@ -367,8 +364,6 @@ static indigo_result lunatico_common_update_property(indigo_device *device, indi
 // --------------------------------------------------------------------------------- INDIGO AUX RELAYS device implementation
 
 static void sensors_timer_callback(indigo_device *device) {
-	int sensor_value;
-	bool success;
 	int sensors[8];
 
 	if (!lunatico_analog_read_sensors(device, sensors)) {
@@ -1074,8 +1069,6 @@ static indigo_result dome_detach(indigo_device *device) {
 }
 
 // --------------------------------------------------------------------------------
-
-static int device_number = 0;
 
 static void create_port_device(int p_device_index, int l_device_index, device_type_t device_type) {
 
