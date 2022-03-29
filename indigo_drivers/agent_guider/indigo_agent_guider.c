@@ -928,7 +928,7 @@ static void _calibrate_process(indigo_device *device, bool will_guide) {
 					break;
 				}
 				indigo_update_property(device, AGENT_GUIDER_STATS_PROPERTY, "Moving south");
-				for (int i = 0; i < last_count; i++) {
+				for (int i = 0; i <= last_count; i++) {
 					if (!guide_and_capture_frame(device, 0, -AGENT_GUIDER_SETTINGS_STEP_ITEM->number.value)) {
 						DEVICE_PRIVATE_DATA->phase = FAILED;
 						break;
@@ -936,8 +936,14 @@ static void _calibrate_process(indigo_device *device, bool will_guide) {
 					indigo_update_property(device, AGENT_GUIDER_STATS_PROPERTY, NULL);
 				}
 				if (DEVICE_PRIVATE_DATA->phase == MOVE_SOUTH) {
-					if (DEVICE_PRIVATE_DATA->drift < last_drift) {
-						AGENT_GUIDER_SETTINGS_BACKLASH_ITEM->number.value = AGENT_GUIDER_SETTINGS_BACKLASH_ITEM->number.target = round(1000 * (last_drift - DEVICE_PRIVATE_DATA->drift)) / 1000;
+					/* allow for 1 step measurement error  */
+					if (DEVICE_PRIVATE_DATA->drift < last_drift + last_drift / last_count) {
+						double backlash = round(1000 * (last_drift - DEVICE_PRIVATE_DATA->drift)) / 1000;
+						if (backlash < 0) {
+							indigo_error("Warning: Negative backlash %.3fpx, set to 0", backlash);
+							backlash = 0;
+						}
+						AGENT_GUIDER_SETTINGS_BACKLASH_ITEM->number.value = AGENT_GUIDER_SETTINGS_BACKLASH_ITEM->number.target = backlash;
 					} else {
 						AGENT_GUIDER_SETTINGS_BACKLASH_ITEM->number.value = AGENT_GUIDER_SETTINGS_BACKLASH_ITEM->number.target = 0;
 						indigo_send_message(device, "Warning: Inconsitent backlash");
@@ -1001,7 +1007,7 @@ static void _calibrate_process(indigo_device *device, bool will_guide) {
 					break;
 				}
 				indigo_update_property(device, AGENT_GUIDER_STATS_PROPERTY, "Moving east");
-				for (int i = 0; i < last_count; i++) {
+				for (int i = 0; i <= last_count; i++) {
 					if (!guide_and_capture_frame(device, -AGENT_GUIDER_SETTINGS_STEP_ITEM->number.value, 0)) {
 						DEVICE_PRIVATE_DATA->phase = FAILED;
 						break;
@@ -1177,17 +1183,17 @@ static void guide_process(indigo_device *device) {
 			/* Apply DEC backlash. It is after AGENT_GUIDER_STATS_CORR_DEC_ITEM asignment, so that it will not show on the correction graph. */
 			if (AGENT_GUIDER_APPLY_DEC_BACKLASH_ENABLED_ITEM->sw.value) {
 				if ((prev_correction_dec <= 0 && correction_dec <= 0) || (prev_correction_dec >= 0 && correction_dec >= 0)) {
-					indigo_error("(-) No Dec backlash appled: prev_correction_dec = %.3fs, correction_dec = %.3fs", prev_correction_dec, correction_dec);
+					indigo_debug("(-) No Dec backlash appled: prev_correction_dec = %.3fs, correction_dec = %.3fs", prev_correction_dec, correction_dec);
 				} else {
 					double backlash = fabs(AGENT_GUIDER_SETTINGS_BACKLASH_ITEM->number.value / AGENT_GUIDER_SETTINGS_SPEED_DEC_ITEM->number.value);
-					indigo_error("(+) Dec backlash appled: prev_correction_dec = %.3fs, correction_dec = %.3fs, backlash = %.3fs", prev_correction_dec, correction_dec, backlash);
+					indigo_debug("(+) Dec backlash appled: prev_correction_dec = %.3fs, correction_dec = %.3fs, backlash = %.3fs", prev_correction_dec, correction_dec, backlash);
 					/* apply backlash only if correction_dec != 0 (+0 or -0 are excluded too) */
 					if (correction_dec > 0) {
 						correction_dec += backlash;
 					} else if (correction_dec < 0) {
 						correction_dec -= backlash;
 					}
-					indigo_error("(+) correction_dec with backlash = %.3fs", correction_dec);
+					indigo_debug("(+) correction_dec + backlash = %.3fs", correction_dec);
 				}
 			}
 			/* save current dec corrction as previous dec correction only if it will be aplied */
