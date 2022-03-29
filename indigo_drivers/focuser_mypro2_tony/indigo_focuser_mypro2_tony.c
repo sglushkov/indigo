@@ -87,22 +87,26 @@
 
 //Tony
 
-#define X_LENSTEMPERATURE_PROPERTY  	   	(PRIVATE_DATA->lenstemperature_property)
-#define X_LENSTEMPERATURE_ITEM            (X_LENSTEMPERATURE_PROPERTY->items+0)
-#define X_TUBETEMPERATURE_ITEM		   			(X_LENSTEMPERATURE_PROPERTY->items+1)
-#define X_AIRTEMPERATURE_ITEM		   				(X_LENSTEMPERATURE_PROPERTY->items+2)
-#define X_AIRHUMIDITY_ITEM		   					(X_LENSTEMPERATURE_PROPERTY->items+3)
-#define X_DEWPOINT_ITEM			   						(X_LENSTEMPERATURE_PROPERTY->items+4)
-#define X_HEATERPOWER_ITEM		   					(X_LENSTEMPERATURE_PROPERTY->items+5)
+#define X_LENSTEMPERATURE_PROPERTY			(PRIVATE_DATA->lenstemperature_property)
+#define X_LENSTEMPERATURE_ITEM				(X_LENSTEMPERATURE_PROPERTY->items+0)
+#define X_TUBETEMPERATURE_ITEM				(X_LENSTEMPERATURE_PROPERTY->items+1)
+#define X_AIRTEMPERATURE_ITEM				(X_LENSTEMPERATURE_PROPERTY->items+2)
+#define X_AIRHUMIDITY_ITEM					(X_LENSTEMPERATURE_PROPERTY->items+3)
+#define X_DEWPOINT_ITEM						(X_LENSTEMPERATURE_PROPERTY->items+4)
+#define X_ALTITUDE_ITEM						(X_LENSTEMPERATURE_PROPERTY->items+5)
+#define X_AIRPRESSURE_ITEM					(X_LENSTEMPERATURE_PROPERTY->items+6)
+#define X_HEATERPOWER_ITEM					(X_LENSTEMPERATURE_PROPERTY->items+7)
 
 
-#define X_LENSTEMPERATURE_PROPERTY_NAME   "DEW"
-#define X_LENSTEMPERATURE_ITEM_NAME       "LENS_TEMP"
-#define X_TUBETEMPERATURE_ITEM_NAME       "TUBE_TEMP"
-#define X_AIRTEMPERATURE_ITEM_NAME	   		"AIR_TEMP"
-#define X_AIRHUMIDITY_ITEM_NAME		   			"AIR_HUM"
-#define X_DEWPOINT_ITEM_NAME		   				"DEW_POINT"
-#define X_HEATERPOWER_ITEM_NAME		   			"HEAT_POWER"
+#define X_LENSTEMPERATURE_PROPERTY_NAME		"DEW"
+#define X_LENSTEMPERATURE_ITEM_NAME			"LENS_TEMP"
+#define X_TUBETEMPERATURE_ITEM_NAME			"TUBE_TEMP"
+#define X_AIRTEMPERATURE_ITEM_NAME			"AIR_TEMP"
+#define X_AIRHUMIDITY_ITEM_NAME				"AIR_HUM"
+#define X_DEWPOINT_ITEM_NAME				"DEW_POINT"
+#define X_ALTITUDE_ITEM_NAME				"ALTITUDE"
+#define X_AIRPRESSURE_ITEM_NAME				"AIR_PRESURE"
+#define X_HEATERPOWER_ITEM_NAME				"HEAT_POWER"
 
 //end Tony
 
@@ -123,6 +127,8 @@ typedef struct {
 	double airtemperature;
 	double dewpoint;
 	double airhumidity;
+	double altitude;
+	double airpressure;
 	double heaterpower;
 // end tony
 	indigo_timer *focuser_timer, *temperature_timer;
@@ -466,6 +472,31 @@ static bool mfp_get_dewpoint(indigo_device *device, double *dewpoint) {
         return false;
 }
 
+static bool mfp_get_altitude(indigo_device *device, double *altitude) {
+        char response[MFP_CMD_LEN]={0};
+        if (mfp_command(device, ":92#", response, sizeof(response), 100)) {
+                int parsed = sscanf(response, "Z%lf#", altitude);
+                if (parsed != 1) return false;
+                INDIGO_DRIVER_DEBUG(DRIVER_NAME, ":92# -> %s = %lf", response, *altitude);
+                return true;
+        }
+        INDIGO_DRIVER_ERROR(DRIVER_NAME, "NO response");
+        return false;
+}
+
+static bool mfp_get_airpressure(indigo_device *device, double *airpressure) {
+        char response[MFP_CMD_LEN]={0};
+        if (mfp_command(device, ":93#", response, sizeof(response), 100)) {
+                int parsed = sscanf(response, "Z%lf#", airpressure);
+                if (parsed != 1) return false;
+                INDIGO_DRIVER_DEBUG(DRIVER_NAME, ":93# -> %s = %lf", response, *airpressure);
+                return true;
+        }
+        INDIGO_DRIVER_ERROR(DRIVER_NAME, "NO response");
+        return false;
+}
+
+
 static bool mfp_get_heaterpower(indigo_device *device, double *heaterpower) {
         char response[MFP_CMD_LEN]={0};
         if (mfp_command(device, ":98#", response, sizeof(response), 100)) {
@@ -662,6 +693,50 @@ static void temperature_timer_callback(indigo_device *device) {
         }
 
 
+		X_LENSTEMPERATURE_PROPERTY->state = INDIGO_OK_STATE;
+         if (!mfp_get_altitude(device, &temp)) {
+                 INDIGO_DRIVER_ERROR(DRIVER_NAME, "mfp_get_altitude(%d, -> %f) failed", PRIVATE_DATA->handle, temp);
+                 X_LENSTEMPERATURE_PROPERTY->state = INDIGO_ALERT_STATE;
+         } else {
+                 X_ALTITUDE_ITEM->number.value = temp;
+                 INDIGO_DRIVER_DEBUG(DRIVER_NAME, "mfp_get_altitude(%d, -> %f) succeeded", PRIVATE_DATA->handle, X_ALTITUDE_ITEM->number.value);
+         }
+
+         if (X_ALTITUDE_ITEM->number.value <= NO_TEMP_READING) {
+                 X_LENSTEMPERATURE_PROPERTY->state = INDIGO_IDLE_STATE;
+                 if (has_sensor) {
+                         INDIGO_DRIVER_LOG(DRIVER_NAME, "The temperature sensor is not connected.");
+                         indigo_update_property(device, X_LENSTEMPERATURE_PROPERTY, "The temperature sensor is not connected.");
+                         has_sensor = false;
+                 }
+         } else {
+                 has_sensor = true;
+                 indigo_update_property(device, X_LENSTEMPERATURE_PROPERTY, NULL);
+         }
+
+
+		 X_LENSTEMPERATURE_PROPERTY->state = INDIGO_OK_STATE;
+          if (!mfp_get_airpressure(device, &temp)) {
+                  INDIGO_DRIVER_ERROR(DRIVER_NAME, "mfp_get_airpressure(%d, -> %f) failed", PRIVATE_DATA->handle, temp);
+                  X_LENSTEMPERATURE_PROPERTY->state = INDIGO_ALERT_STATE;
+          } else {
+                  X_AIRPRESSURE_ITEM->number.value = temp;
+                  INDIGO_DRIVER_DEBUG(DRIVER_NAME, "mfp_get_airpressure(%d, -> %f) succeeded", PRIVATE_DATA->handle, X_AIRPRESSURE_ITEM->number.value);
+          }
+
+          if (X_AIRPRESSURE_ITEM->number.value <= NO_TEMP_READING) {
+                  X_LENSTEMPERATURE_PROPERTY->state = INDIGO_IDLE_STATE;
+                  if (has_sensor) {
+                          INDIGO_DRIVER_LOG(DRIVER_NAME, "The temperature sensor is not connected.");
+                          indigo_update_property(device, X_LENSTEMPERATURE_PROPERTY, "The temperature sensor is not connected.");
+                          has_sensor = false;
+                  }
+          } else {
+                  has_sensor = true;
+                  indigo_update_property(device, X_LENSTEMPERATURE_PROPERTY, NULL);
+          }
+
+
 
        X_LENSTEMPERATURE_PROPERTY->state = INDIGO_OK_STATE;
         if (!mfp_get_heaterpower(device, &temp)) {
@@ -835,15 +910,17 @@ static indigo_result focuser_attach(indigo_device *device) {
 
 //Tony
 //--------------------------------------------------------------------------- Lens Temperature_PROPERTY
-		X_LENSTEMPERATURE_PROPERTY = indigo_init_number_property(NULL, device->name, X_LENSTEMPERATURE_PROPERTY_NAME, "Advanced", "Dew Temps Heater Info", INDIGO_OK_STATE, INDIGO_RO_PERM, 6);
+		X_LENSTEMPERATURE_PROPERTY = indigo_init_number_property(NULL, device->name, X_LENSTEMPERATURE_PROPERTY_NAME, "Advanced", "Dew Temps Heater Info", INDIGO_OK_STATE, INDIGO_RO_PERM, 8);
 			if (X_LENSTEMPERATURE_PROPERTY == NULL)
 				return INDIGO_FAILED;
 			indigo_init_number_item(X_LENSTEMPERATURE_ITEM, X_LENSTEMPERATURE_ITEM_NAME, "Lens Temperature (°C)", -50, 50, 1, 0);
 			indigo_init_number_item(X_TUBETEMPERATURE_ITEM, X_TUBETEMPERATURE_ITEM_NAME, "Tube Temperature (°C)", -50, 50, 1, 0);
-			indigo_init_number_item(X_AIRTEMPERATURE_ITEM, X_AIRTEMPERATURE_ITEM_NAME,   "Air Temperature (°C)", -50, 50, 1, 0);
-			indigo_init_number_item(X_AIRHUMIDITY_ITEM, X_AIRHUMIDITY_ITEM_NAME,	     "Air Humidity (%)", 0, 100, 1, 0);
-			indigo_init_number_item(X_DEWPOINT_ITEM, X_DEWPOINT_ITEM_NAME,		     "Dew Point (°C)", -50, 50, 1, 0);
-			indigo_init_number_item(X_HEATERPOWER_ITEM, X_HEATERPOWER_ITEM_NAME,	     "Heater Power (%)", 0, 100, 1, 0);
+			indigo_init_number_item(X_AIRTEMPERATURE_ITEM, X_AIRTEMPERATURE_ITEM_NAME, "Air Temperature (°C)", -50, 50, 1, 0);
+			indigo_init_number_item(X_AIRHUMIDITY_ITEM, X_AIRHUMIDITY_ITEM_NAME, "Air Humidity (%)", 0, 100, 1, 0);
+			indigo_init_number_item(X_DEWPOINT_ITEM, X_DEWPOINT_ITEM_NAME, "Dew Point (°C)", -50, 50, 1, 0);
+			indigo_init_number_item(X_ALTITUDE_ITEM, X_ALTITUDE_ITEM_NAME, "Altitude (m)", 0, 9000, 1, 0);
+			indigo_init_number_item(X_AIRPRESSURE_ITEM, X_AIRPRESSURE_ITEM_NAME, "Air Pressure (hPa)", 0, 2000, 1, 0);
+			indigo_init_number_item(X_HEATERPOWER_ITEM, X_HEATERPOWER_ITEM_NAME, "Heater Power (%)", 0, 100, 1, 0);
 //end tony
 
 		// --------------------------------------------------------------------------
@@ -1083,7 +1160,7 @@ static indigo_result focuser_change_property(indigo_device *device, indigo_clien
 	} else if (indigo_property_match_w(FOCUSER_POSITION_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- FOCUSER_POSITION
 		indigo_property_copy_values(FOCUSER_POSITION_PROPERTY, property, false);
-		if (!IS_CONNECTED) return INDIGO_OK;							  
+		if (!IS_CONNECTED) return INDIGO_OK;
 		if (FOCUSER_POSITION_ITEM->number.target < 0 || FOCUSER_POSITION_ITEM->number.target > FOCUSER_POSITION_ITEM->number.max) {
 			FOCUSER_POSITION_PROPERTY->state = INDIGO_ALERT_STATE;
 			FOCUSER_STEPS_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -1155,7 +1232,7 @@ static indigo_result focuser_change_property(indigo_device *device, indigo_clien
 	} else if (indigo_property_match(FOCUSER_STEPS_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- FOCUSER_STEPS
 		indigo_property_copy_values(FOCUSER_STEPS_PROPERTY, property, false);
-		if (!IS_CONNECTED) return INDIGO_OK;							  
+		if (!IS_CONNECTED) return INDIGO_OK;
 		if (FOCUSER_STEPS_ITEM->number.value < 0 || FOCUSER_STEPS_ITEM->number.value > FOCUSER_STEPS_ITEM->number.max) {
 			FOCUSER_STEPS_PROPERTY->state = INDIGO_ALERT_STATE;
 			FOCUSER_POSITION_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -1196,7 +1273,7 @@ static indigo_result focuser_change_property(indigo_device *device, indigo_clien
 	} else if (indigo_property_match(FOCUSER_ABORT_MOTION_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- FOCUSER_ABORT_MOTION
 		indigo_property_copy_values(FOCUSER_ABORT_MOTION_PROPERTY, property, false);
-		if (!IS_CONNECTED) return INDIGO_OK;							  
+		if (!IS_CONNECTED) return INDIGO_OK;
 		FOCUSER_STEPS_PROPERTY->state = INDIGO_OK_STATE;
 		FOCUSER_POSITION_PROPERTY->state = INDIGO_OK_STATE;
 		FOCUSER_ABORT_MOTION_PROPERTY->state = INDIGO_OK_STATE;
