@@ -344,7 +344,7 @@ static bool asi_start_exposure(indigo_device *device, double exposure, bool dark
 		return false;
 	}
 
-	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "startting esposure: dev_id = %d, exposure = %f", PRIVATE_DATA->dev_id, exposure);
+	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "starting exposure: dev_id = %d, exposure = %fs", PRIVATE_DATA->dev_id, exposure);
 
 	pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 	res = ASIStartExposure(id, dark);
@@ -363,7 +363,7 @@ static bool asi_read_pixels(indigo_device *device) {
 	int wait_cycles = 30000;    /* 30000*2000us = 1min */
 	status = ASI_EXP_WORKING;
 
-	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "start chekcing exposure status: dev_id = %d, wait_cycles = %d", PRIVATE_DATA->dev_id, wait_cycles);
+	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "start checking exposure status: dev_id = %d, wait_cycles = %d", PRIVATE_DATA->dev_id, wait_cycles);
 
 	/* wait for the exposure to complete */
 	while((status == ASI_EXP_WORKING) && wait_cycles--) {
@@ -373,7 +373,7 @@ static bool asi_read_pixels(indigo_device *device) {
 		indigo_usleep(2000);
 	}
 
-	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "stopped chekcing exposure status: dev_id = %d, wait_cycles = %d, status = %d", PRIVATE_DATA->dev_id, wait_cycles, status);
+	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "stopped checking exposure status: dev_id = %d, wait_cycles = %d, status = %d", PRIVATE_DATA->dev_id, wait_cycles, status);
 
 	if (status == ASI_EXP_SUCCESS) {
 		pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
@@ -447,12 +447,23 @@ static bool asi_set_cooler(indigo_device *device, bool status, double target, do
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASISetControlValue(%d, ASI_COOLER_ON) = %d", id, res);
 		else
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASISetControlValue(%d, ASI_COOLER_ON) = %d", id, res);
-	} else if(status) {
-		res = ASISetControlValue(id, ASI_TARGET_TEMP, (long)target, false);
-		if (res)
-			INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASISetControlValue(%d, ASI_TARGET_TEMP) = %d", id, res);
-		else
-			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASISetControlValue(%d, ASI_TARGET_TEMP) = %d", id, res);
+	} else if (status) {
+		long current_target = 0;
+		res = ASIGetControlValue(id, ASI_TARGET_TEMP, &current_target, &unused);
+		if (res) {
+			INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASIGetControlValue(%d, ASI_TARGET_TEMP) = %d", id, res);
+		} else {
+			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASIGetControlValue(%d, ASI_TARGET_TEMP) = %d", id, res);
+		}
+		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Temperature control: current_target = %d, new_target = %d", current_target, (long)target);
+		if ((long)target != current_target) {
+			res = ASISetControlValue(id, ASI_TARGET_TEMP, (long)target, false);
+			if (res) {
+				INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASISetControlValue(%d, ASI_TARGET_TEMP) = %d", id, res);
+			} else {
+				INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASISetControlValue(%d, ASI_TARGET_TEMP) = %d", id, res);
+			}
+		}
 	}
 
 	res = ASIGetControlValue(id, ASI_COOLER_POWER_PERC, cooler_power, &unused);
