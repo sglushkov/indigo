@@ -23,7 +23,7 @@
  \file indigo_agent_guider.c
  */
 
-#define DRIVER_VERSION 0x0017
+#define DRIVER_VERSION 0x0018
 #define DRIVER_NAME	"indigo_agent_guider"
 
 #include <stdlib.h>
@@ -1226,16 +1226,18 @@ static void guide_process(indigo_device *device) {
 			AGENT_GUIDER_STATS_RMSE_DEC_ITEM->number.value = round(1000 * sqrt(DEVICE_PRIVATE_DATA->rmse_dec_sum / DEVICE_PRIVATE_DATA->rmse_count)) / 1000;
 			if (AGENT_GUIDER_STATS_DITHERING_ITEM->number.value != 0) {
 				bool dithering_finished = false;
-				if (AGENT_GUIDER_DEC_MODE_NONE_ITEM->sw.value) {
-					if (DEVICE_PRIVATE_DATA->rmse_ra_threshold > 0)
-						dithering_finished = DEVICE_PRIVATE_DATA->rmse_count >= AGENT_GUIDER_SETTINGS_DITH_LIMIT_ITEM->number.value && AGENT_GUIDER_STATS_RMSE_RA_ITEM->number.value < DEVICE_PRIVATE_DATA->rmse_ra_threshold;
-					else
-						dithering_finished = DEVICE_PRIVATE_DATA->rmse_count >= AGENT_GUIDER_SETTINGS_DITH_LIMIT_ITEM->number.value;
-				} else {
-					if (DEVICE_PRIVATE_DATA->rmse_ra_threshold > 0 && DEVICE_PRIVATE_DATA->rmse_dec_threshold > 0)
+				if (AGENT_GUIDER_DEC_MODE_BOTH_ITEM->sw.value) {
+					if (DEVICE_PRIVATE_DATA->rmse_ra_threshold > 0 && DEVICE_PRIVATE_DATA->rmse_dec_threshold > 0) {
 						dithering_finished = DEVICE_PRIVATE_DATA->rmse_count >= AGENT_GUIDER_SETTINGS_DITH_LIMIT_ITEM->number.value && AGENT_GUIDER_STATS_RMSE_RA_ITEM->number.value < DEVICE_PRIVATE_DATA->rmse_ra_threshold && AGENT_GUIDER_STATS_RMSE_DEC_ITEM->number.value < DEVICE_PRIVATE_DATA->rmse_dec_threshold;
-					else
+					} else {
 						dithering_finished = DEVICE_PRIVATE_DATA->rmse_count >= AGENT_GUIDER_SETTINGS_DITH_LIMIT_ITEM->number.value;
+					}
+				} else {
+					if (DEVICE_PRIVATE_DATA->rmse_ra_threshold > 0) {
+						dithering_finished = DEVICE_PRIVATE_DATA->rmse_count >= AGENT_GUIDER_SETTINGS_DITH_LIMIT_ITEM->number.value && AGENT_GUIDER_STATS_RMSE_RA_ITEM->number.value < DEVICE_PRIVATE_DATA->rmse_ra_threshold;
+					} else {
+						dithering_finished = DEVICE_PRIVATE_DATA->rmse_count >= AGENT_GUIDER_SETTINGS_DITH_LIMIT_ITEM->number.value;
+					}
 				}
 				if (dithering_finished) {
 					AGENT_GUIDER_STATS_DITHERING_ITEM->number.value = 0;
@@ -1507,7 +1509,7 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 	} else if (indigo_property_match_w(AGENT_GUIDER_DETECTION_MODE_PROPERTY, property)) {
 // -------------------------------------------------------------------------------- AGENT_GUIDER_DETECTION_MODE
 		if (FILTER_DEVICE_CONTEXT->running_process) {
-			indigo_update_property(device, AGENT_GUIDER_DETECTION_MODE_PROPERTY, "Detection mode can not be changed while process is running!");
+			indigo_update_property(device, AGENT_GUIDER_DETECTION_MODE_PROPERTY, "Warning: Detection mode can not be changed while process is running!");
 			return INDIGO_OK;
 		}
 		indigo_property_copy_values(AGENT_GUIDER_DETECTION_MODE_PROPERTY, property, false);
@@ -1516,10 +1518,20 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 		indigo_update_property(device, AGENT_GUIDER_DETECTION_MODE_PROPERTY, NULL);
 	} else if (indigo_property_match(AGENT_GUIDER_DEC_MODE_PROPERTY, property)) {
 // -------------------------------------------------------------------------------- AGENT_GUIDER_DEC_MODE
-		indigo_property_copy_values(AGENT_GUIDER_DEC_MODE_PROPERTY, property, false);
-		AGENT_GUIDER_DEC_MODE_PROPERTY->state = INDIGO_OK_STATE;
-		save_config(device);
-		indigo_update_property(device, AGENT_GUIDER_DEC_MODE_PROPERTY, NULL);
+		bool is_current_dec_guiding_both = AGENT_GUIDER_DEC_MODE_BOTH_ITEM->sw.value;
+		bool is_requested_dec_guiding_both = indigo_get_switch(property, AGENT_GUIDER_DEC_MODE_BOTH_ITEM_NAME);
+		if (
+			(!FILTER_DEVICE_CONTEXT->running_process) ||
+			(FILTER_DEVICE_CONTEXT->running_process && !AGENT_GUIDER_START_GUIDING_ITEM->sw.value) ||
+			(FILTER_DEVICE_CONTEXT->running_process && AGENT_GUIDER_START_GUIDING_ITEM->sw.value && !(is_current_dec_guiding_both || is_requested_dec_guiding_both))
+		) {
+			indigo_property_copy_values(AGENT_GUIDER_DEC_MODE_PROPERTY, property, false);
+			AGENT_GUIDER_DEC_MODE_PROPERTY->state = INDIGO_OK_STATE;
+			save_config(device);
+			indigo_update_property(device, AGENT_GUIDER_DEC_MODE_PROPERTY, NULL);
+		} else {
+			indigo_update_property(device, AGENT_GUIDER_DEC_MODE_PROPERTY, "Warning: Can not change declination guiding method to/from 'Notrh and South' while guiding!");
+		}
 	} else if (indigo_property_match(AGENT_GUIDER_APPLY_DEC_BACKLASH_PROPERTY, property)) {
 // -------------------------------------------------------------------------------- AGENT_GUIDER_APPLY_DEC_BACKLASH
 		indigo_property_copy_values(AGENT_GUIDER_APPLY_DEC_BACKLASH_PROPERTY, property, false);
@@ -1528,9 +1540,27 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 		indigo_update_property(device, AGENT_GUIDER_APPLY_DEC_BACKLASH_PROPERTY, NULL);
 	} else if (indigo_property_match(AGENT_GUIDER_SETTINGS_PROPERTY, property)) {
 // -------------------------------------------------------------------------------- AGENT_GUIDER_SETTINGS
-		double dith_x = AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.value;
-		double dith_y = AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.value;
+		double dith_x = AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.target;
+		double dith_y = AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.target;
 		indigo_property_copy_values(AGENT_GUIDER_SETTINGS_PROPERTY, property, false);
+		if (!AGENT_GUIDER_DEC_MODE_BOTH_ITEM->sw.value) {
+			/* If Dec guiding is not "North and South" do not dither in Dec, however if cos(angle) == 0 we end up in devision by 0.
+			   In this case we set the limits -> DITH_X = 0 and DITH_Y = dith_total.
+			   Note: we preserve the requested ammount of dithering but we do it in RA only.
+			*/
+			double angle = -PI * AGENT_GUIDER_SETTINGS_ANGLE_ITEM->number.target / 180;
+			double sign = copysign(1.0, AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.target) * copysign(1.0, AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.target);
+			double dith_total = sign * sqrt(AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.target * AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.target + AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.target * AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.target);
+			double cos_angle = cos(angle);
+			if (cos_angle != 0) {
+				double tan_angle = tan(angle);
+				AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.value = dith_total / (cos_angle + tan_angle);
+				AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.value = AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.value * tan_angle;
+			} else {
+				AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.value = 0;
+				AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.value = dith_total;
+			}
+		}
 		AGENT_GUIDER_SETTINGS_PROPERTY->state = INDIGO_OK_STATE;
 		bool update_stats = false;
 		if (DEVICE_PRIVATE_DATA->reference->algorithm == centroid) {
@@ -1538,7 +1568,11 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 			AGENT_GUIDER_STATS_REFERENCE_Y_ITEM->number.value = DEVICE_PRIVATE_DATA->reference->centroid_y + AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.value;
 			update_stats = true;
 		}
-		if (AGENT_GUIDER_STATS_PHASE_ITEM->number.value == GUIDING && (dith_x != AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.value || dith_y != AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.value)) {
+		/* Important: We compare dithering X and Y targets because values will be changed in case we dither in RA only and in this case
+		   every guider settings item update (not only dithering related) will trigger dithering. Changing guider settings may happen in
+		   the middle of the exposure.
+		*/
+		if (AGENT_GUIDER_STATS_PHASE_ITEM->number.value == GUIDING && (dith_x != AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.target || dith_y != AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.target)) {
 			double diff_x = fabs(AGENT_GUIDER_SETTINGS_DITH_X_ITEM->number.value - dith_x);
 			double diff_y = fabs(AGENT_GUIDER_SETTINGS_DITH_Y_ITEM->number.value - dith_y);
 			DEVICE_PRIVATE_DATA->rmse_ra_sum = DEVICE_PRIVATE_DATA->rmse_dec_sum = DEVICE_PRIVATE_DATA->rmse_count = 0;
@@ -1581,7 +1615,7 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 		if (FILTER_DEVICE_CONTEXT->running_process) {
 			indigo_item *item = indigo_get_item(property, AGENT_GUIDER_SELECTION_EDGE_CLIPPING_ITEM_NAME);
 			if (item && AGENT_GUIDER_SELECTION_EDGE_CLIPPING_ITEM->number.value != item->number.value) {
-				indigo_update_property(device, AGENT_GUIDER_SELECTION_PROPERTY, "Edge clipping can not be changed while process is running!");
+				indigo_update_property(device, AGENT_GUIDER_SELECTION_PROPERTY, "Warning: Edge clipping can not be changed while process is running!");
 				return INDIGO_OK;
 			}
 		}
