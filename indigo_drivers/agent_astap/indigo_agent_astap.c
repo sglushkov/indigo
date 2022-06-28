@@ -48,7 +48,7 @@
 #include <indigo/indigo_ccd_driver.h>
 #include <indigo/indigo_filter.h>
 #include <indigo/indigo_io.h>
-#include <indigo/indigo_novas.h>
+#include <indigo/indigo_align.h>
 #include <indigo/indigo_platesolver.h>
 
 #include "indigo_agent_astap.h"
@@ -280,7 +280,7 @@ static void parse_line(indigo_device *device, char *line) {
 	} else if ((s = strstr(line, "CRVAL2="))) {
 		AGENT_PLATESOLVER_WCS_DEC_ITEM->number.value = atof(s + 7);
 		if (AGENT_PLATESOLVER_HINTS_EPOCH_ITEM->number.target == 0) {
-			indigo_app_star(0, 0, 0, 0, &AGENT_PLATESOLVER_WCS_RA_ITEM->number.value, &AGENT_PLATESOLVER_WCS_DEC_ITEM->number.value);
+			indigo_j2k_to_jnow(&AGENT_PLATESOLVER_WCS_RA_ITEM->number.value, &AGENT_PLATESOLVER_WCS_DEC_ITEM->number.value);
 			AGENT_PLATESOLVER_WCS_EPOCH_ITEM->number.value = 0;
 		} else {
 			AGENT_PLATESOLVER_WCS_EPOCH_ITEM->number.value = 2000;
@@ -402,6 +402,7 @@ static bool astap_solve(indigo_device *device, void *image, unsigned long image_
 		AGENT_PLATESOLVER_WCS_ANGLE_ITEM->number.value = 0;
 		AGENT_PLATESOLVER_WCS_INDEX_ITEM->number.value = 0;
 		AGENT_PLATESOLVER_WCS_PARITY_ITEM->number.value = 0;
+		AGENT_PLATESOLVER_WCS_STATE_ITEM->number.value = SOLVER_WCS_SOLVING;
 		indigo_update_property(device, AGENT_PLATESOLVER_WCS_PROPERTY, NULL);
 		if (!strncmp("SIMPLE", (const char *)image, 6)) {
 			ext = "fits";
@@ -628,6 +629,7 @@ static indigo_result agent_device_attach(indigo_device *device) {
 				indigo_init_switch_item(AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count++, name, label, false);
 			AGENT_ASTAP_INDEX_PROPERTY->count++;
 		}
+		indigo_property_sort_items(AGENT_PLATESOLVER_USE_INDEX_PROPERTY, 0);
 		// --------------------------------------------------------------------------------
 		ASTAP_DEVICE_PRIVATE_DATA->platesolver.save_config = astap_save_config;
 		ASTAP_DEVICE_PRIVATE_DATA->platesolver.solve = astap_solve;

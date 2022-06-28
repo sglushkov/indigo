@@ -82,7 +82,8 @@ static indigo_result agent_enumerate_properties(indigo_device *device, indigo_cl
 	indigo_property **alignment_properties = DEVICE_PRIVATE_DATA->alignment_point_properties;
 	if (alignment_properties) {
 		for (int i = 0; i < alignment_point_count; i++)
-			indigo_define_property(device, alignment_properties[i], NULL);
+			if (indigo_property_match(alignment_properties[i], property))
+				indigo_define_property(device, alignment_properties[i], NULL);
 	}
 	return indigo_filter_enumerate_properties(device, client, property);
 }

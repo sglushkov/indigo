@@ -35,6 +35,7 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 #include <string.h>
 #include <stdbool.h>
 
@@ -42,8 +43,15 @@
 extern "C" {
 #endif
 
-#define DEG2RAD (M_PI / 180.0)
-#define RAD2DEG (180.0 / M_PI)
+extern const double TWO_PI;
+extern const double DEG2RAD;
+extern const double RAD2DEG;
+
+#define DELTA_T				(34 + 32.184 + 0.477677)
+#define DELTA_UTC_UT1	( -0.477677 / 86400.0)
+#define UT2JD(t) 			((t) / 86400.0 + 2440587.5 + DELTA_UTC_UT1)
+#define JDNOW 				UT2JD(time(NULL))
+#define JD2000    		2451545.0
 
 /** Cartesian point
  */
@@ -70,10 +78,10 @@ typedef struct {
  eq0 - Old Equinox (year+fraction)
  eq1 - New Equinox (year+fraction)
  */
-indigo_spherical_point_t indigo_precess(const indigo_spherical_point_t *c0, const double eq0, const double eq1);
+extern indigo_spherical_point_t indigo_precess(const indigo_spherical_point_t *c0, const double eq0, const double eq1);
 
 /** Convenience wrapper for indigo_precess(...)
- 
+
 	*ra - Right Ascension (hours)
 	*dec - Declination (degrees)
  */
@@ -88,7 +96,7 @@ extern void indigo_jnow_to_j2k(double *ra, double *dec);
 extern void indigo_eq_to_j2k(const double eq, double *ra, double *dec);
 
 /** Convenience wrapper for indigo_precess(...)
- 
+
 	*ra - Right Ascension (hours)
 	*dec - Declination (degrees)
  */
@@ -102,6 +110,18 @@ extern void indigo_j2k_to_jnow(double *ra, double *dec);
  */
 extern void indigo_j2k_to_eq(const double eq, double *ra, double *dec);
 
+/** Greenwitch mean sidereal time
+ */
+extern double indigo_mean_gst(const time_t *utc);
+
+/** Local mean sidereal time (in degrees)
+ */
+extern double indigo_lst(const time_t *utc, const double longitude);
+
+/** ra/dec to alt/az (in degrees)
+ */
+extern void indigo_radec_to_altaz(const double ra, const double dec, const time_t *utc, const double latitude, const double longitude, const double elevation, double *alt, double *az);
+
 /** convert ha dec to az alt in radians
  */
 extern void indigo_equatorial_to_hotizontal(const indigo_spherical_point_t *eq_point, const double latitude, indigo_spherical_point_t *h_point);
@@ -112,7 +132,7 @@ extern indigo_cartesian_point_t indigo_spherical_to_cartesian(const indigo_spher
 
 /** convert spherical (in radians) to cartesian coordinates
  */
-extern indigo_spherical_point_t indigo_cartesian_to_sphercal(const indigo_cartesian_point_t *cpoint);
+extern indigo_spherical_point_t indigo_cartesian_to_spherical(const indigo_cartesian_point_t *cpoint);
 
 /** rotate cartesian coordinates around axes (angles in radians)
  */

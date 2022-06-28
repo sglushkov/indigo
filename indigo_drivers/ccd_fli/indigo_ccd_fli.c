@@ -24,7 +24,7 @@
  \file indigo_ccd_fli.c
  */
 
-#define DRIVER_VERSION 0x000E
+#define DRIVER_VERSION 0x000F
 #define DRIVER_NAME		"indigo_ccd_fli"
 
 #include <stdlib.h>
@@ -79,8 +79,6 @@
 #define MAX_MODES                  32
 
 #define PRIVATE_DATA               ((fli_private_data *)device->private_data)
-
-#define FLI_ADVANCED_GROUP              "Advanced"
 
 #define FLI_NFLUSHES_PROPERTY           (PRIVATE_DATA->fli_nflushes_property)
 #define FLI_NFLUSHES_PROPERTY_ITEM      (FLI_NFLUSHES_PROPERTY->items + 0)
@@ -519,16 +517,16 @@ static indigo_result ccd_attach(indigo_device *device) {
 		CCD_RBI_FLUSH_EXPOSURE_ITEM->number.value = CCD_RBI_FLUSH_EXPOSURE_ITEM->number.target = DEFAULT_NIR_FLOOD;
 		CCD_RBI_FLUSH_COUNT_ITEM->number.min = MIN_FLUSH_COUNT;
 		CCD_RBI_FLUSH_COUNT_ITEM->number.max = MAX_FLUSH_COUNT;
-		CCD_RBI_FLUSH_COUNT_ITEM->number.value = CCD_RBI_FLUSH_EXPOSURE_ITEM->number.target = DEFAULT_FLUSH_COUNT;
+		CCD_RBI_FLUSH_COUNT_ITEM->number.value = CCD_RBI_FLUSH_COUNT_ITEM->number.target = DEFAULT_FLUSH_COUNT;
 		// -------------------------------------------------------------------------------- FLI_NFLUSHES
-		FLI_NFLUSHES_PROPERTY = indigo_init_number_property(NULL, device->name, "FLI_NFLUSHES", FLI_ADVANCED_GROUP, "Flush CCD", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
+		FLI_NFLUSHES_PROPERTY = indigo_init_number_property(NULL, device->name, "FLI_NFLUSHES", CCD_ADVANCED_GROUP, "Flush CCD", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
 		if (FLI_NFLUSHES_PROPERTY == NULL)
 			return INDIGO_FAILED;
 
 		indigo_init_number_item(FLI_NFLUSHES_PROPERTY_ITEM, "FLI_NFLUSHES", "Times (before exposure)", MIN_N_FLUSHES, MAX_N_FLUSHES, 1, DEFAULT_N_FLUSHES);
 
 		// -------------------------------------------------------------------------------- FLI_CAMERA_MODE
-		FLI_CAMERA_MODE_PROPERTY = indigo_init_switch_property(NULL, device->name, "FLI_CAMERA_MODE", FLI_ADVANCED_GROUP, "Camera mode", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, MAX_MODES);
+		FLI_CAMERA_MODE_PROPERTY = indigo_init_switch_property(NULL, device->name, "FLI_CAMERA_MODE", CCD_ADVANCED_GROUP, "Camera mode", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, MAX_MODES);
 				if (FLI_CAMERA_MODE_PROPERTY == NULL)
 				return INDIGO_FAILED;
 				/* will be populated on connect */
@@ -736,7 +734,7 @@ static void ccd_connect_callback(indigo_device *device) {
 				CCD_TEMPERATURE_PROPERTY->perm = INDIGO_RW_PERM;
 				CCD_TEMPERATURE_ITEM->number.min = MIN_CCD_TEMP;
 				CCD_TEMPERATURE_ITEM->number.max = MAX_CCD_TEMP;
-				CCD_TEMPERATURE_ITEM->number.step = 0;
+				CCD_TEMPERATURE_ITEM->number.step = 1;
 				pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 				res = FLIGetTemperature(id,&(CCD_TEMPERATURE_ITEM->number.value));
 				pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
@@ -780,7 +778,7 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 	assert(DEVICE_CONTEXT != NULL);
 	assert(property != NULL);
 	// -------------------------------------------------------------------------------- CONNECTION -> CCD_INFO, CCD_COOLER, CCD_TEMPERATURE
-	if (indigo_property_match(CONNECTION_PROPERTY, property)) {
+	if (indigo_property_match_changeable(CONNECTION_PROPERTY, property)) {
 		if (indigo_ignore_connection_change(device, property))
 			return INDIGO_OK;
 		indigo_property_copy_values(CONNECTION_PROPERTY, property, false);
@@ -789,24 +787,21 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		indigo_set_timer(device, 0, ccd_connect_callback, NULL);
 		return INDIGO_OK;
 	// -------------------------------------------------------------------------------- CCD_EXPOSURE
-	} else if (indigo_property_match(CCD_EXPOSURE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_EXPOSURE_PROPERTY, property)) {
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE)
 			return INDIGO_OK;
 		indigo_property_copy_values(CCD_EXPOSURE_PROPERTY, property, false);
-		if (IS_CONNECTED) {
-			indigo_use_shortest_exposure_if_bias(device);
-			handle_exposure_property(device, property);
-		}
+		indigo_use_shortest_exposure_if_bias(device);
+		handle_exposure_property(device, property);
 	// -------------------------------------------------------------------------------- CCD_ABORT_EXPOSURE
-	} else if (indigo_property_match(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			fli_abort_exposure(device);
 		}
 		PRIVATE_DATA->can_check_temperature = true;
 		indigo_property_copy_values(CCD_ABORT_EXPOSURE_PROPERTY, property, false);
 	// -------------------------------------------------------------------------------- FLI_NFLUSHES
-	} else if (indigo_property_match(FLI_NFLUSHES_PROPERTY, property)) {
-		if (!IS_CONNECTED) return INDIGO_OK;
+	} else if (indigo_property_match_changeable(FLI_NFLUSHES_PROPERTY, property)) {
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			FLI_NFLUSHES_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, FLI_NFLUSHES_PROPERTY, "Exposure in progress, number of flushes can not be changed.");
@@ -815,8 +810,7 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		indigo_property_copy_values(FLI_NFLUSHES_PROPERTY, property, false);
 		handle_nflushes_property(device, property);
 	// -------------------------------------------------------------------------------- FLI_CAMERA_MODE
-	} else if (indigo_property_match(FLI_CAMERA_MODE_PROPERTY, property)) {
-		if (!IS_CONNECTED) return INDIGO_OK;
+	} else if (indigo_property_match_changeable(FLI_CAMERA_MODE_PROPERTY, property)) {
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			FLI_CAMERA_MODE_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, FLI_CAMERA_MODE_PROPERTY, "Exposure in progress, camera mode can not be changed.");
@@ -825,7 +819,7 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		indigo_property_copy_values(FLI_CAMERA_MODE_PROPERTY, property, false);
 		handle_camera_mode_property(device, property);
 	// -------------------------------------------------------------------------------- CCD_COOLER
-	} else if (indigo_property_match(CCD_COOLER_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_COOLER_PROPERTY, property)) {
 		//INDIGO_DRIVER_ERROR(DRIVER_NAME, "indigo_ccd_asi: COOOLER = %d %d", CCD_COOLER_OFF_ITEM->sw.value, CCD_COOLER_ON_ITEM->sw.value);
 		indigo_property_copy_values(CCD_COOLER_PROPERTY, property, false);
 		if (CONNECTION_CONNECTED_ITEM->sw.value && !CCD_COOLER_PROPERTY->hidden) {
@@ -834,20 +828,18 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		}
 		return INDIGO_OK;
 	// -------------------------------------------------------------------------------- CCD_TEMPERATURE
-	} else if (indigo_property_match(CCD_TEMPERATURE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_TEMPERATURE_PROPERTY, property)) {
 		indigo_property_copy_values(CCD_TEMPERATURE_PROPERTY, property, false);
-		if (IS_CONNECTED) {
-			PRIVATE_DATA->target_temperature = CCD_TEMPERATURE_ITEM->number.value;
-			CCD_TEMPERATURE_ITEM->number.value = PRIVATE_DATA->current_temperature;
-			CCD_TEMPERATURE_PROPERTY->state = INDIGO_BUSY_STATE;
-			if (CCD_COOLER_ON_ITEM->sw.value)
-				indigo_update_property(device, CCD_TEMPERATURE_PROPERTY, "Target Temperature = %.2f", PRIVATE_DATA->target_temperature);
-			else
-				indigo_update_property(device, CCD_TEMPERATURE_PROPERTY, "Target Temperature = %.2f but the cooler is OFF", PRIVATE_DATA->target_temperature);
-		}
+		PRIVATE_DATA->target_temperature = CCD_TEMPERATURE_ITEM->number.value;
+		CCD_TEMPERATURE_ITEM->number.value = PRIVATE_DATA->current_temperature;
+		CCD_TEMPERATURE_PROPERTY->state = INDIGO_BUSY_STATE;
+		if (CCD_COOLER_ON_ITEM->sw.value)
+			indigo_update_property(device, CCD_TEMPERATURE_PROPERTY, "Target Temperature = %.2f", PRIVATE_DATA->target_temperature);
+		else
+			indigo_update_property(device, CCD_TEMPERATURE_PROPERTY, "Target Temperature = %.2f but the cooler is OFF", PRIVATE_DATA->target_temperature);
 		return INDIGO_OK;
 	// ------------------------------------------------------------------------------- CCD_FRAME
-	} else if (indigo_property_match(CCD_FRAME_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_FRAME_PROPERTY, property)) {
 		indigo_property_copy_values(CCD_FRAME_PROPERTY, property, false);
 		CCD_FRAME_WIDTH_ITEM->number.value = CCD_FRAME_WIDTH_ITEM->number.target = 8 * (int)(CCD_FRAME_WIDTH_ITEM->number.value / 8);
 		CCD_FRAME_HEIGHT_ITEM->number.value = CCD_FRAME_HEIGHT_ITEM->number.target = 2 * (int)(CCD_FRAME_HEIGHT_ITEM->number.value / 2);
@@ -863,12 +855,10 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		}
 
 		CCD_FRAME_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED) {
-			indigo_update_property(device, CCD_FRAME_PROPERTY, NULL);
-		}
+		indigo_update_property(device, CCD_FRAME_PROPERTY, NULL);
 		return INDIGO_OK;
 	// -------------------------------------------------------------------------------- CONFIG
-	} else if (indigo_property_match(CONFIG_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CONFIG_PROPERTY, property)) {
 		if (indigo_switch_match(CONFIG_SAVE_ITEM, property)) {
 			indigo_save_property(device, NULL, FLI_NFLUSHES_PROPERTY);
 			indigo_save_property(device, NULL, FLI_CAMERA_MODE_PROPERTY);

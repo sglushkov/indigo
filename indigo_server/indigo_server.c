@@ -49,8 +49,10 @@
 #include <indigo/indigo_client.h>
 #include <indigo/indigo_xml.h>
 #include <indigo/indigo_token.h>
-#include <indigo/indigo_novas.h>
-#include <indigo/indigo_cat_data.h>
+#include <indigo/indigo_align.h>
+#include <indigo/indigocat/indigocat_star.h>
+#include <indigo/indigocat/indigocat_dso.h>
+#include <indigo/indigocat/indigocat_ss.h>
 
 #include "ccd_simulator/indigo_ccd_simulator.h"
 #include "mount_simulator/indigo_mount_simulator.h"
@@ -151,6 +153,7 @@
 #include "ccd_svb/indigo_ccd_svb.h"
 #include "agent_astap/indigo_agent_astap.h"
 #include "rotator_optec/indigo_rotator_optec.h"
+#include "mount_starbook/indigo_mount_starbook.h"
 #ifndef __aarch64__
 #include "ccd_sbig/indigo_ccd_sbig.h"
 #endif
@@ -282,7 +285,7 @@ driver_entry_point static_drivers[] = {
 	indigo_mount_pmc8,
 	indigo_mount_rainbow,
 	indigo_mount_simulator,
-	indigo_mount_synscan,
+	indigo_mount_starbook,
 	indigo_mount_synscan,
 	indigo_mount_temma,
 	indigo_rotator_lunatico,
@@ -451,7 +454,7 @@ static void *indigo_add_star_json_resource(int max_mag) {
 	strcpy(buffer, "{\"type\":\"FeatureCollection\",\"features\": [");
 	unsigned size = (unsigned)strlen(buffer);
 	char *sep = "";
-	indigo_star_entry *star_data = indigo_get_star_data();
+	indigocat_star_entry *star_data = indigocat_get_star_data();
 	for (int i = 0; star_data[i].hip; i++) {
 		if (star_data[i].mag > max_mag)
 			continue;
@@ -467,12 +470,25 @@ static void *indigo_add_star_json_resource(int max_mag) {
 				name = "";
 			}
 		}
-		size += sprintf(buffer + size, "%s{\"type\":\"Feature\",\"id\":%d,\"properties\":{\"name\": \"%s\",\"desig\":\"%s\",\"mag\": %.2f,\"con\":\"\",\"bv\":0},\"geometry\":{\"type\":\"Point\",\"coordinates\":[%.4f,%.4f]}}", sep, star_data[i].hip, name, desig, star_data[i].mag, h2deg(star_data[i].ra), star_data[i].dec);
+		size += sprintf(buffer + size, "%s{\"type\":\"Feature\",\"id\":%d,\"properties\":{\"name\": \"%s\",\"desig\":\"%s\",\"mag\": %.2f},\"geometry\":{\"type\":\"Point\",\"coordinates\":[%.4f,%.4f]}}", sep, star_data[i].hip, name, desig, star_data[i].mag, h2deg(star_data[i].ra), star_data[i].dec);
 		if (buffer_size - size < 1024) {
 			buffer = indigo_safe_realloc(buffer, buffer_size *= 2);
 		}
 		sep = ",";
 	}
+
+	indigocat_ss_entry *ss_data = indigocat_get_ss_data();
+	for (int i = 0; ss_data[i].id; i++) {
+		double mag = ss_data[i].mag;
+		if (mag < -4.5)
+			mag = -4.5;
+		size += sprintf(buffer + size, "%s{\"type\":\"Feature\",\"id\":%d,\"properties\":{\"name\": \"%s\",\"desig\": \"\",\"mag\": %.2f,\"bv\":-5},\"geometry\":{\"type\":\"Point\",\"coordinates\":[%.4f,%.4f]}}", sep, -ss_data[i].id, ss_data[i].name, mag, h2deg(ss_data[i].ra), ss_data[i].dec);
+		if (buffer_size - size < 1024) {
+			buffer = indigo_safe_realloc(buffer, buffer_size *= 2);
+		}
+	}
+
+
 	size += sprintf(buffer + size, "]}");
 	unsigned char *data = indigo_safe_malloc(buffer_size);
 	unsigned data_size = buffer_size;
@@ -488,7 +504,7 @@ static void *indigo_add_dso_json_resource(int max_mag) {
 	strcpy(buffer, "{\"type\":\"FeatureCollection\",\"features\": [");
 	unsigned size = (unsigned)strlen(buffer);
 	char *sep = "";
-	indigo_dso_entry *dso_data = indigo_get_dso_data();
+	indigocat_dso_entry *dso_data = indigocat_get_dso_data();
 	for (int i = 0; dso_data[i].id; i++) {
 		/* Filter by magnitude, but remove objects without name or mesier designation*/
 		if (
@@ -517,7 +533,7 @@ static int add_multiline(char *buffer, ...) {
 	va_list ap;
 	va_start(ap, buffer);
 	char *sep = "";
-	indigo_star_entry *star_data = indigo_get_star_data();
+	indigocat_star_entry *star_data = indigocat_get_star_data();
 	static char *sep2 = "";
 	size += sprintf(buffer, "%s[", sep2);
 	sep2 = ",";
@@ -884,7 +900,7 @@ static indigo_result attach(indigo_device *device) {
 			free(line);
 		}
 		SERVER_WIFI_CHANNEL_PROPERTY = indigo_init_number_property(NULL, server_device.name, SERVER_WIFI_CHANNEL_PROPERTY_NAME, MAIN_GROUP, "WiFi channel", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
-		indigo_init_number_item(SERVER_WIFI_CHANNEL_ITEM, SERVER_WIFI_CHANNEL_ITEM_NAME, "Channel (0 = auto)", 0, 13, 1, 0);
+		indigo_init_number_item(SERVER_WIFI_CHANNEL_ITEM, SERVER_WIFI_CHANNEL_ITEM_NAME, "Channel (0 = auto, [0-13] = 2.4G, [36-116] = 5G)", 0, 116, 1, 0);
 		line = execute_query("s_rpi_ctrl.sh --get-wifi-channel");
 		if (line) {
 			SERVER_WIFI_CHANNEL_ITEM->number.target = SERVER_WIFI_CHANNEL_ITEM->number.value = atoi(line);

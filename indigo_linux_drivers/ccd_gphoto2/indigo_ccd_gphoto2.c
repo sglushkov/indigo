@@ -42,7 +42,7 @@
 #include <gphoto2/gphoto2-version.h>
 #include <gphoto2/gphoto2-list.h>
 #include <libusb-1.0/libusb.h>
-#include <libraw/libraw.h>
+#include <libraw.h>
 
 #include "indigo_ccd_gphoto2.h"
 #include "dslr_model_info.h"
@@ -575,10 +575,10 @@ static int process_dslr_image_debayer(indigo_device *device,
 		goto cleanup;
 
 	float cam_sensor_temperature = -273.15f;
-	if (raw_data->other.SensorTemperature > -273.15f)
-		cam_sensor_temperature = raw_data->other.SensorTemperature;
-	else if (raw_data->other.CameraTemperature > -273.15f)
-		cam_sensor_temperature = raw_data->other.CameraTemperature;
+	if (raw_data->makernotes.common.SensorTemperature > -273.15f)
+		cam_sensor_temperature = raw_data->makernotes.common.SensorTemperature;
+	else if (raw_data->makernotes.common.CameraTemperature > -273.15f)
+		cam_sensor_temperature = raw_data->makernotes.common.CameraTemperature;
 
 	indigo_fits_keyword keywords[] = {
 		{ INDIGO_FITS_NUMBER, "ISOSPEED",
@@ -2404,7 +2404,7 @@ static indigo_result ccd_change_property(indigo_device *device,
 	assert(property != NULL);
 
 	/*------------------------ CONNECTION --------------------------*/
-	if (indigo_property_match(CONNECTION_PROPERTY, property)) {
+	if (indigo_property_match_changeable(CONNECTION_PROPERTY, property)) {
 		if (indigo_ignore_connection_change(device, property))
 			return INDIGO_OK;
 		indigo_property_copy_values(CONNECTION_PROPERTY, property, false);
@@ -2452,77 +2452,77 @@ static indigo_result ccd_change_property(indigo_device *device,
 		}
 	}
 	/*-------------------------- SHUTTER-TIME ----------------------------*/
-	else if (indigo_property_match(DSLR_SHUTTER_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_SHUTTER_PROPERTY, property)) {
 			indigo_property_copy_values(DSLR_SHUTTER_PROPERTY, property, false);
 			update_property(device, DSLR_SHUTTER_PROPERTY, EOS_SHUTTERSPEED);
 			update_ccd_property(device, DSLR_SHUTTER_PROPERTY);
 			return INDIGO_OK;
 	}
 	/*------------------------------ ISO ---------------------------------*/
-	else if (indigo_property_match(DSLR_ISO_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_ISO_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_ISO_PROPERTY, property, false);
 		update_property(device, DSLR_ISO_PROPERTY, EOS_ISO);
 		return INDIGO_OK;
 	}
 	/*--------------------------- COMPRESSION ----------------------------*/
-	else if (indigo_property_match(DSLR_COMPRESSION_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_COMPRESSION_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_COMPRESSION_PROPERTY, property, false);
 		update_property(device, DSLR_COMPRESSION_PROPERTY,
 				COMPRESSION);
 		return INDIGO_OK;
 	}
 	/*---------------------------- APERTURE ------------------------------*/
-	else if (indigo_property_match(DSLR_APERTURE_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_APERTURE_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_APERTURE_PROPERTY, property, false);
 		update_property(device, DSLR_APERTURE_PROPERTY,
 				APERTURE);
 		return INDIGO_OK;
 	}
 	/*--------------------------- WHITEBALANCE ----------------------------*/
-	else if (indigo_property_match(DSLR_WHITEBALANCE_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_WHITEBALANCE_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_WHITEBALANCE_PROPERTY, property, false);
 		update_property(device, DSLR_WHITEBALANCE_PROPERTY, EOS_WHITEBALANCE);
 		return INDIGO_OK;
 	}
 	/*----------------------- EXPOSURE-COMPENSATION ----------------------*/
-	else if (indigo_property_match(DSLR_EXPOSURE_COMPENSATION_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_EXPOSURE_COMPENSATION_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_EXPOSURE_COMPENSATION_PROPERTY, property, false);
 		update_property(device, DSLR_EXPOSURE_COMPENSATION_PROPERTY, EOS_EXPOSURE_COMPENSATION);
 		return INDIGO_OK;
 	}
 	/*------------------------- EXPOSURE-METERING ------------------------*/
-	else if (indigo_property_match(DSLR_EXPOSURE_METERING_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_EXPOSURE_METERING_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_EXPOSURE_METERING_PROPERTY, property, false);
 		update_property(device, DSLR_EXPOSURE_METERING_PROPERTY, EXPOSURE_METERING);
 		return INDIGO_OK;
 	}
 	/*-------------------------- FOCUS-METERING --------------------------*/
-	else if (indigo_property_match(DSLR_FOCUS_METERING_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_FOCUS_METERING_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_FOCUS_METERING_PROPERTY, property, false);
 		update_property(device, DSLR_FOCUS_METERING_PROPERTY, FOCUS_METERING);
 		return INDIGO_OK;
 	}
 	/*-------------------------- EXPOSURE-PROGRAM ------------------------*/
-	else if (indigo_property_match(DSLR_EXPOSURE_PROGRAM_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_EXPOSURE_PROGRAM_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_EXPOSURE_PROGRAM_PROPERTY, property, false);
 		update_property(device, DSLR_EXPOSURE_PROGRAM_PROPERTY, EXPOSURE_PROGRAM);
 		return INDIGO_OK;
 	}
 	/*--------------------------- BATTERY-LEVEL --------------------------*/
-	else if (indigo_property_match(DSLR_BATTERY_LEVEL_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_BATTERY_LEVEL_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_BATTERY_LEVEL_PROPERTY, property, false);
 		update_property(device, DSLR_BATTERY_LEVEL_PROPERTY, EOS_BATTERY_LEVEL);
 		return INDIGO_OK;
 	}
 	/*--------------------------- ZOOM-PREVIEW ---------------------------*/
-	else if (indigo_property_match(DSLR_ZOOM_PREVIEW_PROPERTY, property) &&
+	else if (indigo_property_match_changeable(DSLR_ZOOM_PREVIEW_PROPERTY, property) &&
 		 CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
 		indigo_property_copy_values(DSLR_ZOOM_PREVIEW_PROPERTY, property, false);
 		update_property(device, DSLR_ZOOM_PREVIEW_PROPERTY, EOS_ZOOM_PREVIEW);
 		return INDIGO_OK;
 	}
 	/*-------------------------- MIRROR-LOCKUP ---------------------------*/
-	else if (indigo_property_match(DSLR_MIRROR_LOCKUP_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_MIRROR_LOCKUP_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_MIRROR_LOCKUP_PROPERTY, property, false);
 		PRIVATE_DATA->mirror_lockup_secs = DSLR_MIRROR_LOCKUP_ITEM->number.target;
 
@@ -2539,7 +2539,7 @@ static indigo_result ccd_change_property(indigo_device *device,
 		return INDIGO_OK;
 	}
 	/*--------------------------- DELETE-IMAGE ---------------------------*/
-	else if (indigo_property_match(DSLR_DELETE_IMAGE_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_DELETE_IMAGE_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_DELETE_IMAGE_PROPERTY, property, false);
 		PRIVATE_DATA->delete_downloaded_image = DSLR_DELETE_IMAGE_ON_ITEM->sw.value;
 		DSLR_DELETE_IMAGE_PROPERTY->state = INDIGO_OK_STATE;
@@ -2548,7 +2548,7 @@ static indigo_result ccd_change_property(indigo_device *device,
 		return INDIGO_OK;
 	}
 	/*--------------------------- SYNC-HOST-DATE -------------------------*/
-	else if (indigo_property_match(DSLR_SYNC_HOST_DATE_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_SYNC_HOST_DATE_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_SYNC_HOST_DATE_PROPERTY, property, false);
 
 		if (DSLR_SYNC_HOST_DATE_ON_ITEM->sw.value) {
@@ -2571,7 +2571,7 @@ static indigo_result ccd_change_property(indigo_device *device,
 		return INDIGO_OK;
 	}
 	/*------------------------- DEBAYER-ALGORITHM ------------------------*/
-	else if (indigo_property_match(DSLR_DEBAYER_ALGORITHM_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(DSLR_DEBAYER_ALGORITHM_PROPERTY, property)) {
 		indigo_property_copy_values(DSLR_DEBAYER_ALGORITHM_PROPERTY, property, false);
 		DSLR_DEBAYER_ALGORITHM_PROPERTY->state = INDIGO_ALERT_STATE;
 		for (int i = 0; i < DSLR_DEBAYER_ALGORITHM_PROPERTY->count; i++) {
@@ -2595,7 +2595,7 @@ static indigo_result ccd_change_property(indigo_device *device,
 		return INDIGO_OK;
 	}
 	/*------------------------- CCD-IMAGE-FORMAT -------------------------*/
-	else if (indigo_property_match(CCD_IMAGE_FORMAT_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(CCD_IMAGE_FORMAT_PROPERTY, property)) {
 		indigo_property_copy_values(CCD_IMAGE_FORMAT_PROPERTY, property,
 					    false);
 
@@ -2626,7 +2626,7 @@ static indigo_result ccd_change_property(indigo_device *device,
 		return INDIGO_OK;
 	}
 	/*--------------------------- CCD-EXPOSURE ---------------------------*/
-	else if (indigo_property_match(CCD_EXPOSURE_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(CCD_EXPOSURE_PROPERTY, property)) {
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE ||
 		    CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE)
 			return INDIGO_OK;
@@ -2674,7 +2674,7 @@ static indigo_result ccd_change_property(indigo_device *device,
 		return INDIGO_OK;
 	}
 	/*------------------------ CCD-ABORT-EXPOSURE ------------------------*/
-	else if (indigo_property_match(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
 		indigo_property_copy_values(CCD_ABORT_EXPOSURE_PROPERTY, property, false);
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			/* Only bulb captures can be abort. */
@@ -2701,7 +2701,7 @@ static indigo_result ccd_change_property(indigo_device *device,
 		}
 	}
 	/*---------------------------- CCD-STREAMING -------------------------*/
-	else if (indigo_property_match(CCD_STREAMING_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(CCD_STREAMING_PROPERTY, property)) {
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE ||
 		    CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE)
 			return INDIGO_OK;
@@ -2719,7 +2719,7 @@ static indigo_result ccd_change_property(indigo_device *device,
 		return INDIGO_OK;
 	}
 	/*--------------------------------- CONFIG ---------------------------*/
-	else if (indigo_property_match(CONFIG_PROPERTY, property)) {
+	else if (indigo_property_match_changeable(CONFIG_PROPERTY, property)) {
 		if (indigo_switch_match(CONFIG_SAVE_ITEM, property)) {
 			indigo_save_property(device, NULL,
 					     CCD_IMAGE_FORMAT_PROPERTY);

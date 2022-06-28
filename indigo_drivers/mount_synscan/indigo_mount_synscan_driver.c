@@ -18,7 +18,7 @@
 
 #include <indigo/indigo_driver.h>
 #include <indigo/indigo_io.h>
-#include <indigo/indigo_novas.h>
+#include <indigo/indigo_align.h>
 #include <indigo/indigo_mount_driver.h>
 #include "indigo_mount_synscan_private.h"
 #include "indigo_mount_synscan_protocol.h"
@@ -389,11 +389,11 @@ static bool synscan_configure_axis_for_rate(indigo_device* device, enum AxisID a
 
 	//  Set the gearing and slew rate
 	bool ok = true;
-	if (reconfigure) {
+	//if (reconfigure) { // attempt to fix https://bb.cloudmakers.eu/viewtopic.php?f=7&t=772&start=30
 		ok = ok && synscan_set_axis_gearing(device, axis, requiredConfig.direction, requiredConfig.turbo ? kAxisSpeedHigh : kAxisSpeedLow);
 		if (!ok)
 			return false;
-	}
+	//}
 	ok = ok && synscan_set_axis_slew_rate(device, axis, requiredConfig.rateCode);
 	if (!ok)
 		return false;

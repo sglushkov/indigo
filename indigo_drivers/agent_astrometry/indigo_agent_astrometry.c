@@ -48,8 +48,9 @@
 #include <indigo/indigo_ccd_driver.h>
 #include <indigo/indigo_filter.h>
 #include <indigo/indigo_io.h>
-#include <indigo/indigo_novas.h>
+#include <indigo/indigo_align.h>
 #include <indigo/indigo_platesolver.h>
+#include <indigo/indigo_dslr_raw.h>
 
 #include "indigo_agent_astrometry.h"
 
@@ -245,7 +246,7 @@ static bool execute_command(indigo_device *device, char *command, ...) {
 			AGENT_PLATESOLVER_WCS_RA_ITEM->number.value = d1 / 15;
 			AGENT_PLATESOLVER_WCS_DEC_ITEM->number.value = d2;
 			if (AGENT_PLATESOLVER_HINTS_EPOCH_ITEM->number.target == 0) {
-				indigo_app_star(0, 0, 0, 0, &AGENT_PLATESOLVER_WCS_RA_ITEM->number.value, &AGENT_PLATESOLVER_WCS_DEC_ITEM->number.value);
+				indigo_j2k_to_jnow(&AGENT_PLATESOLVER_WCS_RA_ITEM->number.value, &AGENT_PLATESOLVER_WCS_DEC_ITEM->number.value);
 				AGENT_PLATESOLVER_WCS_EPOCH_ITEM->number.value = 0;
 			} else {
 				AGENT_PLATESOLVER_WCS_EPOCH_ITEM->number.value = 2000;
@@ -330,6 +331,7 @@ static bool astrometry_solve(indigo_device *device, void *image, unsigned long i
 		AGENT_PLATESOLVER_WCS_ANGLE_ITEM->number.value = 0;
 		AGENT_PLATESOLVER_WCS_INDEX_ITEM->number.value = 0;
 		AGENT_PLATESOLVER_WCS_PARITY_ITEM->number.value = 0;
+		AGENT_PLATESOLVER_WCS_STATE_ITEM->number.value = SOLVER_WCS_SOLVING;
 		indigo_update_property(device, AGENT_PLATESOLVER_WCS_PROPERTY, NULL);
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -414,7 +416,17 @@ static bool astrometry_solve(indigo_device *device, void *image, unsigned long i
 				jpeg_finish_decompress(&cinfo.pub);
 				jpeg_destroy_decompress(&cinfo.pub);
 			} else {
-				image = NULL;
+				indigo_dslr_raw_image_s output_image = {0};
+				int rc = indigo_dslr_raw_process_image((void *)image, image_size, &output_image);
+				if (rc != LIBRAW_SUCCESS) {
+					if (output_image.data != NULL) free(output_image.data);
+					image = NULL;
+				}
+				ASTROMETRY_DEVICE_PRIVATE_DATA->frame_width = output_image.width;
+				ASTROMETRY_DEVICE_PRIVATE_DATA->frame_height = output_image.height;
+				byte_per_pixel = 2;
+				components = 1;
+				image = intermediate_image = output_image.data;
 			}
 			if (image == NULL) {
 				AGENT_PLATESOLVER_WCS_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -478,7 +490,7 @@ static bool astrometry_solve(indigo_device *device, void *image, unsigned long i
 				}
 			}
 			indigo_write(handle, buffer, image_size);
-			free(buffer);
+			indigo_safe_free(buffer);
 			indigo_safe_free(intermediate_image);
 		}
 		close(handle);
@@ -498,7 +510,7 @@ static bool astrometry_solve(indigo_device *device, void *image, unsigned long i
 			indigo_item *item = AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + k;
 			if (item->sw.value) {
 				for (int l = 0; index_files[l]; l++) {
-					if (!strncmp(item->name, index_files[l], 10)) {
+					if (!strncmp(item->name, index_files[l], 4)) {
 						snprintf(config, sizeof(config), "index index-%s\n", index_files[l]);
 						indigo_write(handle, config, strlen(config));
 					}
@@ -595,7 +607,13 @@ static void sync_installed_indexes(indigo_device *device, char *dir, indigo_prop
 			}
 		}
 		if (add) {
-			indigo_init_switch_item(AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count++, item->name, item->label, true);
+			char long_label[INDIGO_VALUE_SIZE];
+			if (!strcmp(property->name, AGENT_ASTROMETRY_INDEX_41XX_PROPERTY_NAME)) {
+				snprintf(long_label, INDIGO_VALUE_SIZE, "Tycho-2 %s", item->label);
+			} else {
+				snprintf(long_label, INDIGO_VALUE_SIZE, "2MASS %s", item->label);
+			}
+			indigo_init_switch_item(AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count++, item->name, long_label, true);
 		}
 		if (remove) {
 			for (int j = 0; j < AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count; j++) {
@@ -668,8 +686,11 @@ static indigo_result agent_device_attach(indigo_device *device) {
 				}
 			}
 			indigo_init_switch_item(AGENT_ASTROMETRY_INDEX_41XX_PROPERTY->items - (i - 19), name, label, present);
-			if (present)
-				indigo_init_switch_item(AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count++, name, label, false);
+			if (present) {
+				char long_label[INDIGO_VALUE_SIZE];
+				snprintf(long_label, INDIGO_VALUE_SIZE, "Tycho-2 %s", label);
+				indigo_init_switch_item(AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count++, name, long_label, false);
+			}
 		}
 		AGENT_ASTROMETRY_INDEX_42XX_PROPERTY = indigo_init_switch_property(NULL, device->name, AGENT_ASTROMETRY_INDEX_42XX_PROPERTY_NAME, "Index managememt", "Installed 2MASS catalog indexes", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, 20);
 		if (AGENT_ASTROMETRY_INDEX_42XX_PROPERTY == NULL)
@@ -692,9 +713,13 @@ static indigo_result agent_device_attach(indigo_device *device) {
 				}
 			}
 			indigo_init_switch_item(AGENT_ASTROMETRY_INDEX_42XX_PROPERTY->items - (i - 19), name, label, present);
-			if (present)
-				indigo_init_switch_item(AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count++, name, label, false);
+			if (present) {
+				char long_label[INDIGO_VALUE_SIZE];
+				snprintf(long_label, INDIGO_VALUE_SIZE, "2MASS %s", label);
+				indigo_init_switch_item(AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count++, name, long_label, false);
+			}
 		}
+		indigo_property_sort_items(AGENT_PLATESOLVER_USE_INDEX_PROPERTY, 0);
 		// --------------------------------------------------------------------------------
 		ASTROMETRY_DEVICE_PRIVATE_DATA->platesolver.save_config = astrometry_save_config;
 		ASTROMETRY_DEVICE_PRIVATE_DATA->platesolver.solve = astrometry_solve;
