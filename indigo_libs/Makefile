@@ -24,14 +24,14 @@ include ../Makefile.inc
 
 ifeq ($(OS_DETECTED),Darwin)
 	LIBUSB=$(BUILD_LIB)/libusb-1.0.dylib
-	LIBHIDAPI=$(BUILD_LIB)/libhidapi.a
+	LIBHIDAPI=$(BUILD_LIB)/libhidapi
 	FORCE_ALL_ON=-Wl,-force_load
 	FORCE_ALL_OFF=
 endif
 
 ifeq ($(OS_DETECTED),Linux)
 	LIBUSB=
-	LIBHIDAPI=$(BUILD_LIB)/libhidapi-libusb.a
+	LIBHIDAPI=$(BUILD_LIB)/libhidapi-libusb
 	FORCE_ALL_ON=-Wl,--whole-archive
 	FORCE_ALL_OFF=-Wl,--no-whole-archive
 endif
@@ -64,6 +64,7 @@ ifeq ($(OS_DETECTED),Darwin)
 endif
 	install -d $(INSTALL_INCLUDE)/indigo
 	cp indigo/*.h $(INSTALL_INCLUDE)/indigo
+	@$(MAKE)	-C indigocat install
 
 uninstall: status
 	rm -f $(INSTALL_LIB)/libindigo.$(SOEXT)
@@ -72,9 +73,11 @@ ifeq ($(OS_DETECTED),Darwin)
 	rm -f $(INSTALL_LIB)/libusb-1.0.dylib
 endif
 	rm -rf $(INSTALL_INCLUDE)/indigo
+	@$(MAKE)	-C indigocat uninstall
 
 clean: status
-	rm -f *.o *.orig $(BUILD_LIB)/libindigo.a $(BUILD_LIB)/libindigo.$(SOEXT) $(BUILD_LIB)/libjpeg.a $(BUILD_LIB)/libtiff.a $(BUILD_LIB)/libtiffxx.a $(BUILD_LIB)/libnovas.a $(BUILD_LIB)/libusb-1.0.dylib $(LIBHIDAPI) $(BUILD_LIB)/libftd2xx.a
+	@$(MAKE)	-C indigocat clean
+	rm -f *.o *.orig $(BUILD_LIB)/libindigo.* $(BUILD_LIB)/libraw.* $(BUILD_LIB)/libjpeg.* $(BUILD_LIB)/libtiff.* $(BUILD_LIB)/libtiffxx.* $(BUILD_LIB)/libusb-1.0.* $(LIBHIDAPI).* $(BUILD_LIB)/libftd2xx.*
 
 clean-all: status
 	git clean -dfx
@@ -85,13 +88,13 @@ clean-all: status
 #
 #---------------------------------------------------------------------
 
-libindigo: version libusb libhidapi libjpeg libtiff libnovas libftd2xx $(BUILD_LIB)/libindigo.a $(BUILD_LIB)/libindigo.$(SOEXT)
+libindigo: version libusb libhidapi libjpeg libtiff libftd2xx libraw libindigocat $(BUILD_LIB)/libindigo.a $(BUILD_LIB)/libindigo.$(SOEXT)
 
 $(BUILD_LIB)/libindigo.a: $(LIBINDIGO_FILES)
 	$(AR) $(ARFLAGS) $@ $^
 
-$(BUILD_LIB)/libindigo.$(SOEXT): $(LIBINDIGO_FILES) $(BUILD_LIB)/libnovas.a
-	$(CC) -shared -o $@ $^ $(LDFLAGS) $(FORCE_ALL_ON) $(BUILD_LIB)/libjpeg.a $(FORCE_ALL_OFF) $(BUILD_LIB)/libtiff.a $(BUILD_LIB)/libtiffxx.a $(FORCE_ALL_ON) $(LIBHIDAPI) $(FORCE_ALL_OFF) -ldl -lusb-1.0 -lz
+$(BUILD_LIB)/libindigo.$(SOEXT): $(LIBINDIGO_FILES)
+	$(CC) -shared -o $@ $^ $(LDFLAGS) $(FORCE_ALL_ON) $(BUILD_LIB)/libjpeg.a $(FORCE_ALL_OFF) $(BUILD_LIB)/libtiff.a $(BUILD_LIB)/libtiffxx.a $(BUILD_LIB)/libraw.a $(FORCE_ALL_ON) $(LIBHIDAPI).a $(FORCE_ALL_OFF) -ldl -lusb-1.0 -lz -lstdc++
 
 #---------------------------------------------------------------------
 #
@@ -104,6 +107,33 @@ version: indigo_config.h
 indigo_config.h:	../Makefile.inc
 	cp indigo/indigo_config.h indigo/indigo_config.h.orig
 	sed 's/INDIGO_BUILD.*/INDIGO_BUILD "$(INDIGO_BUILD)"/' indigo/indigo_config.h.orig >indigo/indigo_config.h
+
+#---------------------------------------------------------------------
+#
+#	Build libindigocat
+#
+#---------------------------------------------------------------------
+
+libindigocat: $(BUILD_LIB)/libindigocat.a $(BUILD_LIB)/libindigocat.$(SOEXT)
+
+$(BUILD_LIB)/libindigocat.a:
+	@$(MAKE)	-C indigocat $(BUILD_LIB)/libindigocat.a
+
+$(BUILD_LIB)/libindigocat.$(SOEXT):
+	@$(MAKE)	-C indigocat $(BUILD_LIB)/libindigocat.$(SOEXT)
+
+#---------------------------------------------------------------------
+#
+#	Build libraw
+#
+#---------------------------------------------------------------------
+
+libraw: $(BUILD_LIB)/libraw.a
+
+$(BUILD_LIB)/libraw.a:
+	export CC=$(CC); export CXX=$(CC); export CFLAGS="$(CFLAGS)"; export CXXFLAGS="$(CXXFLAGS)"; cd externals/libraw; install -d lib; make -f Makefile.indigo library
+	cp externals/libraw/lib/libraw.a $(BUILD_LIB)
+	cp externals/libraw/libraw/* $(BUILD_INCLUDE)
 
 #---------------------------------------------------------------------
 #
@@ -129,17 +159,6 @@ $(BUILD_LIB)/libtiff.a:
 
 #---------------------------------------------------------------------
 #
-#	Build libnovas
-#
-#---------------------------------------------------------------------
-
-libnovas: $(BUILD_LIB)/libnovas.a
-
-$(BUILD_LIB)/libnovas.a: externals/novas/novas.c externals/novas/eph_manager.c externals/novas/novascon.c externals/novas/nutation.c externals/novas/readeph0.c externals/novas/solsys1.c
-	cd externals/novas; rm -f *.o; $(CC) -c $(CFLAGS) novas.c eph_manager.c novascon.c nutation.c readeph0.c solsys1.c; $(AR) $(ARFLAGS) $@ *.o; install *.h $(BUILD_INCLUDE);
-
-#---------------------------------------------------------------------
-#
 #	Build libusb-1.0 for macOS
 #
 #---------------------------------------------------------------------
@@ -155,9 +174,9 @@ $(BUILD_LIB)/libusb-1.0.dylib:
 #
 #---------------------------------------------------------------------
 
-libhidapi: $(LIBHIDAPI)
+libhidapi: $(LIBHIDAPI).a
 
-$(LIBHIDAPI):
+$(LIBHIDAPI).a:
 	export CC=$(CC); export CXX=$(CC); export CFLAGS="$(CFLAGS)"; export CXXFLAGS="$(CXXFLAGS)"; export LDFLAGS="$(LDFLAGS) -lusb-1.0"; cd externals/hidapi; autoreconf -fiv; ./configure --prefix=$(BUILD_ROOT) --libdir=$(BUILD_LIB) --enable-shared=no --enable-static=yes CFLAGS="$(CFLAGS)" --with-pic; make; make install
 
 #---------------------------------------------------------------------
@@ -203,4 +222,4 @@ ifeq ($(ARCH_DETECTED),x64)
 	rm -rf /tmp/libftd2xx-x86_64-1.4.6.tgz /tmp/release
 endif
 endif
-	ar -d $(BUILD_LIB)/libftd2xx.a core.o descriptor.o io.o hotplug.o sync.o darwin_usb.o poll_posix.o threads_posix.o 
+	ar -d $(BUILD_LIB)/libftd2xx.a core.o descriptor.o io.o hotplug.o sync.o darwin_usb.o poll_posix.o threads_posix.o

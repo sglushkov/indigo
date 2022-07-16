@@ -7,7 +7,7 @@
 //
 
 // link with solver_test_image.c, indigo_bus.c, indigo_raw_utils.c,
-// indigo_cat_data.c, indigo_token.c, indigo_io.c, indigo_novas.c and libnovas.a
+// indigo_cat_data.c, indigo_token.c, indigo_io.c, indigo_align.c
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +17,7 @@
 
 #include <indigo/indigo_bus.h>
 #include <indigo/indigo_raw_utils.h>
-#include <indigo/indigo_novas.h>
+#include <indigo/indigo_align.h>
 
 #include "indigo_cat_data.h"
 
@@ -182,7 +182,7 @@ indigo_result indigo_match_quads(indigo_quad *image_quads, int image_quads_count
 	double max_dec = dec + radius;
 	int item_count = 16 * 1024;
 	int last_item = 0;
-	indigo_star_entry *star_entry = indigo_star_data;
+	indigocat_star_entry *star_entry = indigo_star_data;
 	indigo_star *star, *reference_stars = indigo_safe_malloc(item_count * sizeof(indigo_star));
 	while (star_entry->hip) {
 		ra = star_entry->ra;

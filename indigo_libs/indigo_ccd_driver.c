@@ -42,6 +42,7 @@
 #include <indigo/indigo_tiff.h>
 #include <indigo/indigo_avi.h>
 #include <indigo/indigo_ser.h>
+#include <indigo/indigo_dslr_raw.h>
 
 struct indigo_jpeg_compress_struct {
 	struct jpeg_compress_struct pub;
@@ -67,6 +68,14 @@ static void countdown_timer_callback(indigo_device *device) {
 		if (CCD_EXPOSURE_ITEM->number.value < 0) CCD_EXPOSURE_ITEM->number.value = 0;
 		indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
 		indigo_reschedule_timer(device, 1.0, &CCD_CONTEXT->countdown_timer);
+	}
+}
+
+double indigo_pixel_scale(double focal_length_cm, double pixel_size_um) {
+	if (focal_length_cm > 0) {
+		return 20.6265 * pixel_size_um / focal_length_cm;
+	} else {
+		return 0;
 	}
 }
 
@@ -109,8 +118,8 @@ indigo_result indigo_ccd_attach(indigo_device *device, const char* driver_name, 
 			CCD_LENS_PROPERTY = indigo_init_number_property(NULL, device->name, CCD_LENS_PROPERTY_NAME, CCD_MAIN_GROUP, "Lens profile", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
 			if (CCD_LENS_PROPERTY == NULL)
 				return INDIGO_FAILED;
-			indigo_init_number_item(CCD_LENS_APERTURE_ITEM, CCD_LENS_APERTURE_ITEM_NAME, "Aperture (cm)", 0, 2000, 0, 0);
-			indigo_init_number_item(CCD_LENS_FOCAL_LENGTH_ITEM, CCD_LENS_FOCAL_LENGTH_ITEM_NAME, "Focal length (cm)", 0, 10000, 0, 0);
+			indigo_init_number_item(CCD_LENS_APERTURE_ITEM, CCD_LENS_APERTURE_ITEM_NAME, "Aperture (cm)", 0, 2000, 1, 0);
+			indigo_init_number_item(CCD_LENS_FOCAL_LENGTH_ITEM, CCD_LENS_FOCAL_LENGTH_ITEM_NAME, "Focal length (cm)", 0, 10000, 5, 0);
 			// -------------------------------------------------------------------------------- CCD_UPLOAD_MODE
 			CCD_UPLOAD_MODE_PROPERTY = indigo_init_switch_property(NULL, device->name, CCD_UPLOAD_MODE_PROPERTY_NAME, CCD_MAIN_GROUP, "Image upload", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 3);
 			if (CCD_UPLOAD_MODE_PROPERTY == NULL)
@@ -280,14 +289,14 @@ indigo_result indigo_ccd_attach(indigo_device *device, const char* driver_name, 
 			indigo_init_number_item(CCD_JPEG_SETTINGS_BLACK_TRESHOLD_ITEM, CCD_JPEG_SETTINGS_BLACK_TRESHOLD_ITEM_NAME, "Black point treshold (%iles)", 0, 10, 0, 0.01);
 			indigo_init_number_item(CCD_JPEG_SETTINGS_WHITE_TRESHOLD_ITEM, CCD_JPEG_SETTINGS_WHITE_TRESHOLD_ITEM_NAME, "White point treshold (%iles)", 0, 5, 0, 0.2);
 			// -------------------------------------------------------------------------------- CCD_RBI_FLUSH_ENABLE
-			CCD_RBI_FLUSH_ENABLE_PROPERTY = indigo_init_switch_property(NULL, device->name, CCD_RBI_FLUSH_ENABLE_PROPERTY_NAME, CCD_MAIN_GROUP, "RBI flush", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 2);
+			CCD_RBI_FLUSH_ENABLE_PROPERTY = indigo_init_switch_property(NULL, device->name, CCD_RBI_FLUSH_ENABLE_PROPERTY_NAME, CCD_ADVANCED_GROUP, "RBI flush", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 2);
 			if (CCD_RBI_FLUSH_ENABLE_PROPERTY == NULL)
 				return INDIGO_FAILED;
 			CCD_RBI_FLUSH_ENABLE_PROPERTY->hidden = true;
 			indigo_init_switch_item(CCD_RBI_FLUSH_ENABLED_ITEM, CCD_RBI_FLUSH_ENABLED_ITEM_NAME, "Enabled", false);
 			indigo_init_switch_item(CCD_RBI_FLUSH_DISABLED_ITEM, CCD_RBI_FLUSH_DISABLED_ITEM_NAME, "Disabled", true);
 			// -------------------------------------------------------------------------------- FLI_RBI_FLUSH
-			CCD_RBI_FLUSH_PROPERTY = indigo_init_number_property(NULL, device->name, CCD_RBI_FLUSH_PROPERTY_NAME, CCD_MAIN_GROUP, "RBI flush params", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
+			CCD_RBI_FLUSH_PROPERTY = indigo_init_number_property(NULL, device->name, CCD_RBI_FLUSH_PROPERTY_NAME, CCD_ADVANCED_GROUP, "RBI flush params", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
 			if (CCD_RBI_FLUSH_PROPERTY == NULL)
 				return INDIGO_FAILED;
 			CCD_RBI_FLUSH_PROPERTY->hidden = true;
@@ -368,7 +377,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 	assert(device != NULL);
 	assert(DEVICE_CONTEXT != NULL);
 	assert(property != NULL);
-	if (indigo_property_match(CONNECTION_PROPERTY, property)) {
+	if (indigo_property_match_changeable(CONNECTION_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CONNECTION
 		if (IS_CONNECTED) {
 			indigo_define_property(device, CCD_INFO_PROPERTY, NULL);
@@ -436,7 +445,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 			indigo_delete_property(device, CCD_RBI_FLUSH_ENABLE_PROPERTY, NULL);
 			indigo_delete_property(device, CCD_RBI_FLUSH_PROPERTY, NULL);
 		}
-	} else if (indigo_property_match(CONFIG_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CONFIG_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CONFIG
 		if (indigo_switch_match(CONFIG_SAVE_ITEM, property)) {
 			indigo_save_property(device, NULL, CCD_LENS_PROPERTY);
@@ -455,12 +464,12 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 			indigo_save_property(device, NULL, CCD_RBI_FLUSH_ENABLE_PROPERTY);
 			indigo_save_property(device, NULL, CCD_RBI_FLUSH_PROPERTY);
 		}
-	} else if (indigo_property_match(CCD_LENS_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_LENS_PROPERTY, property)) {
 		indigo_property_copy_values(CCD_LENS_PROPERTY, property, false);
 		CCD_LENS_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_update_property(device, CCD_LENS_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match(CCD_EXPOSURE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_EXPOSURE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_EXPOSURE
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			if (CCD_UPLOAD_MODE_LOCAL_ITEM->sw.value || CCD_UPLOAD_MODE_BOTH_ITEM->sw.value) {
@@ -480,7 +489,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 			}
 		}
 		return INDIGO_OK;
-	} else if (indigo_property_match(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_ABORT_EXPOSURE
 		if (CCD_IMAGE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			CCD_IMAGE_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -515,7 +524,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 		CCD_ABORT_EXPOSURE_ITEM->sw.value = false;
 		indigo_update_property(device, CCD_ABORT_EXPOSURE_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match_w(CCD_FRAME_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_FRAME_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_FRAME
 		indigo_property_copy_values(CCD_FRAME_PROPERTY, property, false);
 		CCD_FRAME_WIDTH_ITEM->number.value = ((int)CCD_FRAME_WIDTH_ITEM->number.value / (int)CCD_BIN_HORIZONTAL_ITEM->number.value) * (int)CCD_BIN_HORIZONTAL_ITEM->number.value;
@@ -529,11 +538,9 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 			CCD_FRAME_HEIGHT_ITEM->number.value = CCD_INFO_HEIGHT_ITEM->number.value - CCD_FRAME_TOP_ITEM->number.value;
 			CCD_FRAME_PROPERTY->state = INDIGO_ALERT_STATE;
 		}
-		if (IS_CONNECTED) {
-			indigo_update_property(device, CCD_FRAME_PROPERTY, NULL);
-		}
+		indigo_update_property(device, CCD_FRAME_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match_w(CCD_BIN_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_BIN_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_BIN
 		indigo_property_copy_values(CCD_BIN_PROPERTY, property, false);
 		char name[32];
@@ -542,14 +549,12 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 			indigo_item *item = &CCD_MODE_PROPERTY->items[i];
 			item->sw.value = !strcmp(item->name, name);
 		}
-		if (IS_CONNECTED) {
-			CCD_MODE_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_update_property(device, CCD_MODE_PROPERTY, NULL);
-			CCD_BIN_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_update_property(device, CCD_BIN_PROPERTY, NULL);
-		}
+		CCD_MODE_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, CCD_MODE_PROPERTY, NULL);
+		CCD_BIN_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, CCD_BIN_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match_w(CCD_MODE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_MODE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_MODE
 		indigo_property_copy_values(CCD_MODE_PROPERTY, property, false);
 		for (int i = 0; i < CCD_MODE_PROPERTY->count; i++) {
@@ -566,110 +571,90 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 				break;
 			}
 		}
-		if (IS_CONNECTED) {
-			CCD_FRAME_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_update_property(device, CCD_FRAME_PROPERTY, NULL);
-			CCD_BIN_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_update_property(device, CCD_BIN_PROPERTY, NULL);
-			CCD_MODE_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_update_property(device, CCD_MODE_PROPERTY, NULL);
-		}
+		CCD_FRAME_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, CCD_FRAME_PROPERTY, NULL);
+		CCD_BIN_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, CCD_BIN_PROPERTY, NULL);
+		CCD_MODE_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, CCD_MODE_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match_w(CCD_OFFSET_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_OFFSET_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_OFFSET
 		indigo_property_copy_values(CCD_OFFSET_PROPERTY, property, false);
-		if (IS_CONNECTED) {
-			CCD_OFFSET_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_update_property(device, CCD_OFFSET_PROPERTY, NULL);
-		}
+		CCD_OFFSET_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, CCD_OFFSET_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match_w(CCD_READ_MODE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_READ_MODE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_READ_MODE
 		indigo_property_copy_values(CCD_READ_MODE_PROPERTY, property, false);
-		if (IS_CONNECTED) {
-			CCD_READ_MODE_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_update_property(device, CCD_READ_MODE_PROPERTY, NULL);
-		}
+		CCD_READ_MODE_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, CCD_READ_MODE_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match_w(CCD_GAIN_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_GAIN_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_GAIN
 		indigo_property_copy_values(CCD_GAIN_PROPERTY, property, false);
-		if (IS_CONNECTED) {
-			CCD_GAIN_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_update_property(device, CCD_GAIN_PROPERTY, NULL);
-		}
+		CCD_GAIN_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, CCD_GAIN_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match_w(CCD_GAMMA_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_GAMMA_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_GAMMA
 		indigo_property_copy_values(CCD_GAMMA_PROPERTY, property, false);
-		if (IS_CONNECTED) {
-			CCD_GAMMA_PROPERTY->state = INDIGO_OK_STATE;
-			indigo_update_property(device, CCD_GAMMA_PROPERTY, NULL);
-		}
+		CCD_GAMMA_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, CCD_GAMMA_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match(CCD_FRAME_TYPE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_FRAME_TYPE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_FRAME_TYPE
 		indigo_property_copy_values(CCD_FRAME_TYPE_PROPERTY, property, false);
 		CCD_FRAME_TYPE_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED)
-			indigo_update_property(device, CCD_FRAME_TYPE_PROPERTY, NULL);
+		indigo_update_property(device, CCD_FRAME_TYPE_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match(CCD_IMAGE_FORMAT_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_IMAGE_FORMAT_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_IMAGE_FORMAT
 		indigo_property_copy_values(CCD_IMAGE_FORMAT_PROPERTY, property, false);
 		CCD_IMAGE_FORMAT_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED)
-			indigo_update_property(device, CCD_IMAGE_FORMAT_PROPERTY, NULL);
+		indigo_update_property(device, CCD_IMAGE_FORMAT_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match(CCD_UPLOAD_MODE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_UPLOAD_MODE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_IMAGE_UPLOAD_MODE
 		indigo_property_copy_values(CCD_UPLOAD_MODE_PROPERTY, property, false);
 		CCD_UPLOAD_MODE_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED)
-			indigo_update_property(device, CCD_UPLOAD_MODE_PROPERTY, NULL);
+		indigo_update_property(device, CCD_UPLOAD_MODE_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match(CCD_PREVIEW_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_PREVIEW_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_PREVIEW
 		indigo_property_copy_values(CCD_PREVIEW_PROPERTY, property, false);
 		if (CCD_PREVIEW_ENABLED_WITH_HISTOGRAM_ITEM->sw.value) {
 			if (CCD_PREVIEW_IMAGE_PROPERTY->hidden) {
 				CCD_PREVIEW_IMAGE_PROPERTY->hidden = false;
-				if (IS_CONNECTED)
-					indigo_define_property(device, CCD_PREVIEW_IMAGE_PROPERTY, NULL);
+				indigo_define_property(device, CCD_PREVIEW_IMAGE_PROPERTY, NULL);
 			}
 			if (CCD_PREVIEW_HISTOGRAM_PROPERTY->hidden) {
 				CCD_PREVIEW_HISTOGRAM_PROPERTY->hidden = false;
-				if (IS_CONNECTED)
-					indigo_define_property(device, CCD_PREVIEW_HISTOGRAM_PROPERTY, NULL);
+				indigo_define_property(device, CCD_PREVIEW_HISTOGRAM_PROPERTY, NULL);
 			}
 		} else if (CCD_PREVIEW_ENABLED_ITEM->sw.value) {
 			if (CCD_PREVIEW_IMAGE_PROPERTY->hidden) {
 				CCD_PREVIEW_IMAGE_PROPERTY->hidden = false;
-				if (IS_CONNECTED)
-					indigo_define_property(device, CCD_PREVIEW_IMAGE_PROPERTY, NULL);
+				indigo_define_property(device, CCD_PREVIEW_IMAGE_PROPERTY, NULL);
 			}
 			if (!CCD_PREVIEW_HISTOGRAM_PROPERTY->hidden) {
-				if (IS_CONNECTED)
-					indigo_delete_property(device, CCD_PREVIEW_HISTOGRAM_PROPERTY, NULL);
+				indigo_delete_property(device, CCD_PREVIEW_HISTOGRAM_PROPERTY, NULL);
 				CCD_PREVIEW_HISTOGRAM_PROPERTY->hidden = true;
 			}
 		} else {
 			if (!CCD_PREVIEW_IMAGE_PROPERTY->hidden) {
-				if (IS_CONNECTED)
-					indigo_delete_property(device, CCD_PREVIEW_IMAGE_PROPERTY, NULL);
+				indigo_delete_property(device, CCD_PREVIEW_IMAGE_PROPERTY, NULL);
 				CCD_PREVIEW_IMAGE_PROPERTY->hidden = true;
 			}
 			if (!CCD_PREVIEW_HISTOGRAM_PROPERTY->hidden) {
-				if (IS_CONNECTED)
-					indigo_delete_property(device, CCD_PREVIEW_HISTOGRAM_PROPERTY, NULL);
+				indigo_delete_property(device, CCD_PREVIEW_HISTOGRAM_PROPERTY, NULL);
 				CCD_PREVIEW_HISTOGRAM_PROPERTY->hidden = true;
 			}
 		}
 		CCD_PREVIEW_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED)
-			indigo_update_property(device, CCD_PREVIEW_PROPERTY, NULL);
+		indigo_update_property(device, CCD_PREVIEW_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match(CCD_LOCAL_MODE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_LOCAL_MODE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_LOCAL_MODE
 		indigo_property_copy_values(CCD_LOCAL_MODE_PROPERTY, property, false);
 		long len = strlen(CCD_LOCAL_MODE_DIR_ITEM->text.value);
@@ -678,10 +663,9 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 		else if (CCD_LOCAL_MODE_DIR_ITEM->text.value[len - 1] != '/')
 			strcat(CCD_LOCAL_MODE_DIR_ITEM->text.value, "/");
 		CCD_LOCAL_MODE_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED)
-			indigo_update_property(device, CCD_LOCAL_MODE_PROPERTY, NULL);
+		indigo_update_property(device, CCD_LOCAL_MODE_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match(CCD_FITS_HEADERS_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_FITS_HEADERS_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_FITS_HEADERS
 		indigo_property_copy_values(CCD_FITS_HEADERS_PROPERTY, property, false);
 		for (int i = 0; i < CCD_FITS_HEADERS_PROPERTY->count; i++) {
@@ -714,27 +698,24 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 					tmp++;
 				snprintf(line, 80, "HISTORY  %s", tmp);
 				indigo_copy_value(item->text.value, line);
-			} else if (IS_CONNECTED) {
+			} else {
 				CCD_FITS_HEADERS_PROPERTY->state = INDIGO_ALERT_STATE;
 				indigo_update_property(device, CCD_FITS_HEADERS_PROPERTY, "Invalid header line format");
-				return INDIGO_OK;
-			} else {
 				*item->text.value = 0;
+				return INDIGO_OK;
 			}
 		}
 		CCD_FITS_HEADERS_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED)
-			indigo_update_property(device, CCD_FITS_HEADERS_PROPERTY, NULL);
+		indigo_update_property(device, CCD_FITS_HEADERS_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match(CCD_JPEG_SETTINGS_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_JPEG_SETTINGS_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_JPEG_SETTINGS
 		indigo_property_copy_values(CCD_JPEG_SETTINGS_PROPERTY, property, false);
 		CCD_JPEG_SETTINGS_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED)
-			indigo_update_property(device, CCD_JPEG_SETTINGS_PROPERTY, NULL);
+		indigo_update_property(device, CCD_JPEG_SETTINGS_PROPERTY, NULL);
 		return INDIGO_OK;
 		// -------------------------------------------------------------------------------- CCD_RBI_FLUSH_ENABLE
-	} else if (indigo_property_match(CCD_RBI_FLUSH_ENABLE_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_RBI_FLUSH_ENABLE_PROPERTY, property)) {
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			CCD_RBI_FLUSH_ENABLE_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, CCD_RBI_FLUSH_ENABLE_PROPERTY, "Exposure in progress, RBI flush can not be changed.");
@@ -742,12 +723,10 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 		}
 		indigo_property_copy_values(CCD_RBI_FLUSH_ENABLE_PROPERTY, property, false);
 		CCD_RBI_FLUSH_ENABLE_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED) {
-			indigo_update_property(device, CCD_RBI_FLUSH_ENABLE_PROPERTY, NULL);
-		}
+		indigo_update_property(device, CCD_RBI_FLUSH_ENABLE_PROPERTY, NULL);
 		return INDIGO_OK;
 		// -------------------------------------------------------------------------------- FLI_RBI_FLUSH
-	} else if (indigo_property_match(CCD_RBI_FLUSH_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_RBI_FLUSH_PROPERTY, property)) {
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			CCD_RBI_FLUSH_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, CCD_RBI_FLUSH_PROPERTY, "Exposure in progress, RBI flush can not be changed.");
@@ -755,9 +734,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 		}
 		indigo_property_copy_values(CCD_RBI_FLUSH_PROPERTY, property, false);
 		CCD_RBI_FLUSH_PROPERTY->state = INDIGO_OK_STATE;
-		if (IS_CONNECTED) {
-			indigo_update_property(device, CCD_RBI_FLUSH_PROPERTY, NULL);
-		}
+		indigo_update_property(device, CCD_RBI_FLUSH_PROPERTY, NULL);
 		return INDIGO_OK;
 		// --------------------------------------------------------------------------------
 	}
@@ -1893,6 +1870,42 @@ void indigo_process_dslr_image(indigo_device *device, void *data, int data_size,
 			free(image);
 			return;
 		}
+	} else if (CCD_IMAGE_FORMAT_FITS_ITEM->sw.value || CCD_IMAGE_FORMAT_XISF_ITEM->sw.value || CCD_IMAGE_FORMAT_RAW_ITEM->sw.value) {
+		void *image = NULL;
+		indigo_dslr_raw_image_s output_image = {0};
+		indigo_dslr_raw_image_info_s image_info;
+		int rc;
+
+		rc = indigo_dslr_raw_image_info((void *)data, data_size, &image_info);
+		if (rc == LIBRAW_SUCCESS) {
+			rc = indigo_dslr_raw_process_image((void *)data, data_size, &output_image);
+		}
+		if (rc != LIBRAW_SUCCESS) {
+			if (output_image.data != NULL) free(output_image.data);
+			INDIGO_ERROR(indigo_error("Selected source format cannot be converted"));
+			CCD_IMAGE_PROPERTY->state = INDIGO_ALERT_STATE;
+			indigo_update_property(device, CCD_IMAGE_PROPERTY, "Selected source format cannot be converted, please use camera RAW as a source");
+			return;
+		}
+		indigo_fits_keyword keywords[] = {
+			{ INDIGO_FITS_STRING, "BAYERPAT", .string = output_image.bayer_pattern, "Bayer color pattern" },
+			{ INDIGO_FITS_NUMBER, "XBAYROFF", .number = 0, "X offset of Bayer array" }, /* index 1 */
+			{ INDIGO_FITS_NUMBER, "YBAYROFF", .number = 0, "Y offset of Bayer array" },
+			{ INDIGO_FITS_NUMBER, "ISOSPEED", .number = image_info.iso_speed, "ISO camera setting" },
+			{ 0 }, //Placeholder for trmerature
+			{ 0 }
+		};
+		int index = 4;
+		if (image_info.temperature > -273.15f) {
+			keywords[index++] = (indigo_fits_keyword) { INDIGO_FITS_NUMBER, "CCD-TEMP", .number = image_info.temperature, "CCD temperature [celcius]"};
+		}
+
+		image = indigo_alloc_blob_buffer(output_image.size + FITS_HEADER_SIZE);
+		memcpy(image + FITS_HEADER_SIZE, output_image.data, output_image.size);
+		free(output_image.data);
+		indigo_process_image(device, image, output_image.width, output_image.height, output_image.bits, true, true, keywords, streaming);
+		free(image);
+		return;
 	}
 	if (CCD_UPLOAD_MODE_LOCAL_ITEM->sw.value || CCD_UPLOAD_MODE_BOTH_ITEM->sw.value) {
 		bool use_avi = false;

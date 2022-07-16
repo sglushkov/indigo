@@ -468,11 +468,14 @@ indigo_result indigo_selection_frame_digest_iterative(indigo_raw_type raw_type, 
 	return result;
 }
 
+#define MAX_RADIUS 128
 indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void *data, double *x, double *y, const int radius, const int width, const int height, indigo_frame_digest *digest) {
 	const int xx = (int)round(*x);
 	const int yy = (int)round(*y);
+	double background[MAX_RADIUS*8+2];
+	int background_count = 0;
 
-	if ((width <= 2 * radius + 1) || (height <= 2 * radius + 1))
+	if ((width <= 2 * radius + 1) || (height <= 2 * radius + 1) || radius > MAX_RADIUS)
 		return INDIGO_FAILED;
 	if (xx < radius || width - radius < xx)
 		return INDIGO_FAILED;
@@ -493,6 +496,10 @@ indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void
 			for (int j = ls; j <= le; j++) {
 				for (int i = cs; i <= ce; i++) {
 					value = clear_hot_pixel_8(data8, i, j, width, height);
+					/* use border for background noise estimation */
+					if (j == ls || j == le || i == cs || i == ce) {
+						background[background_count++] = value;
+					}
 					sum += value;
 					if (value > max) max = value;
 				}
@@ -503,6 +510,10 @@ indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void
 			for (int j = ls; j <= le; j++) {
 				for (int i = cs; i <= ce; i++) {
 					value = clear_hot_pixel_16(data16, i, j, width, height);
+					/* use border for background noise estimation */
+					if (j == ls || j == le || i == cs || i == ce) {
+						background[background_count++] = value;
+					}
 					sum += value;
 					if (value > max) max = value;
 				}
@@ -515,6 +526,10 @@ indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void
 				for (int i = cs; i <= ce; i++) {
 					int kk = 3 * (k + i);
 					value = data8[kk] + data8[kk + 1] + data8[kk + 2];
+					/* use border for background noise estimation */
+					if (j == ls || j == le || i == cs || i == ce) {
+						background[background_count++] = value;
+					}
 					sum += value;
 					if (value > max) max = value;
 				}
@@ -527,6 +542,10 @@ indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void
 				for (int i = cs; i <= ce; i++) {
 					int kk = 4 * (k + i);
 					value = data8[kk] + data8[kk + 1] + data8[kk + 2];
+					/* use border for background noise estimation */
+					if (j == ls || j == le || i == cs || i == ce) {
+						background[background_count++] = value;
+					}
 					sum += value;
 					if (value > max) max = value;
 				}
@@ -539,6 +558,10 @@ indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void
 				for (int i = cs; i <= ce; i++) {
 					int kk = 4 * (k + i);
 					value = data8[kk + 1] + data8[kk + 2] + data8[kk + 3];
+					/* use border for background noise estimation */
+					if (j == ls || j == le || i == cs || i == ce) {
+						background[background_count++] = value;
+					}
 					sum += value;
 					if (value > max) max = value;
 				}
@@ -551,6 +574,10 @@ indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void
 				for (int i = cs; i <= ce; i++) {
 					int kk = 3 * (k + i);
 					value = data16[kk] + data16[kk + 1] + data16[kk + 2];
+					/* use border for background noise estimation */
+					if (j == ls || j == le || i == cs || i == ce) {
+						background[background_count++] = value;
+					}
 					sum += value;
 					if (value > max) max = value;
 				}
@@ -559,10 +586,13 @@ indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void
 		}
 	}
 
-	/* Set threshold 20% above average value */
-	double threshold = 1.20 * sum / ((2 * radius + 1) * (2 * radius + 1));
+	double average = sum / ((2 * radius + 1) * (2 * radius + 1));
+	double stddev = indigo_stddev(background, background_count);
 
-	INDIGO_DEBUG(indigo_debug("Selection: threshold = %.3f, max = %.3f", threshold, max));
+	/* Set threshold at 5 * standard deviation */
+	double threshold = average + 5 * stddev;
+
+	INDIGO_DEBUG(indigo_debug("Selection: threshold = %.3lf, max = %.3lf, average = %.3lf, stddev = %.3lf", threshold, max, average, stddev));
 
 	/* If max is below the thresold no guiding is possible */
 	if (max <= threshold) return INDIGO_GUIDE_ERROR;
@@ -663,8 +693,9 @@ indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void
 	*/
 	digest->centroid_x = *x = cs + m10 / m00 - 0.5;
 	digest->centroid_y = *y = ls + m01 / m00 - 0.5;
+	digest->snr = sqrt(m00);
 	digest->algorithm = centroid;
-	//INDIGO_DEBUG(indigo_log("indigo_selection_frame_digest: centroid = [%5.2f, %5.2f]", digest->centroid_x, digest->centroid_y));
+	INDIGO_DEBUG(indigo_debug("indigo_selection_frame_digest: centroid = [%5.2f, %5.2f], signal = %.3f, stddev_noise = %.3f, SNR = %3f", digest->centroid_x, digest->centroid_y, m00, stddev, digest->snr));
 	return INDIGO_OK;
 }
 
@@ -1867,6 +1898,70 @@ indigo_result indigo_reduce_multistar_digest(const indigo_frame_digest *avg_ref,
 	return INDIGO_OK;
 }
 
+indigo_result indigo_reduce_weighted_multistar_digest(const indigo_frame_digest *avg_ref, const indigo_frame_digest ref[], const indigo_frame_digest new_digest[], const int count, indigo_frame_digest *digest) {
+	double drifts[MAX_MULTISTAR_COUNT] = {0};
+	double drifts_x[MAX_MULTISTAR_COUNT] = {0};
+	double drifts_y[MAX_MULTISTAR_COUNT] = {0};
+	double average = 0;
+	double drift_x, drift_y;
+
+	if (
+		count < 1 ||
+		avg_ref->algorithm != centroid ||
+		ref[0].algorithm != centroid ||
+		new_digest[0].algorithm != centroid ||
+		digest == NULL
+	) return INDIGO_FAILED;
+
+	digest->algorithm = centroid;
+	digest->width = new_digest[0].width;
+	digest->height = new_digest[0].height;
+	digest->centroid_x = avg_ref->centroid_x;
+	digest->centroid_y = avg_ref->centroid_y;
+
+	for (int i = 0; i < count; i++) {
+		indigo_calculate_drift(&ref[i], &new_digest[i], &drift_x, &drift_y);
+		drifts_x[i] = drift_x;
+		drifts_y[i] = drift_y;
+		drifts[i] = sqrt(drift_x * drift_x + drift_y * drift_y);
+		average += drifts[i];
+	}
+	average /= count;
+	double stddev = indigo_stddev(drifts, count);
+
+	INDIGO_DEBUG(indigo_debug("%s: average = %.4f stddev = %.4f", __FUNCTION__, average, stddev));
+
+	drift_x = 0;
+	drift_y = 0;
+	int used_count = 0;
+	double sum_weights = 0;
+	// calculate weigthed average drift with removed outliers (cut off at 1.5 * stddev)
+	// for count <= 2 use weigthed average
+	for (int i = 0; i < count; i++) {
+		double weight = sqrt(new_digest[i].snr);
+		if (count <= 2 || fabs(average - drifts[i]) <= 1.5 * stddev) {
+			used_count++;
+			drift_x += drifts_x[i] * weight;
+			drift_y += drifts_y[i] * weight;
+			sum_weights += weight;
+			INDIGO_DEBUG(indigo_debug("%s: ++ Used star [%d] drift = %.4f, weight = %.4f", __FUNCTION__, i, drifts[i], weight));
+		} else {
+			INDIGO_DEBUG(indigo_debug("%s: -- Skip star [%d] drift = %.4f, weight = %.4f", __FUNCTION__, i, drifts[i], weight));
+		}
+	}
+
+	if (used_count < 1) {
+		return INDIGO_GUIDE_ERROR;
+	}
+
+	drift_x /= sum_weights;
+	drift_y /= sum_weights;
+	digest->centroid_x += drift_x;
+	digest->centroid_y += drift_y;
+	INDIGO_DEBUG(indigo_debug("%s: == Result using %d of %d stars. Drifts = ( %.3f, %.3f ) digest = ( %.3f, %.3f )", __FUNCTION__, used_count, count, drift_x, drift_y, digest->centroid_x, digest->centroid_y));
+	return INDIGO_OK;
+}
+
 double indigo_guider_reponse(double p_gain, double i_gain, double guide_cycle_time, double drift, double avg_drift) {
 	double response = -1 * (p_gain * drift + i_gain * avg_drift * guide_cycle_time);
 	INDIGO_DEBUG(indigo_debug("%s(): P = %.4f, I = %.4f, response = %.4f, drift = %.4f, avg_drift = %.4f", __FUNCTION__, p_gain, i_gain, response, drift, avg_drift));
@@ -1932,21 +2027,21 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 	int  size = width * height;
 	uint16_t *buf = indigo_safe_malloc(size * sizeof(uint16_t));
 	int star_size = 100;
-	const int clip_edge   = height >= FIND_STAR_EDGE_CLIPPING * 4 ? FIND_STAR_EDGE_CLIPPING : (height / 4);
+	const int clip_edge = height >= FIND_STAR_EDGE_CLIPPING * 4 ? FIND_STAR_EDGE_CLIPPING : (height / 4);
 	int clip_width  = width - clip_edge;
 	int clip_height = height - clip_edge;
 	uint16_t max_luminance = 0;
 
 	uint8_t *data8 = (uint8_t *)data;
 	uint16_t *data16 = (uint16_t *)data;
-	uint32_t threshold = 0;
+	uint32_t sum = 0;
 
 	switch (raw_type) {
 		case INDIGO_RAW_MONO8: {
 			max_luminance = 0xFF;
 			for (int i = 0; i < size; i++) {
 				buf[i] = data8[i];
-				threshold += buf[i];
+				sum += buf[i];
 			}
 			break;
 		}
@@ -1954,7 +2049,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			max_luminance = 0xFFFF;
 			for (int i = 0; i < size; i++) {
 				buf[i] = data16[i];
-				threshold += buf[i];
+				sum += buf[i];
 			}
 			break;
 		}
@@ -1962,7 +2057,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			max_luminance = 0xFF;
 			for (int i = 0, j = 0; i < 3 * size; i++, j++) {
 				buf[j] = (data8[i] + data8[i + 1] + data8[i + 2]) / 3;
-				threshold += buf[j];
+				sum += buf[j];
 				i += 2;
 			}
 			break;
@@ -1971,7 +2066,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			max_luminance = 0xFF;
 			for (int i = 0, j = 0; i < 4 * size; i++, j++) {
 				buf[j] = (data8[i] + data8[i + 1] + data8[i + 2]) / 3;
-				threshold += buf[j];
+				sum += buf[j];
 				i += 3;
 			}
 			break;
@@ -1980,7 +2075,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			max_luminance = 0xFF;
 			for (int i = 0, j = 0; i < 4 * size; i++, j++) {
 				buf[j] = (data8[i + 1] + data8[i + 2] + data8[i + 3]) / 3;
-				threshold += buf[j];
+				sum += buf[j];
 				i += 3;
 			}
 			break;
@@ -1989,16 +2084,17 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			max_luminance = 0xFFFF;
 			for (int i = 0, j = 0; i < 3 * size; i++, j++) {
 				buf[j] = (data16[i] + data16[i + 1] + data16[i + 2]) / 3;
-				threshold += buf[j];
+				sum += buf[j];
 				i += 2;
 			}
 			break;
 		}
 	}
 
-	/* Look for stars 35% brighter than the frame average */
-	threshold = 1.35 * threshold / size;
-	int threshold_hist = threshold * 0.99;
+	double stddev = indigo_stddev_16(buf, width, height, NULL);
+	/* add 4.5 stddev threshold for stars */
+	uint32_t threshold = 4.5 * stddev + sum / size;
+	int threshold_hist = threshold * 0.9;
 
 	int found = 0;
 	int width2 = width / 2;
@@ -2044,7 +2140,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 				for (int i = star_x; i <= max_i; i++) {
 					int off = j * width + i;
 					if (buf[off] > threshold_hist) {
-						luminance += buf[off] - threshold;
+						luminance += buf[off] - threshold_hist;
 						buf[off] = 0;
 					} else {
 						break;
@@ -2057,7 +2153,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 				for (int i = star_x - 1; i >= min_i; i--) {
 					int off = j * width + i;
 					if (buf[off] > threshold_hist) {
-						luminance += buf[off] - threshold;
+						luminance += buf[off] - threshold_hist;
 						buf[off] = 0;
 					} else {
 						break;
@@ -2070,7 +2166,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 				for (int i = star_x; i <= max_i; i++) {
 					int off = j * width + i;
 					if (buf[off] > threshold_hist) {
-						luminance += buf[off] - threshold;
+						luminance += buf[off] - threshold_hist;
 						buf[off] = 0;
 					} else {
 						break;
@@ -2083,7 +2179,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 				for (int i = star_x - 1; i >= min_i; i--) {
 					int off = j * width + i;
 					if (buf[off] > threshold_hist) {
-						luminance += buf[off] - threshold;
+						luminance += buf[off] - threshold_hist;
 						buf[off] = 0;
 					} else {
 						break;
@@ -2104,7 +2200,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 				star.oversaturated = lmax == max_luminance;
 				star.nc_distance = sqrt((star.x - width2) * (star.x - width2) + (star.y - height2) * (star.y - height2));
 				star.nc_distance /= divider;
-				star.luminance = log(fabs(luminance));
+				star.luminance = (luminance > 0) ? log(fabs(luminance)) : 0;
 				star_list[found++] = star;
 			}
 		}

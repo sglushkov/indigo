@@ -46,6 +46,10 @@ extern "C" {
  */
 #define CCD_COOLER_GROUP                  "Cooler"
 
+/** CCD Advanced group name string.
+ */
+#define CCD_ADVANCED_GROUP                "Advanced"
+
 /** Device context pointer.
  */
 #define CCD_CONTEXT                ((indigo_ccd_context *)device->device_context)
@@ -310,11 +314,11 @@ extern "C" {
 
 /** CCD_IMAGE_FORMAT.NATIVE property item pointer (DSLR only)
  */
-#define CCD_IMAGE_FORMAT_NATIVE_ITEM      (CCD_IMAGE_FORMAT_PROPERTY->items+0)
+#define CCD_IMAGE_FORMAT_NATIVE_ITEM      (CCD_IMAGE_FORMAT_PROPERTY->items+3)
 
 /** CCD_IMAGE_FORMAT.NATIVE_AVI property item pointer. (DSLR only)
  */
-#define CCD_IMAGE_FORMAT_NATIVE_AVI_ITEM  (CCD_IMAGE_FORMAT_PROPERTY->items+1)
+#define CCD_IMAGE_FORMAT_NATIVE_AVI_ITEM  (CCD_IMAGE_FORMAT_PROPERTY->items+4)
 
 
 
@@ -474,6 +478,10 @@ typedef struct {
 	indigo_property *ccd_rbi_flush_enable_property; ///< CCD_RBI_FLUSH_ENABLE property pointer
 	indigo_property *ccd_rbi_flush_property;			///< CCD_RBI_FLUSH property pointer
 } indigo_ccd_context;
+
+/** Calculate pixel scale in arcsec/pixel
+ */
+extern double indigo_pixel_scale(double focal_length_cm, double pixel_size_um);
 
 /** Suspend countdown.
  */

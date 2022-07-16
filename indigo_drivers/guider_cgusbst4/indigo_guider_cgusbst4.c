@@ -50,6 +50,7 @@
 typedef struct {
 	int handle;
 	pthread_mutex_t port_mutex;
+	indigo_timer *ra_guider_timer, *dec_guider_timer;
 } cgusbst4_private_data;
 
 static bool cgusbst4_command(indigo_device *device, char *command, char *response, int max, int sleep);
@@ -171,11 +172,31 @@ static void guider_connect_callback(indigo_device *device) {
 	indigo_guider_change_property(device, NULL, CONNECTION_PROPERTY);
 }
 
+static void guider_ra_timer_callback(indigo_device *device) {
+	PRIVATE_DATA->ra_guider_timer = NULL;
+	if (GUIDER_GUIDE_EAST_ITEM->number.value != 0 || GUIDER_GUIDE_WEST_ITEM->number.value != 0) {
+		GUIDER_GUIDE_EAST_ITEM->number.value = 0;
+		GUIDER_GUIDE_WEST_ITEM->number.value = 0;
+		GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, GUIDER_GUIDE_RA_PROPERTY, NULL);
+	}
+}
+
+static void guider_dec_timer_callback(indigo_device *device) {
+	PRIVATE_DATA->dec_guider_timer = NULL;
+	if (GUIDER_GUIDE_NORTH_ITEM->number.value != 0 || GUIDER_GUIDE_SOUTH_ITEM->number.value != 0) {
+		GUIDER_GUIDE_NORTH_ITEM->number.value = 0;
+		GUIDER_GUIDE_SOUTH_ITEM->number.value = 0;
+		GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, GUIDER_GUIDE_DEC_PROPERTY, NULL);
+	}
+}
+
 static indigo_result guider_change_property(indigo_device *device, indigo_client *client, indigo_property *property) {
 	assert(device != NULL);
 	assert(DEVICE_CONTEXT != NULL);
 	assert(property != NULL);
-	if (indigo_property_match(CONNECTION_PROPERTY, property)) {
+	if (indigo_property_match_changeable(CONNECTION_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CONNECTION
 		if (indigo_ignore_connection_change(device, property))
 			return INDIGO_OK;
@@ -183,34 +204,42 @@ static indigo_result guider_change_property(indigo_device *device, indigo_client
 		CONNECTION_PROPERTY->state = INDIGO_BUSY_STATE;
 		indigo_update_property(device, CONNECTION_PROPERTY, NULL);
 		indigo_set_timer(device, 0, guider_connect_callback, NULL);
-		return INDIGO_OK;	} else if (indigo_property_match(GUIDER_GUIDE_DEC_PROPERTY, property)) {
+		return INDIGO_OK;	} else if (indigo_property_match_changeable(GUIDER_GUIDE_DEC_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- GUIDER_GUIDE_DEC
 		indigo_property_copy_values(GUIDER_GUIDE_DEC_PROPERTY, property, false);
 		char command[128];
 		if (GUIDER_GUIDE_NORTH_ITEM->number.value > 0) {
 			sprintf(command, ":Mgn%4d#", (int)GUIDER_GUIDE_NORTH_ITEM->number.value);
 			cgusbst4_command(device, command, NULL, 0, 0);
+			GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_set_timer(device, GUIDER_GUIDE_NORTH_ITEM->number.value/1000.0, guider_dec_timer_callback, &PRIVATE_DATA->dec_guider_timer);
 		} else if (GUIDER_GUIDE_SOUTH_ITEM->number.value > 0) {
 			sprintf(command, ":Mgs%4d#", (int)GUIDER_GUIDE_SOUTH_ITEM->number.value);
 			cgusbst4_command(device, command, NULL, 0, 0);
+			GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_set_timer(device, GUIDER_GUIDE_SOUTH_ITEM->number.value/1000.0, guider_dec_timer_callback, &PRIVATE_DATA->dec_guider_timer);
+		} else {
+			GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_OK_STATE;
 		}
-		GUIDER_GUIDE_NORTH_ITEM->number.value = GUIDER_GUIDE_SOUTH_ITEM->number.value = 0;
-		GUIDER_GUIDE_DEC_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_update_property(device, GUIDER_GUIDE_DEC_PROPERTY, NULL);
 		return INDIGO_OK;
-	} else if (indigo_property_match(GUIDER_GUIDE_RA_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(GUIDER_GUIDE_RA_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- GUIDER_GUIDE_RA
 		indigo_property_copy_values(GUIDER_GUIDE_RA_PROPERTY, property, false);
 		char command[128];
 		if (GUIDER_GUIDE_WEST_ITEM->number.value > 0) {
 			sprintf(command, ":Mgw%4d#", (int)GUIDER_GUIDE_WEST_ITEM->number.value);
 			cgusbst4_command(device, command, NULL, 0, 0);
+			GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_set_timer(device, GUIDER_GUIDE_WEST_ITEM->number.value/1000.0, guider_ra_timer_callback, &PRIVATE_DATA->ra_guider_timer);
 		} else if (GUIDER_GUIDE_EAST_ITEM->number.value > 0) {
 			sprintf(command, ":Mge%4d#", (int)GUIDER_GUIDE_EAST_ITEM->number.value);
 			cgusbst4_command(device, command, NULL, 0, 0);
+			GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_BUSY_STATE;
+			indigo_set_timer(device, GUIDER_GUIDE_EAST_ITEM->number.value/1000.0, guider_ra_timer_callback, &PRIVATE_DATA->ra_guider_timer);
+		} else {
+			GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_OK_STATE;
 		}
-		GUIDER_GUIDE_WEST_ITEM->number.value = GUIDER_GUIDE_EAST_ITEM->number.value = 0;
-		GUIDER_GUIDE_RA_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_update_property(device, GUIDER_GUIDE_RA_PROPERTY, NULL);
 		return INDIGO_OK;
 		// --------------------------------------------------------------------------------
@@ -221,6 +250,8 @@ static indigo_result guider_change_property(indigo_device *device, indigo_client
 static indigo_result guider_detach(indigo_device *device) {
 	assert(device != NULL);
 	if (IS_CONNECTED) {
+		indigo_cancel_timer(device, &PRIVATE_DATA->ra_guider_timer);
+		indigo_cancel_timer(device, &PRIVATE_DATA->dec_guider_timer);
 		indigo_set_switch(CONNECTION_PROPERTY, CONNECTION_DISCONNECTED_ITEM, true);
 		guider_connect_callback(device);
 	}

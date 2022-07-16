@@ -21,7 +21,7 @@
 #---------------------------------------------------------------------
 
 INDIGO_VERSION = 2.0
-INDIGO_BUILD = 175
+INDIGO_BUILD = 184
 
 # Keep the suffix empty for official releases
 INDIGO_BUILD_SUFFIX =
@@ -47,9 +47,9 @@ INSTALL_SHARE = $(INSTALL_ROOT)/usr/local/share
 INSTALL_RULES = $(INSTALL_ROOT)/lib/udev/rules.d
 INSTALL_FIRMWARE = $(INSTALL_ROOT)/lib/firmware
 
-STABLE_DRIVERS = agent_alignment agent_auxiliary agent_guider agent_imager agent_lx200_server agent_mount agent_snoop ao_sx aux_cloudwatcher aux_dragonfly aux_dsusb aux_fbc aux_flatmaster aux_flipflat aux_joystick aux_mgbox aux_ppb aux_sqm aux_upb aux_usbdp ccd_altair ccd_apogee ccd_asi ccd_atik ccd_dsi ccd_fli ccd_iidc ccd_mi ccd_ptp ccd_qsi ccd_sbig ccd_simulator ccd_ssag ccd_sx ccd_touptek ccd_uvc dome_dragonfly dome_nexdome3 dome_simulator focuser_asi focuser_dmfc focuser_dsd focuser_efa focuser_fcusb focuser_fli focuser_focusdreampro focuser_lunatico focuser_moonlite focuser_steeldrive2 focuser_usbv3 focuser_wemacro gps_gpsd gps_nmea gps_simulator guider_asi guider_cgusbst4 guider_gpusb mount_ioptron mount_lx200 mount_nexstar mount_nexstaraux mount_pmc8 mount_simulator mount_synscan mount_temma rotator_lunatico rotator_simulator system_ascol wheel_asi wheel_atik wheel_fli wheel_manual wheel_qhy wheel_sx aux_rpio ccd_ica focuser_wemacro_bt guider_eqmac focuser_mypro2 agent_astrometry mount_rainbow agent_scripting focuser_mjkzz focuser_mjkzz_bt dome_talon6ror aux_geoptikflat ccd_svb agent_astap
+STABLE_DRIVERS = agent_alignment agent_auxiliary agent_guider agent_imager agent_lx200_server agent_mount agent_snoop ao_sx aux_cloudwatcher aux_dragonfly aux_dsusb aux_fbc aux_flatmaster aux_flipflat aux_joystick aux_mgbox aux_ppb aux_sqm aux_upb aux_usbdp ccd_altair ccd_apogee ccd_asi ccd_atik ccd_dsi ccd_fli ccd_iidc ccd_mi ccd_ptp ccd_qsi ccd_sbig ccd_simulator ccd_ssag ccd_sx ccd_touptek ccd_uvc dome_dragonfly dome_nexdome3 dome_simulator focuser_asi focuser_dmfc focuser_dsd focuser_efa focuser_fcusb focuser_fli focuser_focusdreampro focuser_lunatico focuser_moonlite focuser_steeldrive2 focuser_usbv3 focuser_wemacro gps_gpsd gps_nmea gps_simulator guider_asi guider_cgusbst4 guider_gpusb mount_asi mount_ioptron mount_lx200 mount_nexstar mount_nexstaraux mount_pmc8 mount_simulator mount_synscan mount_temma rotator_lunatico rotator_simulator system_ascol wheel_asi wheel_atik wheel_fli wheel_manual wheel_qhy wheel_sx aux_rpio ccd_ica focuser_wemacro_bt guider_eqmac focuser_mypro2 agent_astrometry mount_rainbow agent_scripting focuser_mjkzz focuser_mjkzz_bt dome_talon6ror aux_geoptikflat ccd_svb agent_astap
 UNSTABLE_DRIVERS = ccd_qhy ccd_qhy2
-UNTESTED_DRIVERS = aux_arteskyflat aux_rts dome_baader dome_nexdome focuser_lakeside focuser_nfocus focuser_nstep focuser_optec focuser_robofocus wheel_optec wheel_quantum wheel_trutek wheel_xagyl dome_skyroof aux_skyalert agent_alpaca dome_beaver focuser_astromechanics aux_astromechanics rotator_optec
+UNTESTED_DRIVERS = aux_arteskyflat aux_rts dome_baader dome_nexdome focuser_lakeside focuser_nfocus focuser_nstep focuser_optec focuser_robofocus wheel_optec wheel_quantum wheel_trutek wheel_xagyl dome_skyroof aux_skyalert agent_alpaca dome_beaver focuser_astromechanics aux_astromechanics rotator_optec mount_starbook
 DEVELOPED_DRIVERS =
 OPTIONAL_DRIVERS = ccd_andor
 EXCLUDED_DRIVERS = ccd_gphoto2
@@ -72,7 +72,7 @@ else
 		CC = /usr/bin/clang
 		AR = /usr/bin/libtool
 		INDIGO_CUDA =
-		ifeq ($(findstring arm64e,$(shell file $(CC) | head -1)),arm64e)
+		ifeq ($(findstring arm64e,$(shell file $(CC))),arm64e)
 			MAC_ARCH = -arch x86_64 -arch arm64
 		else
 			MAC_ARCH = -arch x86_64
@@ -140,7 +140,6 @@ else
 		endif
 		ARFLAGS = -rv
 		SOEXT = so
-		LIBHIDAPI = $(BUILD_LIB)/libhidapi-libusb.a
 	endif
 endif
 
@@ -254,6 +253,7 @@ endif
 	install -m 0755 systemd/indigo-environment $(INSTALL_ROOT)/usr/bin
 	install -d $(INSTALL_ROOT)/lib/systemd/system
 	install -m 0644 systemd/indigo-environment.service $(INSTALL_ROOT)/lib/systemd/system
+	install -m 0644 systemd/indigo-server.service $(INSTALL_ROOT)/lib/systemd/system
 	install -d $(INSTALL_ROOT)/DEBIAN
 	printf "Package: indigo\n" > $(INSTALL_ROOT)/DEBIAN/control
 	printf "Version: $(INDIGO_VERSION)-$(INDIGO_BUILD)\n" >> $(INSTALL_ROOT)/DEBIAN/control
@@ -282,6 +282,7 @@ endif
 	echo "# Configure INDIGO environment setvice" >>$(INSTALL_ROOT)/DEBIAN/postinst
 	echo "systemctl enable indigo-environment" >>$(INSTALL_ROOT)/DEBIAN/postinst
 	echo "systemctl start indigo-environment" >>$(INSTALL_ROOT)/DEBIAN/postinst
+	echo "id -u indigo &>/dev/null || useradd indigo -G dialout,plugdev -m" >>$(INSTALL_ROOT)/DEBIAN/postinst
 ifeq ($(ARCH_DETECTED),$(filter $(ARCH_DETECTED),arm arm64))
 	tail -n +2 tools/rpi_ctrl_fix.sh >> $(INSTALL_ROOT)/DEBIAN/postinst
 else
@@ -294,6 +295,8 @@ endif
 	echo "# Disable INDIGO environment setvice" >>$(INSTALL_ROOT)/DEBIAN/prerm
 	echo "systemctl stop indigo-environment" >>$(INSTALL_ROOT)/DEBIAN/prerm
 	echo "systemctl disable indigo-environment" >>$(INSTALL_ROOT)/DEBIAN/prerm
+	echo "systemctl stop indigo-server" >>$(INSTALL_ROOT)/DEBIAN/prerm
+	echo "systemctl disable indigo-server" >>$(INSTALL_ROOT)/DEBIAN/prerm
 	chmod a+x $(INSTALL_ROOT)/DEBIAN/prerm
 
 	rm -f $(INSTALL_ROOT).deb
@@ -363,7 +366,6 @@ Makefile.inc: Makefile
 	@printf "LDFLAGS = $(LDFLAGS)\n" >> Makefile.inc
 	@printf "ARFLAGS = $(ARFLAGS)\n" >> Makefile.inc
 	@printf "SOEXT = $(SOEXT)\n" >> Makefile.inc
-	@printf "LIBHIDAPI = $(LIBHIDAPI)\n\n" >> Makefile.inc
 	@printf "INSTALL_ROOT = $(INSTALL_ROOT)\n" >> Makefile.inc
 	@printf "INSTALL_BIN = $(INSTALL_BIN)\n" >> Makefile.inc
 	@printf "INSTALL_LIB = $(INSTALL_LIB)\n" >> Makefile.inc

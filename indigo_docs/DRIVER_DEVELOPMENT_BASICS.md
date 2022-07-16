@@ -1,5 +1,5 @@
 # Basics of INDIGO Driver Development
-Revision: 23.07.2020 (draft)
+Revision: 01.05.2022 (draft)
 
 Author: **Rumen G.Bogdanovski**
 
@@ -226,9 +226,9 @@ indigo_result indigo_wheel_atik(indigo_driver_action action,
 	return INDIGO_OK;
 }
 ```
-One of the few synchronous parts of INDIGO are the driver entry points. They are executed synchronously and if they block or take too long to return, this will block or slowdown the entire INDIGO **bus**. For that reason the driver entry point functions must return immediately. If a timely operation should be performed, it must be started in a background thread or process. The easiest way to achieve this is via *indigo_async()* call.
+One of the few synchronous parts of INDIGO are the driver entry points. They are executed synchronously and if they block or take too long to return, this will block or slowdown the entire INDIGO **bus**. For that reason the driver entry point functions must return immediately. If a prolonged operation should be performed, it must be started in a background thread or process. The easiest way to achieve this is via *indigo_async()* call.
 
-The main function for the **executable driver** is pretty much a boiler plate code that connects to the INDIGO **bus** and calls the driver entrypoint with *INDIGO_DRIVER_INIT* and when done it calls it again with *INDIGO_DRIVER_SHUTDOWN*:
+The main function for the **executable driver** is pretty much a boiler plate code that connects to the INDIGO **bus** and calls the driver entry point with *INDIGO_DRIVER_INIT* and when done it calls it again with *INDIGO_DRIVER_SHUTDOWN*:
 
 ```C
 int main(int argc, const char * argv[]) {
@@ -274,7 +274,7 @@ static indigo_result atik_wheel_change_property(indigo_device *device,
 	assert(device != NULL);
 	assert(DEVICE_CONTEXT != NULL);
 	assert(property != NULL);
-	if (indigo_property_match(CONNECTION_PROPERTY, property)) {
+	if (indigo_property_match_changeable(CONNECTION_PROPERTY, property)) {
 		// ---------------------------------------------------------- CONNECTION
 		indigo_property_copy_values(CONNECTION_PROPERTY, property, false);
 		if (CONNECTION_CONNECTED_ITEM->sw.value) {
@@ -287,7 +287,7 @@ static indigo_result atik_wheel_change_property(indigo_device *device,
 			CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 		}
 		// do not return here, let the baseclass callback do its job...
-	} else if (indigo_property_match(WHEEL_SLOT_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(WHEEL_SLOT_PROPERTY, property)) {
 		// ---------------------------------------------------------- WHEEL_SLOT
 		indigo_property_copy_values(WHEEL_SLOT_PROPERTY, property, false);
 
@@ -349,17 +349,17 @@ device = NULL;
 Attaching and detaching of the devices can be done either in the driver entry point for not hot-plug devices or in the hot-plug callback for hot-plug devices.
 There are many examples for that in the available INDIGO drivers.
 
-Please note, function *indigo_property_match()* is used to match properties against the requests. This function will match read only (RO), read/write (RW) and write only (WO) properties. However if the property changes its permissions, like in the case when two cameras are handled by the same driver and one has temperature control and second has only temperature sensor for the second camera CCD_TEMPERATURE property should be RO and for the first RW. It is driver's responsibility to enforce property permissions and for that case INDIGO 2.0-136 provides a second function that matches properties if they are not RO - *indigo_property_match_w()*.
+Please note, function *indigo_property_match()* is used to match properties against the requests. This function will match read only (RO), read/write (RW) and write only (WO) properties. However if the property changes its permissions, like in the case when two cameras are handled by the same driver and one has temperature control and second has only temperature sensor for the second camera CCD_TEMPERATURE property should be RO and for the first RW. It is driver's responsibility to enforce property permissions and for that case INDIGO 2.0-136 provides a second function that matches properties if they are not RO - *indigo_property_match_changeable()*. Since INDIGO 2.0-180 there is also *indigo_property_match_writable()* which matches only writable properties changed since INDIGO 2.0-179 to *indigo_property_match_changeable()* which matches defined and writable properties.
 
 There is one important note, in order to use the property macros like *CONNECTION_PROPERTY*, *WHEEL_SLOT_PROPERTY* or items like *CONNECTION_CONNECTED_ITEM* the parameter names of the callbacks must be *device*, *client* and *property*. These macros are defined in the header files of the base classes for convenience.
 
 In case your device needs custom properties there are many device drivers that use such. A good and simple example for this is [indigo_aux_rts](https://github.com/indigo-astronomy/indigo/blob/master/indigo_drivers/aux_rts) driver.
 
-### Timers and Timely Operations
+### Timers and Prolonged Operations
 
 Timers in INDIGO are managed with several calls:
 
-- *indigo_set_timer()* - schedule callback to be called after a certain amount of time (prototype changed in INDIGO 2.0-122).
+- *indigo_set_timer()* - schedule callback to be called after a certain amount of time. The callback will be executed in a separate thread (prototype changed in INDIGO 2.0-122).
 - *indigo_reschedule_timer()* - reschedule already scheduled timer, can be used for recurring operations.
 - *indigo_cancel_timer()* - request cancellation of a scheduled timer and return, the timer may finish after the function returned.
 - *indigo_cancel_timer_sync()* - request cancellation of a scheduled timer and wait until canceled (introduced in INDIGO 2.0-122).
@@ -427,6 +427,11 @@ indigo_cancel_timer(device, &wheel_timer);
 Rather than using a global timer objects, as shown above, it is a good idea to store them in the device private data. Good example for this is [indigo_wheel_asi.c](https://github.com/indigo-astronomy/indigo/blob/master/indigo_drivers/wheel_asi/indigo_wheel_asi.c).
 
 As of INDIGO 2.0-122 new call is introduced -  *indigo_cancel_timer_sync()*. This call is useful in an event of device disconnect and device detach to prevent releasing of the device resources before the timer is canceled. It should not be called directly in the **change property** callback, as it may deadlock this thread. So if some timers need to be canceled at disconnect it is a good idea to handle the connection property asynchronously with *indigo_async()*, *indigo_handle_property_async()* or *indigo_set_timer()* (with 0 time delay). There are examples of this in almost every driver.
+
+Blocking or prolonged operations executed in the driver main thread may block the whole INDIGO framework. Because of this they should be executed asynchronously in a separate thread. Asynchronous operations can be executed with:
+
+- *indigo_async()* - execute a function asynchronously in a separate thread.
+- *indigo_handle_property_async()* - utility function that provides a convenient way to execute prolonged or blocking property change operations in a separate thread. The callback function accepts the same parameters as the driver's **change property** callback.
 
 ### Communication with the Hardware
 
@@ -650,7 +655,7 @@ static indigo_result wheel_change_property(indigo_device *device,
 	assert(device != NULL);
 	assert(DEVICE_CONTEXT != NULL);
 	assert(property != NULL);
-	if (indigo_property_match(CONNECTION_PROPERTY, property)) {
+	if (indigo_property_match_changeable(CONNECTION_PROPERTY, property)) {
 		// ---------------------------------------------------------- CONNECTION
 		indigo_property_copy_values(CONNECTION_PROPERTY, property, false);
 		if (CONNECTION_CONNECTED_ITEM->sw.value) {
@@ -687,7 +692,7 @@ static indigo_result wheel_change_property(indigo_device *device,
 			hid_close(PRIVATE_DATA->handle);
 			CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 		}
-	} else if (indigo_property_match(WHEEL_SLOT_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(WHEEL_SLOT_PROPERTY, property)) {
 		// ---------------------------------------------------------- WHEEL_SLOT
 		indigo_property_copy_values(WHEEL_SLOT_PROPERTY, property, false);
 		if (WHEEL_SLOT_ITEM->number.value < 1 ||

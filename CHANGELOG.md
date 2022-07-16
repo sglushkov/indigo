@@ -2,6 +2,201 @@
 
 All notable changes to INDIGO framework will be documented in this file.
 
+## [2.0-184] - 01 Jul Fri 2022
+### Overall
+- all guider drivers can handle simultaneous RA and Dec guiding
+- agent configuration load regression fixed
+
+### Driver fixes
+- indigo_agent_guider:
+	- RA and Dec guiding pulses are issued simultaneously
+
+- indigo_agent_scripting:
+	- AGENT_SCRIPTING_DELETE_SCRIPT handling and agent_send_message fixed
+
+- indigo_guider_cgusbst4:
+	- cancel guider timer on detach
+
+- indigo_guider_gpusb:
+	- cancel guider timer on detach
+
+- indigo_mount_simulator:
+	- cancel guider timer on detach
+
+## [2.0-182] - 28 Jun Tue 2022
+### Overall
+- add libindigocat - library to calculate planetary positions and stellar positions
+- indigo_property_match_changeable() - add new call to match only properties that can be changed (writable and defined)
+- indigo_drivers: simplify all drivers by using indigo_property_match_changeable()
+- indigo_docs: add PLATE_SOLVING.md
+- indigo_ccd_driver: CCD_LENS property step fix
+- indigo_raw_utils: indigo_find_stars_precise() - fix luminescence calculation
+- indigo_raw_utils: better star detection using stddev as a threshold
+- libusb: fixed regression rendering QHY cameras more unstable then they are.
+
+- indigo_server:
+	- Web UI: add solar system objects to the star map
+	- Web UI: fix Lambda and Phi designations (lambda - longitude, Phi - latitude)
+
+### New drivers
+- indigo_mount_asi:
+	- driver optimized for the lx200 dialect of ZWO AM mounts (AM mounts can still be used with the generic lx200 driver)
+
+### Driver fixes
+- indigo_mount_lx200:
+	- handshake fails if auto detection is not successful
+	- optimizations for ZWO AM mount
+	- fix am5 guide rate
+	- fix mount move
+	- remove PARK property for ZWO AM mount
+	- fix set time on ZWO AM
+	- better driver responsiveness - flush input buffer timeout reduced
+	- code cleanup
+	- minor fixes
+
+- indigo_mount_synscan:
+	- fix N/S and E/W move issue.
+
+- indigo_agent_astrometry:
+	- large index selection issue fixed
+
+- indigo_agent_guider:
+	- add RA, Dec drifts and RMSE in arc seconds
+	- fix automatic guide star selection
+	- better RA speed estimation during calibration - take periodic error effect in to account
+
+- indigo_ccd_ptp:
+	- dependency on ptp_property_nikon_LiveViewAFFocus removed
+
+- indigo_ccd_simulator:
+	- random star field shift fixed with amplitude 0.2px
+
+## [2.0-180] - 06 Jun Mon 2022
+### Overall
+- Remove novas dependency
+- fix 11sec offset in LST
+- indigo_mount_driver: alt and az are now computed for the current epoch
+
+## [2.0-178] - 02 Jun Thu 2022
+### Overall
+- DRIVER_DEVELOPMENT_BASICS: documentation updates
+- POLAR_ALIGNMENT: documentation updates
+- add libraw to externals
+- indigo_names: fix CCD_RBI_FLUSH_PROPERTY_NAME
+- indigo_ccd_driver: add CCD_ADVANCED_GROUP and use it in drivers, moved RBI properties to CCD_ADVANCED_GROUP
+- indigo_platesolver: fix memory leaks
+- indigo_platesolver: add WCS state to be used by clients (WAITING_FOR IMAGE, SOLVING, SYNCING etc)
+- rotator property names mapped for legacy protocol
+- indigosky: can now work at 5GHz Wifi up to 200Mbit/s
+
+### New drivers
+- indigo_mount_starbook:
+	- Vixen StarBook mount controller driver added
+
+### Driver fixes
+- indigo_mount_lx200:
+	- code refacored, made asynchronous
+	- ZWO AM5 support completed and tested
+	- added udev rules to give adequate names to some mounts on linux
+
+- indigo_ccd_touptek:
+	- SDK updated to 20220424
+
+- indigo_ccd_altair:
+	- SDK updated to 20220424
+
+- indigo_ccd_gphoto2:
+	- make it compile against the global libraw
+
+- indig_ccd_ptp:
+	- add XISF conversion
+	- add FITS conversion
+	- add indigo RAW conversion
+
+- indigo_ccd_fli:
+	- fix CCD_TEMPERATURE_ITEM step
+	- fix CCD_RBI_FLUSH_COUNT_ITEM defaults
+
+- indigo_ccd_asi:
+	- if bin_x != bin_y exposure fails, so force bin_x = bin_y
+
+- indigo_agent_astrometry:
+	- solve camera raw images
+	- use catalog name in index labels in USE_INDEX property
+	- USE_INDEX property items are sorted
+
+- indigo_agent_astap:
+	- USE_INDEX property items are sorted
+
+## [2.0-176] - 20 Apr Wed 2022
+### Overall
+- Rotator lists added to filter agent base code
+- POLAR_ALIGNMENT: add notes that 3PPA will not work when looking at the pole
+- deb_package: added indigo-server.service and create indigo user on install
+
+### New drivers
+- indigo_rotator_optec:
+	- Optec Pyxis rotator driver created
+
+### Driver fixes
+- indigo_agent_imager:
+	- rotator support added
+
+- indigo_agent_guider:
+	- disable dithering in Dec when Dec guiding is not 'North and South'
+	- changing declination guiding to/from 'Notrh and South' while guiding is prohibited
+
+- indigo_agent_astrometry:
+	- JPEG detection fixed
+
+- indigo_agent_astap:
+	- JPEG detection fixed
+
+- indigo_mount_rainbow:
+	- reader thread fixed
+
+- indigo_mount_rainbow:
+	- reader thread fixed
+
+- indigo_ccd_altair:
+	- SDK updated to 20210912_50.19561
+
+- indigo_ccd_svb:
+	- fix udev rules
+	- retry counter reset after processed image for streaming
+	- do not update target temperature if not needed
+
+- indigo_ccd_andor:
+	- remove clear_reg_timer_callback()
+
+- indigo_ccd_apogee:
+	- remove clear_reg_timer_callback()
+
+- indigo_rotator_lunatico:
+	- ROTATOR_DIRECTION_PROPERTY made persistent in driver instead of base code
+
+- indigo_ao_sx:
+	- port closed on unsuccessful handshake
+
+- indigo_wheel_trutek:
+	- port closed on unsuccessful handshake
+
+- indigo_wheel_xagyl:
+	- port closed on unsuccessful handshake
+
+- indigo_focuser_optec:
+	- CRLF handling fixed
+
+- indigo_wheel_optec:
+	- CRLF handling fixed
+
+- indigo_ccd_asi:
+	- add some debug messages
+	- do not update target temperature if not needed
+
+- mount_pmc8:
+	- slew to target fixed
+
 ## [2.0-174] - 04 Apr Mon 2022
 ### Overall
 - indigo_ccd_driver: fix exposure timer counter stall if you abort and start new exposure before the previous timer is hit
@@ -791,7 +986,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - Optional double buffering support added in INDIGO server for BLOB requests
 - DEVICE_DRIVER added to INFO property (issue #132)
 - DARKFLAT added to CCD_IMAGE_FORMAT property (issue #387)
-- indigo_property_match_w() added
+- indigo_property_match_writable() added
 - fixed read only property handling in core library
 
 ### Driver Fixes:

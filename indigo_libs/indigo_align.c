@@ -30,21 +30,12 @@
 #include <indigo/indigo_bus.h>
 #endif
 #include <indigo/indigo_align.h>
-/*
-static void print_cartesian(char *caption, char *name, indigo_cartesian_point_t *cp) {
-	indigo_log("%s: %s->x = %.5f, %s->y = %.5f, %s->z = %.5f\n", caption, name, cp->x, name, cp->y, name, cp->z);
-}
 
-static void print_spherical(char *caption, char *name, indigo_spherical_point_t *sp) {
-	indigo_log("%s: %s->a = %.5f, %s->d = %.5f, %s->r = %.5f\n", caption, name, sp->a * RAD2DEG, name, sp->d * RAD2DEG, name, sp->r);
-}
-*/
+const double TWO_PI = 2 * M_PI;
+const double DEG2RAD = M_PI / 180.0;
+const double RAD2DEG = 180.0 / M_PI;
 
-/*
-	Convenience wrappers for indigo_precess(...)
-	 *ra - Right Ascension (hours)
-	 *dec - Declination (degrees)
- */
+/* Convenience wrappers for indigo_precess(...) */
 
 static double jnow() {
 	return 2000 + ((time(NULL) / 86400.0 + 2440587.5 - 0.477677 / 86400.0) - 2451545.0) / 365.25;
@@ -82,14 +73,40 @@ void indigo_j2k_to_eq(const double eq, double *ra, double *dec) {
 	}
 }
 
-/*
- Precesses c0 from eq0 to eq1
+double indigo_mean_gst(const time_t *utc) {
+	long double gst;
+	long double t;
+	double jd;
 
- c0.a - Right Ascension (radians)
- c0.d - Declination (radians)
- eq0 -  Old Equinox (year+fraction)
- eq1 -  New Equinox (year+fraction)
-*/
+	if (utc)
+		jd = UT2JD(*utc);
+	else
+		jd = UT2JD(time(NULL));
+
+	t = (jd - 2451545.0) / 36525.0;
+	gst = 280.46061837 + (360.98564736629 * (jd - 2451545.0)) + (0.000387933 * t * t) - (t * t * t / 38710000.0);
+	gst = fmod(gst + 360.0, 360.0);
+	gst *= 24.0 / 360.0;
+	return gst;
+}
+
+double indigo_lst(const time_t *utc, const double longitude) {
+	double gst = indigo_mean_gst(utc);
+	return fmod(gst + longitude/15.0 + 24.0, 24.0);
+}
+
+void indigo_radec_to_altaz(const double ra, const double dec, const time_t *utc, const double latitude, const double longitude, const double elevation, double *alt, double *az) {
+	indigo_spherical_point_t eq_point;
+	indigo_spherical_point_t h_point;
+	double lst = indigo_lst(utc, longitude);
+
+	indigo_ra_dec_to_point(ra, dec, lst, &eq_point);
+	indigo_equatorial_to_hotizontal(&eq_point, latitude * DEG2RAD, &h_point);
+	*az = h_point.a * RAD2DEG;
+	*alt = h_point.d *RAD2DEG;
+}
+
+/* Precesses c0 from eq0 to eq1 */
 indigo_spherical_point_t indigo_precess(const indigo_spherical_point_t *c0, const double eq0, const double eq1) {
 	double rot[3][3];
 	indigo_spherical_point_t c1 = {0, 0, 1};
@@ -171,7 +188,7 @@ indigo_spherical_point_t indigo_cartesian_to_spherical(const indigo_cartesian_po
 	}
 
 	spoint.a = (cpoint->y == 0) ? 0.0 : -atan2(cpoint->y, cpoint->x);
-	if (spoint.a < 0) spoint.a += 2 * M_PI;
+	if (spoint.a < 0) spoint.a += TWO_PI;
 	spoint.d = (M_PI / 2.0) - acos(cpoint->z);
 	return spoint;
 }
@@ -249,15 +266,11 @@ void indigo_equatorial_to_hotizontal(const indigo_spherical_point_t *eq_point, c
 	double sin_lat = sin(latitude);
 	double cos_lat = cos(latitude);
 
-	double sin_alt = sin_dec * sin_lat + cos_dec * cos_lat * cos_ha;
-	double alt = asin(sin_alt);
-
-	double cos_az = (sin_dec - sin_alt * sin_lat) / (cos(alt) * cos_lat);
-	double az = acos(cos_az);
-
-	if (sin_ha > 0) az = 2 * M_PI - az;
-	h_point->a = az;
-	h_point->d = alt;
+	// az
+	h_point->a = atan2(-cos_dec * sin_ha, cos_lat * sin_dec - sin_lat * cos_dec * cos_ha);
+	if (h_point->a < 0) h_point->a += TWO_PI;
+	// alt
+	h_point->d = asin(sin_dec * sin_lat + cos_dec * cos_lat * cos_ha);
 	h_point->r = 1;
 }
 
@@ -336,7 +349,7 @@ bool indigo_compensate_refraction(
 	double cos_az = cos(az);
 
 	st_aparent->a = atan2(sin(az) * tan_azd, cos_lat - sin_lat * cos_az * tan_azd);
-	if (st_aparent->a < 0) st_aparent->a += 2 * M_PI;
+	if (st_aparent->a < 0) st_aparent->a += TWO_PI;
 	st_aparent->d = asin(sin_lat * cos(azd) + cos_lat * sin(azd) * cos_az);
 	st_aparent->r = 1;
 	indigo_debug("Refraction HA (real/aparent) = %f / %f, DEC (real / aparent) = %f / %f\n", st->a * RAD2DEG, st_aparent->a * RAD2DEG, st->d * RAD2DEG, st_aparent->d * RAD2DEG);
@@ -369,7 +382,7 @@ bool indigo_compensate_refraction2(
 	double cos_az = cos(az);
 
 	st_aparent->a = atan2(sin(az) * tan_azd, cos_lat - sin_lat * cos_az * tan_azd);
-	if (st_aparent->a < 0) st_aparent->a += 2 * M_PI;
+	if (st_aparent->a < 0) st_aparent->a += TWO_PI;
 	st_aparent->d = asin(sin_lat * cos(azd) + cos_lat * sin(azd) * cos_az);
 	st_aparent->r = 1;
 	indigo_debug("Refraction HA (real/aparent) = %f / %f, DEC (real / aparent) = %f / %f\n", st->a * RAD2DEG, st_aparent->a * RAD2DEG, st->d * RAD2DEG, st_aparent->d * RAD2DEG);
