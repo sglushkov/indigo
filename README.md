@@ -124,6 +124,8 @@ This is the list of requirements taken into the consideration:
 94. Talon 6 dome driver
 95. Interactive Astronomy SkyAlert driver
 96. Vixen StarBook mount driver
+97. PlayerOne camera driver
+98. PegasusAstro Prodigy Microfocuser driver
 
 ## This is under development
 1. a-Box Adaptive optics driver
@@ -134,7 +136,7 @@ This is the list of requirements taken into the consideration:
 ### Prerequisites
 #### Ubuntu / Debian / Raspbian
 
-`sudo apt-get install build-essential autoconf autotools-dev libtool cmake libudev-dev libavahi-compat-libdnssd-dev libusb-1.0-0-dev libcurl4-gnutls-dev libz-dev git curl bsdmainutils`
+`sudo apt-get install build-essential autoconf autotools-dev libtool cmake libudev-dev libavahi-compat-libdnssd-dev libusb-1.0-0-dev libcurl4-gnutls-dev libz-dev git curl bsdmainutils patchelf`
 
 It is advised to remove libraw1394-dev
 
@@ -160,7 +162,7 @@ Install XCode and download and build autoconf, automake and libtool (use tools/c
 
 `make all`
 
-`build/bin/indigo_server -v -s`
+`build/bin/indigo_server -v indigo_ccd_simulator [other drivers]`
 
 and connect from any INDIGO/INDI client or web browser to localhost on port 7624...
 

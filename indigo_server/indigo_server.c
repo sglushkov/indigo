@@ -154,6 +154,8 @@
 #include "agent_astap/indigo_agent_astap.h"
 #include "rotator_optec/indigo_rotator_optec.h"
 #include "mount_starbook/indigo_mount_starbook.h"
+#include "ccd_playerone/indigo_ccd_playerone.h"
+#include "focuser_prodigy/indigo_focuser_prodigy.h"
 #ifndef __aarch64__
 #include "ccd_sbig/indigo_ccd_sbig.h"
 #endif
@@ -223,6 +225,7 @@ driver_entry_point static_drivers[] = {
 #endif
 	indigo_ccd_iidc,
 	indigo_ccd_mi,
+	indigo_ccd_playerone,
 	indigo_ccd_ptp,
 	indigo_ccd_qhy2,
 	indigo_ccd_qsi,
@@ -262,6 +265,7 @@ driver_entry_point static_drivers[] = {
 	indigo_focuser_nfocus,
 	indigo_focuser_nstep,
 	indigo_focuser_optec,
+	indigo_focuser_prodigy,
 	indigo_focuser_robofocus,
 	indigo_focuser_usbv3,
 	indigo_focuser_steeldrive2,

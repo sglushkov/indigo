@@ -2,6 +2,112 @@
 
 All notable changes to INDIGO framework will be documented in this file.
 
+## [2.0-188] - 02 Sep Fri 2022
+### Overall
+- indigo_ccd_failure_cleanup() call added
+- documentation updates
+- indigo_io.c: Fix wrong report of failed connection
+- All ccd drivers:
+	- set CCD_IMAGE state to ALERT when CCD_EXPOSURE is ALERT
+	- use indigo_ccd_failure_cleanup() to cleanup the state at error
+
+### New Drivrs
+- indigo_ccd_playerone:
+	- Driver for PlayerOne cameras
+	- 32-bit Intel not supported
+
+- indigo_focuser_prodigy:
+	- supports focuser part only, power box not implemented yet
+
+### Driver fixes
+- indigo_agent_imager:
+	- AGENT_PAUSE_PROCESS_WAIT_ITEM added to AGENT_PAUSE_PROCESS_PROPERTY
+	- frame counting with wait & pause fixed
+	- breakpoint handling fixed
+
+- indigo_agent_astap:
+	- kill pending children at exit
+	- fix process failure if exposure fails
+
+- indigo_agent_astrometry:
+	- kill pending children at exit
+	- fix process failure if exposure fails
+
+- indigo_ccd_asi:
+	- better cooler error handling
+	- update sdk to v.1.26
+
+- indigo_ccd_svb:
+	- code refactored
+	- SDK updated to version 1.9.4
+
+- indigo_ccd_mi:
+	- add support for new C5 cameras and optional GPS module attachment
+	- update SDK with some new PIDs and support for new binning parameters
+
+- indigo_ccd_ptp:
+	- fix LIBUSB_ERROR_OVERFLOWs
+
+- indigo_mount_asi:
+	- typo fixes
+	- Handling of TCP disconnections
+
+- indigo_mount_lx200:
+	- typo fixes
+	- Handling of TCP disconnections
+
+- indigo_mount_ioptron:
+	- fix TZ/DST issues
+
+- indigo_mount_starbook:
+	- fix getstatus (starbook < 4.20)
+
+
+## [2.0-186] - 25 Jul Mon 2022
+### Overall
+- indigo_docs: SCRIPTING_BASICS added (Thanks to Johan Bakker)
+- indigo_align: fix indigo_equatorial_to_hotizontal() to work with poles
+- indigocat_jnow_to_j2k() helper added
+- EXPTIME format in FITS changed to %20.4f for values < 1
+- mount_driver: All alignment points can be deleted at once
+
+### Driver fixes
+- indigo_agent_guider:
+	- added weighted selection guiding method
+	- increased guide stars to 24
+	- use smaller step for several items
+	- add Error or Warning prefix to the messages
+	- select guide stars in wider area (the central 90% of the frame)
+
+- indigo_agent_mount:
+	- mount movement doesn't abort preview in imager and guider agents
+
+- indigo_ccd_uvc:
+	- auto exposure turned off
+
+- indigo_mount_lx200:
+	- high precision format used for Sg/St on Avalon
+	- bug fixes
+
+- indigo_ccd_svb:
+	- SDK updated to 1.7.3
+	- Y16 support added
+
+- indigo_ccd_atik:
+	- SDK updated to 2022-07-13
+
+- indigo_ccd_qhy2:
+	- SDK updated to V2022.07.06
+
+- indigo_aux_dsusb:
+	- autofocus made configurable
+
+- indigo_mount_asi:
+	- added "e9" error text, some messages fixed
+
+- mount_synscan:
+	- assertion fixed for Hour angle 0h and 12h
+
 ## [2.0-184] - 01 Jul Fri 2022
 ### Overall
 - all guider drivers can handle simultaneous RA and Dec guiding

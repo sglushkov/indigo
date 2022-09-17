@@ -26,7 +26,7 @@
  \file indigo_ccd_asi.c
  */
 
-#define DRIVER_VERSION 0x0021
+#define DRIVER_VERSION 0x0023
 #define DRIVER_NAME "indigo_ccd_asi"
 
 #include <stdlib.h>
@@ -412,6 +412,7 @@ static bool asi_set_cooler(indigo_device *device, bool status, double target, do
 	int id = PRIVATE_DATA->dev_id;
 	long current_status;
 	long temp_x10;
+	bool success = true;
 
 	pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 
@@ -441,11 +442,13 @@ static bool asi_set_cooler(indigo_device *device, bool status, double target, do
 
 	if (current_status != status) {
 		res = ASISetControlValue(id, ASI_COOLER_ON, status, false);
-		if (res)
+		if (res) {
+			success = false;
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASISetControlValue(%d, ASI_COOLER_ON) = %d", id, res);
-		else
+		} else {
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASISetControlValue(%d, ASI_COOLER_ON) = %d", id, res);
-	} else if (status) {
+		}
+	} else if (status) {   /* for some reason you can not set target temperatire right after you set the cooler to ON  so "else" is there for that reaon */
 		long current_target = 0;
 		res = ASIGetControlValue(id, ASI_TARGET_TEMP, &current_target, &unused);
 		if (res) {
@@ -457,6 +460,7 @@ static bool asi_set_cooler(indigo_device *device, bool status, double target, do
 		if ((long)target != current_target) {
 			res = ASISetControlValue(id, ASI_TARGET_TEMP, (long)target, false);
 			if (res) {
+				success = false;
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASISetControlValue(%d, ASI_TARGET_TEMP) = %d", id, res);
 			} else {
 				INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASISetControlValue(%d, ASI_TARGET_TEMP) = %d", id, res);
@@ -471,7 +475,7 @@ static bool asi_set_cooler(indigo_device *device, bool status, double target, do
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASIGetControlValue(%d, ASI_COOLER_POWER_PERC) = %d", id, res);
 
 	pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
-	return true;
+	return success;
 }
 
 
@@ -529,6 +533,7 @@ static void exposure_timer_callback(indigo_device *device) {
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
 			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
 		} else {
+			indigo_ccd_failure_cleanup(device);
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, "Exposure failed");
 		}
@@ -595,6 +600,7 @@ static void streaming_timer_callback(indigo_device *device) {
 	PRIVATE_DATA->can_check_temperature = true;
 	indigo_finalize_video_stream(device);
 	if (res) {
+		indigo_ccd_failure_cleanup(device);
 		CCD_STREAMING_PROPERTY->state = INDIGO_ALERT_STATE;
 		indigo_update_property(device, CCD_STREAMING_PROPERTY, "Streaming failed");
 	} else {

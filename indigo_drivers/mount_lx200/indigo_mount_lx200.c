@@ -23,7 +23,7 @@
  \file indigo_mount_lx200.c
  */
 
-#define DRIVER_VERSION 0x0019
+#define DRIVER_VERSION 0x001d
 #define DRIVER_NAME	"indigo_mount_lx200"
 
 #include <stdlib.h>
@@ -40,6 +40,9 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 
 #include <indigo/indigo_driver_xml.h>
 #include <indigo/indigo_io.h>
@@ -162,6 +165,12 @@ static bool meade_open(indigo_device *device) {
 		PRIVATE_DATA->handle = indigo_open_network_device(name, 4030, &proto);
 	}
 	if (PRIVATE_DATA->handle >= 0) {
+		if (PRIVATE_DATA->is_network) {
+			int opt = 1;
+			if (setsockopt(PRIVATE_DATA->handle, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int)) < 0) {
+				INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to disable Nagle algorithm");
+			}
+		}
 		INDIGO_DRIVER_LOG(DRIVER_NAME, "Connected to %s", name);
 		// flush the garbage if any...
 		char c;
@@ -194,11 +203,13 @@ static bool meade_open(indigo_device *device) {
 	}
 }
 
+static void network_disconnection(__attribute__((unused)) indigo_device *device);
+
 static bool meade_command(indigo_device *device, char *command, char *response, int max, int sleep) {
 	pthread_mutex_lock(&PRIVATE_DATA->port_mutex);
 	char c;
 	struct timeval tv;
-	// flush
+	// flush, and detect network disconnection
 	while (true) {
 		fd_set readout;
 		FD_ZERO(&readout);
@@ -220,6 +231,11 @@ static bool meade_command(indigo_device *device, char *command, char *response, 
 		result = read(PRIVATE_DATA->handle, &c, 1);
 		if (result < 1) {
 			pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
+			if (PRIVATE_DATA->is_network) {
+				// This is a disconnection
+				indigo_set_timer(device, 0, network_disconnection, NULL);
+				INDIGO_DRIVER_ERROR(DRIVER_NAME, "Unexpected disconnection from %s", DEVICE_PORT_ITEM->text.value);
+			}
 			return false;
 		}
 	}
@@ -265,7 +281,7 @@ static bool meade_command_progress(indigo_device *device, char *command, char *r
 	pthread_mutex_lock(&PRIVATE_DATA->port_mutex);
 	char c;
 	struct timeval tv;
-	// flush
+	// flush, and detect network disconnection
 	while (true) {
 		fd_set readout;
 		FD_ZERO(&readout);
@@ -281,6 +297,11 @@ static bool meade_command_progress(indigo_device *device, char *command, char *r
 		}
 		result = read(PRIVATE_DATA->handle, &c, 1);
 		if (result < 1) {
+			if (PRIVATE_DATA->is_network) {
+				// This is a disconnection
+				indigo_set_timer(device, 0, network_disconnection, NULL);
+				INDIGO_DRIVER_LOG (DRIVER_NAME, "Disconnection from %s", DEVICE_PORT_ITEM->text.value);
+			}
 			pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
 			return false;
 		}
@@ -350,16 +371,18 @@ static bool meade_command_progress(indigo_device *device, char *command, char *r
 	return true;
 }
 
-//static bool gemini_command(indigo_device *device, char *command, char *response, int max) {
-//	char buffer[128];
-//	uint8_t checksum = command[0];
-//	for (size_t i=1; i < strlen(command); i++)
-//		checksum = checksum ^ command[i];
-//	checksum = checksum % 128;
-//	checksum += 64;
-//	snprintf(buffer, sizeof(buffer), "%s%c#", command, checksum);
-//	return meade_command(device, buffer, response, max, 0);
-//}
+static bool gemini_set(indigo_device *device, int command, char *parameter) {
+	char buffer[128];
+	char *end = buffer + sprintf(buffer, ">%d:%s", command, parameter);
+	uint8_t checksum = buffer[0];
+	for (size_t i = 1; i < strlen(buffer); i++)
+		checksum = checksum ^ buffer[i];
+	checksum = checksum % 128 + 64;
+  *end++ = checksum;
+  *end++ = '#';
+  *end++ = 0;
+ 	return meade_command(device, buffer, NULL, 0, 0);
+}
 
 static void meade_close(indigo_device *device) {
 	if (PRIVATE_DATA->handle > 0) {
@@ -501,7 +524,7 @@ static bool meade_set_site(indigo_device *device, double latitude, double longit
 		sprintf(command, ":St%s#", indigo_dtos(latitude, "%+03d*%02d"));
 	if (!meade_command(device, command, response, 1, 0) || *response != '1') {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "%s failed", command);
-		result = false;
+		result = MOUNT_TYPE_AVALON_ITEM->sw.value; // ignore result for avalon
 	}
 	longitude = 360 - fmod(longitude + 360, 360);
 	if (MOUNT_TYPE_AVALON_ITEM->sw.value)
@@ -510,7 +533,7 @@ static bool meade_set_site(indigo_device *device, double latitude, double longit
 		sprintf(command, ":Sg%s#", indigo_dtos(longitude, "%03d*%02d"));
 	if (!meade_command(device, command, response, 1, 0) || *response != '1') {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "%s failed", command);
-		result = false;
+		result = MOUNT_TYPE_AVALON_ITEM->sw.value; // ignore result for avalon
 	}
 	return result;
 }
@@ -617,8 +640,9 @@ static bool meade_set_guide_rate(indigo_device *device, int ra, int dec) {
 			return meade_command(device, command, NULL, 0, 0);
 		}
 	} else if (MOUNT_TYPE_ZWO_ITEM->sw.value) {
+		// asi miunt has one guide rate for ra and dec
 		if (ra < 10) ra = 10;
-		if (dec > 90) ra = 90;
+		if (ra > 90) ra = 90;
 		float rate = ra / 100.0;
 		sprintf(command, ":Rg%.1f#", rate);
 		return (meade_command(device, command, NULL, 0, 0));
@@ -643,7 +667,7 @@ static bool meade_get_guide_rate(indigo_device *device, int *ra, int *dec) {
 static bool meade_set_tracking(indigo_device *device, bool on) {
 	if (on) { // TBD
 		if (MOUNT_TYPE_GEMINI_ITEM->sw.value) {
-			return meade_command(device, ">190:192F#", NULL, 0, 0);
+			return gemini_set(device, 192, "");
 		} else if (MOUNT_TYPE_AVALON_ITEM->sw.value) {
 			return meade_command(device, ":X122#", NULL, 0, 0);
 		} if (MOUNT_TYPE_AP_ITEM->sw.value) {
@@ -661,7 +685,7 @@ static bool meade_set_tracking(indigo_device *device, bool on) {
 		}
 	} else {
 		if (MOUNT_TYPE_GEMINI_ITEM->sw.value) {
-			return meade_command(device, ">190:191E#", NULL, 0, 0);
+			return gemini_set(device, 191, "");
 		} else if (MOUNT_TYPE_AVALON_ITEM->sw.value) {
 			return meade_command(device, ":X120#", NULL, 0, 0);
 		} if (MOUNT_TYPE_AP_ITEM->sw.value) {
@@ -679,7 +703,7 @@ static bool meade_set_tracking_rate(indigo_device *device) {
 	if (MOUNT_TRACK_RATE_SIDEREAL_ITEM->sw.value && PRIVATE_DATA->lastTrackRate != 'q') {
 		PRIVATE_DATA->lastTrackRate = 'q';
 		if (MOUNT_TYPE_GEMINI_ITEM->sw.value)
-			return meade_command(device, ">130:131E#", NULL, 0, 0);
+			return gemini_set(device, 131, "");
 		else if (MOUNT_TYPE_AP_ITEM->sw.value)
 			return meade_command(device, ":RT2#", NULL, 0, 0);
 		else
@@ -687,7 +711,7 @@ static bool meade_set_tracking_rate(indigo_device *device) {
 	} else if (MOUNT_TRACK_RATE_SOLAR_ITEM->sw.value && PRIVATE_DATA->lastTrackRate != 's') {
 		PRIVATE_DATA->lastTrackRate = 's';
 		if (MOUNT_TYPE_GEMINI_ITEM->sw.value)
-			return meade_command(device, ">130:134@", NULL, 0, 0);
+			return gemini_set(device, 134, "");
 		else if (MOUNT_TYPE_10MICRONS_ITEM->sw.value)
 			return meade_command(device, ":TSOLAR#", NULL, 0, 0);
 		else if (MOUNT_TYPE_AP_ITEM->sw.value)
@@ -697,7 +721,7 @@ static bool meade_set_tracking_rate(indigo_device *device) {
 	} else if (MOUNT_TRACK_RATE_LUNAR_ITEM->sw.value && PRIVATE_DATA->lastTrackRate != 'l') {
 		PRIVATE_DATA->lastTrackRate = 'l';
 		if (MOUNT_TYPE_GEMINI_ITEM->sw.value)
-			return meade_command(device, ">130:133G#", NULL, 0, 0);
+			return gemini_set(device, 133, "");
 		else if (MOUNT_TYPE_AP_ITEM->sw.value)
 			return meade_command(device, ":RT0#", NULL, 0, 0);
 		else
@@ -720,6 +744,20 @@ static bool meade_set_slew_rate(indigo_device *device) {
 		} else if (MOUNT_SLEW_RATE_MAX_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 's') {
 			PRIVATE_DATA->lastSlewRate = 's';
 			return meade_command(device, ":RC3#", NULL, 0, 0);
+		}
+	} else if (MOUNT_TYPE_ZWO_ITEM->sw.value) {
+		if (MOUNT_SLEW_RATE_GUIDE_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 'g') {
+			PRIVATE_DATA->lastSlewRate = 'g';
+			return meade_command(device, ":R1#", NULL, 0, 0);
+		} else if (MOUNT_SLEW_RATE_CENTERING_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 'c') {
+			PRIVATE_DATA->lastSlewRate = 'c';
+			return meade_command(device, ":R4#", NULL, 0, 0);
+		} else if (MOUNT_SLEW_RATE_FIND_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 'm') {
+			PRIVATE_DATA->lastSlewRate = 'm';
+			return meade_command(device, ":R8#", NULL, 0, 0);
+		} else if (MOUNT_SLEW_RATE_MAX_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 's') {
+			PRIVATE_DATA->lastSlewRate = 's';
+			return meade_command(device, ":R9#", NULL, 0, 0);
 		}
 	} else {
 		if (MOUNT_SLEW_RATE_GUIDE_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 'g') {
@@ -2514,6 +2552,18 @@ static indigo_result focuser_detach(indigo_device *device) {
 	return indigo_focuser_detach(device);
 }
 
+static void device_network_disconnection(indigo_device* device, indigo_timer_callback callback) {
+	if (CONNECTION_CONNECTED_ITEM->sw.value) {
+		indigo_set_switch(CONNECTION_PROPERTY, CONNECTION_DISCONNECTED_ITEM, true);
+		callback(device);
+		CONNECTION_PROPERTY->state = INDIGO_ALERT_STATE;  // The alert state signals the unexpected disconnection
+		indigo_update_property(device, CONNECTION_PROPERTY, NULL);
+		// Sending message as this update will not pass through the agent
+		indigo_send_message(device, "Error: Device disconnected unexpectedly", device->name);
+	}
+	// Otherwise not previously connected, nothing to do
+}
+
 // --------------------------------------------------------------------------------
 
 static lx200_private_data *private_data = NULL;
@@ -2521,6 +2571,14 @@ static lx200_private_data *private_data = NULL;
 static indigo_device *mount = NULL;
 static indigo_device *mount_guider = NULL;
 static indigo_device *mount_focuser = NULL;
+
+static void network_disconnection(__attribute__((unused)) indigo_device* device) {
+	// Since all three devices share the same TCP connection,
+	// process the disconnection on all three of them
+	device_network_disconnection(mount, mount_connect_callback);
+	device_network_disconnection(mount_guider, guider_connect_callback);
+	device_network_disconnection(mount_focuser, focuser_connect_callback);
+}
 
 indigo_result indigo_mount_lx200(indigo_driver_action action, indigo_driver_info *info) {
 	static indigo_device mount_template = INDIGO_DEVICE_INITIALIZER(

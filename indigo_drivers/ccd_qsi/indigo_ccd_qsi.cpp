@@ -19,14 +19,14 @@
 // version history
 // 2.0 by Peter Polakovic <peter.polakovic@cloudmakers.eu>
 //
-// 23.08.2020 by Rumen.G.Bogdanovski <rumen@skyarchive.org>
+// 23.08.2020 by Rumen.G.Bogdanovski <rumenastro@gmail.com>
 // - major rework: made driver stable with access to QSI camera
 
 /** INDIGO CCD driver for Quantum Scientific Imaging
  \file indigo_ccd_qsi.cpp
  */
 
-#define DRIVER_VERSION    0x000C
+#define DRIVER_VERSION    0x000D
 #define DRIVER_NAME       "indigo_ccd_qsi"
 
 #include <stdlib.h>
@@ -240,6 +240,7 @@ static void exposure_timer_callback(indigo_device *device) {
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
 			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
 		} catch (std::runtime_error err) {
+			indigo_ccd_failure_cleanup(device);
 			std::string text = err.what();
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, text.c_str());
@@ -295,6 +296,7 @@ static void ccd_exposure_callback(indigo_device *device) {
 			cam.StartExposure(CCD_EXPOSURE_ITEM->number.value, !(CCD_FRAME_TYPE_DARK_ITEM->sw.value || CCD_FRAME_TYPE_DARKFLAT_ITEM->sw.value || CCD_FRAME_TYPE_BIAS_ITEM->sw.value));
 			indigo_set_timer(device, CCD_EXPOSURE_ITEM->number.target, exposure_timer_callback, &PRIVATE_DATA->exposure_timer);
 		} catch (std::runtime_error err) {
+			indigo_ccd_failure_cleanup(device);
 			std::string text = err.what();
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, text.c_str());

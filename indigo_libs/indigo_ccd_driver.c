@@ -43,6 +43,7 @@
 #include <indigo/indigo_avi.h>
 #include <indigo/indigo_ser.h>
 #include <indigo/indigo_dslr_raw.h>
+#include <indigo/indigo_md5.h>
 
 struct indigo_jpeg_compress_struct {
 	struct jpeg_compress_struct pub;
@@ -373,6 +374,26 @@ indigo_result indigo_ccd_enumerate_properties(indigo_device *device, indigo_clie
 	return indigo_device_enumerate_properties(device, client, property);
 }
 
+indigo_result indigo_ccd_failure_cleanup(indigo_device *device) {
+	if (CCD_IMAGE_PROPERTY->state == INDIGO_BUSY_STATE) {
+		CCD_IMAGE_PROPERTY->state = INDIGO_ALERT_STATE;
+		indigo_update_property(device, CCD_IMAGE_PROPERTY, NULL);
+	}
+	if (CCD_PREVIEW_IMAGE_PROPERTY->state == INDIGO_BUSY_STATE) {
+		CCD_PREVIEW_IMAGE_PROPERTY->state = INDIGO_ALERT_STATE;
+		indigo_update_property(device, CCD_PREVIEW_IMAGE_PROPERTY, NULL);
+	}
+	if (CCD_PREVIEW_HISTOGRAM_PROPERTY->state == INDIGO_BUSY_STATE) {
+		CCD_PREVIEW_HISTOGRAM_PROPERTY->state = INDIGO_ALERT_STATE;
+		indigo_update_property(device, CCD_PREVIEW_HISTOGRAM_PROPERTY, NULL);
+	}
+	if (CCD_IMAGE_FILE_PROPERTY->state == INDIGO_BUSY_STATE) {
+		CCD_IMAGE_FILE_PROPERTY->state = INDIGO_ALERT_STATE;
+		indigo_update_property(device, CCD_IMAGE_FILE_PROPERTY, NULL);
+	}
+	return INDIGO_OK;
+}
+
 indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *client, indigo_property *property) {
 	assert(device != NULL);
 	assert(DEVICE_CONTEXT != NULL);
@@ -491,22 +512,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 		return INDIGO_OK;
 	} else if (indigo_property_match_changeable(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_ABORT_EXPOSURE
-		if (CCD_IMAGE_PROPERTY->state == INDIGO_BUSY_STATE) {
-			CCD_IMAGE_PROPERTY->state = INDIGO_ALERT_STATE;
-			indigo_update_property(device, CCD_IMAGE_PROPERTY, NULL);
-		}
-		if (CCD_PREVIEW_IMAGE_PROPERTY->state == INDIGO_BUSY_STATE) {
-			CCD_PREVIEW_IMAGE_PROPERTY->state = INDIGO_ALERT_STATE;
-			indigo_update_property(device, CCD_PREVIEW_IMAGE_PROPERTY, NULL);
-		}
-		if (CCD_PREVIEW_HISTOGRAM_PROPERTY->state == INDIGO_BUSY_STATE) {
-			CCD_PREVIEW_HISTOGRAM_PROPERTY->state = INDIGO_ALERT_STATE;
-			indigo_update_property(device, CCD_PREVIEW_HISTOGRAM_PROPERTY, NULL);
-		}
-		if (CCD_IMAGE_FILE_PROPERTY->state == INDIGO_BUSY_STATE) {
-			CCD_IMAGE_FILE_PROPERTY->state = INDIGO_ALERT_STATE;
-			indigo_update_property(device, CCD_IMAGE_FILE_PROPERTY, NULL);
-		}
+		indigo_ccd_failure_cleanup(device);
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_cancel_timer(device, &CCD_CONTEXT->countdown_timer);
@@ -1124,43 +1130,194 @@ static void raw_to_tiff(indigo_device *device, void *data_in, int frame_width, i
 	free(memory_handle);
 }
 
-static bool create_file_name(char *dir, char *prefix, char *suffix, char *file_name) {
-	if (strlen(dir) + strlen(prefix) + strlen(suffix) < INDIGO_VALUE_SIZE) {
+static void sanitise(char *buffer) {
+	for (char *p = buffer; *p; p++) {
+		if (isalnum(*p) || isdigit(*p))
+			continue;
+		if (*p == '-' || *p == '.' || *p == '_' || *p == '$' || *p == '%' || *p == '#' || *p == ' ' || *p == '+' || *p == '@')
+			continue;
+		*p = '_';
+	}
+}
+
+static bool create_file_name(indigo_device *device, void *blob_value, long blob_size, char *dir, char *prefix, char *suffix, char *file_name) {
+	char format[PATH_MAX], tmp[PATH_MAX];
+	strcpy(format, dir);
+	sanitise(prefix);
+	if (strchr(prefix, '%') == NULL) { // No %, INDI style
 		char *placeholder = strstr(prefix, "XXX");
 		if (placeholder == NULL) {
-			indigo_copy_value(file_name, dir);
-			strcat(file_name, prefix);
-			strcat(file_name, suffix);
-		} else {
-			char format[INDIGO_VALUE_SIZE];
-			strcpy(format, dir);
+			strcat(format, prefix);
+		} else if (!strncmp(placeholder, "XXXX", 4)) {
 			strncat(format, prefix, placeholder - prefix);
-			if (!strncmp(placeholder, "XXXX", 4)) {
-				strcat(format, "%04d");
-				strcat(format, placeholder + 4);
+			strcat(format, "%4S");
+			strcat(format, placeholder + 4);
+		} else {
+			strncat(format, prefix, placeholder - prefix);
+			strcat(format, "%3S");
+			strcat(format, placeholder + 3);
+		}
+	} else { // contains some %, INDIGO style
+		strcat(format, prefix);
+	}
+	strcat(format, suffix);
+
+	time_t current_time;
+	time(&current_time);
+
+	char *fs = strchr(format, '%');
+	while (fs) {
+		memset(tmp, 0, PATH_MAX);
+		if (fs[1] == 'M') { // %M - MD5 hash from the first INDIGO_PARTIAL_MD5_LEN bytes of BLOB
+			char md5_digest[33];
+			strncpy(tmp, format, fs - format);
+			indigo_md5_partial(md5_digest, blob_value, blob_size, INDIGO_PARTIAL_MD5_LEN);
+			strcat(tmp, md5_digest);
+			strcat(tmp, fs + 2);
+			strcpy(format, tmp);
+		} else if (fs[1] == 'E' || (isdigit(fs[1]) && fs[2] == 'E')) { // %E or %nE - exposure time
+			char e[16];
+			int digits = 0;
+			if (fs[1] == 'E') {
+				if (CCD_EXPOSURE_ITEM->number.target < 0.001)
+					digits = 4;
+				else if (CCD_EXPOSURE_ITEM->number.target < 0.01)
+					digits = 3;
+				else if (CCD_EXPOSURE_ITEM->number.target < 0.1)
+					digits = 2;
+				else if (CCD_EXPOSURE_ITEM->number.target < 1)
+					digits = 1;
 			} else {
-				strcat(format, "%03d");
-				strcat(format, placeholder + 3);
+				digits = fs[1] - '0';
 			}
-			strcat(format, suffix);
+			sprintf(e, "%.*f", digits, CCD_EXPOSURE_ITEM->number.target);
+			strncpy(tmp, format, fs - format);
+			strcat(tmp, e);
+			if (fs[1] == 'E')
+				strcat(tmp, fs + 2);
+			else
+				strcat(tmp, fs + 3);
+			strcpy(format, tmp);
+		} else if (fs[1] == 'T') { // %T - temperature
+			char t[16];
+			sprintf(t, "%.2f", CCD_TEMPERATURE_ITEM->number.value);
+			strncpy(tmp, format, fs - format);
+			strcat(tmp, t);
+			strcat(tmp, fs + 2);
+			strcpy(format, tmp);
+		} else if (fs[1] == 'F') { // %F - frame type
+			strncpy(tmp, format, fs - format);
+			for(int i = 0; i < CCD_FRAME_TYPE_PROPERTY->count; i++) {
+				if (CCD_FRAME_TYPE_PROPERTY->items[i].sw.value) {
+					strcat(tmp, CCD_FRAME_TYPE_PROPERTY->items[i].label);
+				}
+			}
+			strcat(tmp, fs + 2);
+			strcpy(format, tmp);
+		} else if ((fs[1] == 'D' || fs[1] == 'H') || ((fs[1] == '.' || fs[1] == '-') && (fs[2] == 'D' || fs[2] == 'H'))) { // %D, %.D, %-D - date, %H, %.H, %-H - time
+			struct tm * time_info;
+			char buffer[15];
+			time_info = localtime(&current_time);
+			if (fs[1] == 'H') {
+				strftime(buffer, 15, "%H%M%S", time_info);
+			} else if (fs[1] == 'D') {
+				strftime(buffer, 15, "%Y%m%d", time_info);
+			} else if (fs[2] == 'H') {
+				if (fs[1] == '.')
+					strftime(buffer, 15, "%H.%M.%S", time_info);
+				else if (fs[1] == '-')
+					strftime(buffer, 15, "%H-%M-%S", time_info);
+			} else if (fs[2] == 'D') {
+				if (fs[1] == '.')
+					strftime(buffer, 15, "%Y.%m.%d", time_info);
+				else if (fs[1] == '-')
+					strftime(buffer, 15, "%Y-%m-%d", time_info);
+			}
+			strncpy(tmp, format, fs - format);
+			strcat(tmp, buffer);
+			if (fs[1] == 'D' || fs[1] == 'H')
+				strcat(tmp, fs + 2);
+			else
+				strcat(tmp, fs + 3);
+			strcpy(format, tmp);
+		} else if (fs[1] == 'C') { // %C - colour filter, R G B Ha etc.
+			bool found = false;
+			strncpy(tmp, format, fs - format);
+			for (int i = 0; i < CCD_FITS_HEADERS_PROPERTY->count; i++) {
+				indigo_item *item = CCD_FITS_HEADERS_PROPERTY->items + i;
+				if (*item->text.value) {
+					if (!strncmp(item->text.value, "FILTER", 6)) {
+						char keyword[50] = "";
+						char filter[50] = "";
+						int res = sscanf(item->text.value, "%[^']'%[^']", keyword, filter);
+						if (res != 2) {
+							found = false;
+						} else {
+							sanitise(filter);
+							strcat(tmp, filter);
+							found = true;
+						}
+					}
+				}
+			}
+			if (!found) {
+				strcat(tmp, "NA");
+			}
+			strcat(tmp, fs + 2);
+			strcpy(format, tmp);
+		} else if (isdigit(fs[1]) && fs[2] == 'S') { // %nS - sequence number in %0nd format
+			char *next = strchr(fs + 1, '%');
+			if (next) { // make sure %nS is processed as the last one
+				fs = next;
+				continue;
+			}
 			struct stat sb;
-			int i = 1;
-			while (i < 10000) {
-				snprintf(file_name, INDIGO_VALUE_SIZE, format, i);
-				if (stat(file_name, &sb) == 0 && S_ISREG(sb.st_mode))
-					i++;
-				else
+			int max = 0;
+			strncpy(tmp, format, fs - format + 1);
+			switch (fs[1]) {
+				case '1':
+					strcat(tmp, "01d");
+					max = 10;
+					break;
+				case '2':
+					strcat(tmp, "02d");
+					max = 100;
+					break;
+				case '3':
+					strcat(tmp, "03d");
+					max = 1000;
+					break;
+				case '4':
+					strcat(tmp, "04d");
+					max = 10000;
+					break;
+				case '5':
+					strcat(tmp, "05d");
+					max = 100000;
 					break;
 			}
+			strcat(tmp, fs + 3);
+			for (int i = 0; i < max; i++) {
+				snprintf(format, PATH_MAX, tmp, i);
+				if (stat(format, &sb) == 0 && S_ISREG(sb.st_mode))
+					continue;;
+				strcpy(file_name, format);
+				return true;
+			}
+			return false;
+		} else {
+			return false;
 		}
-		return true;
+		fs = strchr(format, '%');
 	}
-	return false;
+	strcpy(file_name, format);
+	return true;
 }
 
 void indigo_process_image(indigo_device *device, void *data, int frame_width, int frame_height, int bpp, bool little_endian, bool byte_order_rgb, indigo_fits_keyword *keywords, bool streaming) {
 	assert(device != NULL);
 	assert(data != NULL);
+
 	INDIGO_DEBUG(clock_t start = clock());
 	int horizontal_bin = CCD_BIN_HORIZONTAL_ITEM->number.value;
 	int vertical_bin = CCD_BIN_VERTICAL_ITEM->number.value;
@@ -1261,7 +1418,10 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 			add_key(&header, true,  "XPIXSZ  = %20.2f / pixel width [microns]", CCD_INFO_PIXEL_WIDTH_ITEM->number.value * horizontal_bin);
 			add_key(&header, true,  "YPIXSZ  = %20.2f / pixel height [microns]", CCD_INFO_PIXEL_HEIGHT_ITEM->number.value * vertical_bin);
 		}
-		add_key(&header, true,  "EXPTIME = %20.2f / exposure time [s]", CCD_EXPOSURE_ITEM->number.target);
+		if (CCD_EXPOSURE_ITEM->number.target >= 1.0)
+			add_key(&header, true,  "EXPTIME = %20.2f / exposure time [s]", CCD_EXPOSURE_ITEM->number.target);
+		else
+			add_key(&header, true,  "EXPTIME = %20.4f / exposure time [s]", CCD_EXPOSURE_ITEM->number.target);
 		if (!CCD_TEMPERATURE_PROPERTY->hidden)
 			add_key(&header, true,  "CCD-TEMP= %20.2f / CCD temperature [C]", CCD_TEMPERATURE_ITEM->number.value);
 		if (CCD_FRAME_TYPE_LIGHT_ITEM->sw.value)
@@ -1287,7 +1447,10 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 			while (keywords->type && (header - (char *)data) < (FITS_HEADER_SIZE - 80)) {
 				switch (keywords->type) {
 					case INDIGO_FITS_NUMBER:
-						add_key(&header, true,  "%7s= %20f / %s", keywords->name, keywords->number, keywords->comment);
+						if (keywords->number == (int)keywords->number)
+							add_key(&header, true,  "%7s= %20d / %s", keywords->name, (int)keywords->number, keywords->comment);
+						else
+							add_key(&header, true,  "%7s= %20f / %s", keywords->name, keywords->number, keywords->comment);
 						break;
 					case INDIGO_FITS_STRING:
 						add_key(&header, true,  "%7s= '%s'%*c / %s", keywords->name, keywords->string, (int)(18 - strlen(keywords->string)), ' ', keywords->comment);
@@ -1448,7 +1611,10 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 		header += strlen(header);
 		sprintf(header, "<Property id='Instrument:ExposureTime' type='Float32' value='%s'/>", indigo_dtoa(CCD_EXPOSURE_ITEM->number.target, b1));
 		header += strlen(header);
-		sprintf(header, "<FITSKeyword name='EXPTIME'  value='%20.2f' comment='Exposure time in seconds'/>", CCD_EXPOSURE_ITEM->number.target);
+		if (CCD_EXPOSURE_ITEM->number.target >= 1.0)
+			sprintf(header, "<FITSKeyword name='EXPTIME'  value='%20.2f' comment='Exposure time in seconds'/>", CCD_EXPOSURE_ITEM->number.target);
+		else
+			sprintf(header, "<FITSKeyword name='EXPTIME'  value='%20.4f' comment='Exposure time in seconds'/>", CCD_EXPOSURE_ITEM->number.target);
 		header += strlen(header);
 		sprintf(header, "<Property id='Instrument:Sensor:XPixelSize' type='Float32' value='%s'/><Property id='Instrument:Sensor:YPixelSize' type='Float32' value='%s'/>", indigo_dtoa(CCD_INFO_PIXEL_WIDTH_ITEM->number.value * horizontal_bin, b1), indigo_dtoa(CCD_INFO_PIXEL_HEIGHT_ITEM->number.value * vertical_bin, b2));
 		header += strlen(header);
@@ -1655,6 +1821,24 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 			free(tiff_data);
 		}
 	}
+	void *blob_value = NULL;
+	long blob_size = 0;
+	if (CCD_IMAGE_FORMAT_FITS_ITEM->sw.value) {
+		blob_value = data;
+		blob_size = FITS_HEADER_SIZE + blobsize;
+	} else if (CCD_IMAGE_FORMAT_XISF_ITEM->sw.value) {
+		blob_value = data;
+		blob_size = FITS_HEADER_SIZE + blobsize;
+	} else if (CCD_IMAGE_FORMAT_RAW_ITEM->sw.value || CCD_IMAGE_FORMAT_RAW_SER_ITEM->sw.value) {
+		blob_value = data + FITS_HEADER_SIZE - sizeof(indigo_raw_header);
+		blob_size = blobsize + sizeof(indigo_raw_header);
+	} else if (CCD_IMAGE_FORMAT_JPEG_ITEM->sw.value || CCD_IMAGE_FORMAT_JPEG_AVI_ITEM->sw.value) {
+		blob_value = data;
+		blob_size = blobsize;
+	} else if (CCD_IMAGE_FORMAT_TIFF_ITEM->sw.value) {
+		blob_value = data;
+		blob_size = blobsize;
+	}
 	if (CCD_UPLOAD_MODE_LOCAL_ITEM->sw.value || CCD_UPLOAD_MODE_BOTH_ITEM->sw.value) {
 		char *suffix = "";
 		bool use_avi = false;
@@ -1688,7 +1872,7 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 		int handle = 0;
 		if (!(use_avi || use_ser) || CCD_CONTEXT->video_stream == NULL) {
 			char file_name[INDIGO_VALUE_SIZE];
-			if (create_file_name(CCD_LOCAL_MODE_DIR_ITEM->text.value, CCD_LOCAL_MODE_PREFIX_ITEM->text.value, suffix, file_name)) {
+			if (create_file_name(device, blob_value, blob_size, CCD_LOCAL_MODE_DIR_ITEM->text.value, CCD_LOCAL_MODE_PREFIX_ITEM->text.value, suffix, file_name)) {
 				indigo_copy_value(CCD_IMAGE_FILE_ITEM->text.value, file_name);
 				CCD_IMAGE_FILE_PROPERTY->state = INDIGO_OK_STATE;
 				if (use_avi) {
@@ -1700,7 +1884,7 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 				}
 			} else {
 				CCD_IMAGE_FILE_PROPERTY->state = INDIGO_ALERT_STATE;
-				message = "dir + prefix + suffix is too long";
+				message = "Can't create file name";
 			}
 		}
 		if (CCD_CONTEXT->video_stream != NULL) {
@@ -1743,7 +1927,7 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 				}
 			}
 			close(handle);
-		} else {
+		} else if (message == NULL) {
 			CCD_IMAGE_FILE_PROPERTY->state = INDIGO_ALERT_STATE;
 			message = strerror(errno);
 		}
@@ -1752,27 +1936,18 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 	}
 	if (CCD_UPLOAD_MODE_CLIENT_ITEM->sw.value || CCD_UPLOAD_MODE_BOTH_ITEM->sw.value) {
 		*CCD_IMAGE_ITEM->blob.url = 0;
-		if (CCD_IMAGE_FORMAT_FITS_ITEM->sw.value) {
-			CCD_IMAGE_ITEM->blob.value = data;
-			CCD_IMAGE_ITEM->blob.size = FITS_HEADER_SIZE + blobsize;
+		CCD_IMAGE_ITEM->blob.value = blob_value;
+		CCD_IMAGE_ITEM->blob.size = blob_size;
+		if (CCD_IMAGE_FORMAT_FITS_ITEM->sw.value)
 			strcpy(CCD_IMAGE_ITEM->blob.format, ".fits");
-		} else if (CCD_IMAGE_FORMAT_XISF_ITEM->sw.value) {
-			CCD_IMAGE_ITEM->blob.value = data;
-			CCD_IMAGE_ITEM->blob.size = FITS_HEADER_SIZE + blobsize;
+		else if (CCD_IMAGE_FORMAT_XISF_ITEM->sw.value)
 			strcpy(CCD_IMAGE_ITEM->blob.format, ".xisf");
-		} else if (CCD_IMAGE_FORMAT_RAW_ITEM->sw.value || CCD_IMAGE_FORMAT_RAW_SER_ITEM->sw.value) {
-			CCD_IMAGE_ITEM->blob.value = data + FITS_HEADER_SIZE - sizeof(indigo_raw_header);
-			CCD_IMAGE_ITEM->blob.size = blobsize + sizeof(indigo_raw_header);
+		else if (CCD_IMAGE_FORMAT_RAW_ITEM->sw.value || CCD_IMAGE_FORMAT_RAW_SER_ITEM->sw.value)
 			strcpy(CCD_IMAGE_ITEM->blob.format, ".raw");
-		} else if (CCD_IMAGE_FORMAT_JPEG_ITEM->sw.value || CCD_IMAGE_FORMAT_JPEG_AVI_ITEM->sw.value) {
-			CCD_IMAGE_ITEM->blob.value = data;
-			CCD_IMAGE_ITEM->blob.size = blobsize;
+		else if (CCD_IMAGE_FORMAT_JPEG_ITEM->sw.value || CCD_IMAGE_FORMAT_JPEG_AVI_ITEM->sw.value)
 			strcpy(CCD_IMAGE_ITEM->blob.format, ".jpeg");
-		} else if (CCD_IMAGE_FORMAT_TIFF_ITEM->sw.value) {
-			CCD_IMAGE_ITEM->blob.value = data;
-			CCD_IMAGE_ITEM->blob.size = blobsize;
+		else if (CCD_IMAGE_FORMAT_TIFF_ITEM->sw.value)
 			strcpy(CCD_IMAGE_ITEM->blob.format, ".tiff");
-		}
 		CCD_IMAGE_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_update_property(device, CCD_IMAGE_PROPERTY, NULL);
 		INDIGO_DEBUG(indigo_debug("Client upload in %gs", (clock() - start) / (double)CLOCKS_PER_SEC));
@@ -1837,7 +2012,7 @@ void indigo_process_dslr_image(indigo_device *device, void *data, int data_size,
 			if (CCD_UPLOAD_MODE_LOCAL_ITEM->sw.value || CCD_UPLOAD_MODE_BOTH_ITEM->sw.value) {
 				char file_name[INDIGO_VALUE_SIZE];
 				char *message = NULL;
-				if (create_file_name(CCD_LOCAL_MODE_DIR_ITEM->text.value, CCD_LOCAL_MODE_PREFIX_ITEM->text.value, ".raw", file_name)) {
+				if (create_file_name(device, data, data_size, CCD_LOCAL_MODE_DIR_ITEM->text.value, CCD_LOCAL_MODE_PREFIX_ITEM->text.value, ".raw", file_name)) {
 					indigo_copy_value(CCD_IMAGE_FILE_ITEM->text.value, file_name);
 					CCD_IMAGE_FILE_PROPERTY->state = INDIGO_OK_STATE;
 					int handle = open(file_name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -1917,7 +2092,7 @@ void indigo_process_dslr_image(indigo_device *device, void *data, int data_size,
 		}
 		if (!use_avi || CCD_CONTEXT->video_stream == NULL) {
 			char file_name[INDIGO_VALUE_SIZE];
-			if (create_file_name(CCD_LOCAL_MODE_DIR_ITEM->text.value, CCD_LOCAL_MODE_PREFIX_ITEM->text.value, standard_suffix, file_name)) {
+			if (create_file_name(device, data, data_size, CCD_LOCAL_MODE_DIR_ITEM->text.value, CCD_LOCAL_MODE_PREFIX_ITEM->text.value, standard_suffix, file_name)) {
 				indigo_copy_value(CCD_IMAGE_FILE_ITEM->text.value, file_name);
 				CCD_IMAGE_FILE_PROPERTY->state = INDIGO_OK_STATE;
 				if (use_avi) {
@@ -1944,7 +2119,7 @@ void indigo_process_dslr_image(indigo_device *device, void *data, int data_size,
 				}
 			} else {
 				CCD_IMAGE_FILE_PROPERTY->state = INDIGO_ALERT_STATE;
-				message = "dir + prefix + suffix is too long";
+				message = "Can't create file name";
 			}
 		}
 		if (CCD_CONTEXT->video_stream != NULL) {

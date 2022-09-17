@@ -17,13 +17,13 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // version history
-// 2.0 by Rumen G.Bogdanovski <rumen@skyarchive.org>
+// 2.0 by Rumen G.Bogdanovski <rumenastro@gmail.com>
 
 /** INDIGO ZWO AM driver
  \file indigo_mount_asi.c
  */
 
-#define DRIVER_VERSION 0x0002
+#define DRIVER_VERSION 0x0006
 #define DRIVER_NAME	"indigo_mount_asi"
 
 #include <stdlib.h>
@@ -40,6 +40,9 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 
 #include <indigo/indigo_driver_xml.h>
 #include <indigo/indigo_io.h>
@@ -96,13 +99,14 @@ static char *asi_error_string(unsigned int code) {
 		"Prameters out of range",
 		"Format error",
 		"Mount not initialized",
-		"Mount is Moving",
+		"Mount is moving",
 		"Target is below horizon",
 		"Target is beow the altitude limit",
-		"Time and location is not set",
-		"Warning: Meridian reached, tracking stopeed"
+		"Time and location are not set",
+		"Warning: Meridian reached, tracking stopeed",
+		"Target is on the other side of the meridian"
 	};
-	if (code > 8) code = 0;
+	if (code > 9) code = 0;
 	return (char *)error_string[code];
 }
 
@@ -127,6 +131,12 @@ static bool asi_open(indigo_device *device) {
 
 	}
 	if (PRIVATE_DATA->handle >= 0) {
+		if (PRIVATE_DATA->is_network) {
+			int opt = 1;
+			if (setsockopt(PRIVATE_DATA->handle, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int)) < 0) {
+				INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to disable Nagle algorithm");
+			}
+		}
 		INDIGO_DRIVER_LOG(DRIVER_NAME, "Connected to %s", name);
 		// flush the garbage if any...
 		char c;
@@ -159,11 +169,13 @@ static bool asi_open(indigo_device *device) {
 	}
 }
 
+static void network_disconnection(__attribute__((unused)) indigo_device *device);
+
 static bool asi_command(indigo_device *device, char *command, char *response, int max, int sleep) {
 	pthread_mutex_lock(&PRIVATE_DATA->port_mutex);
 	char c;
 	struct timeval tv;
-	// flush
+	// flush, and detect network disconnection
 	while (true) {
 		fd_set readout;
 		FD_ZERO(&readout);
@@ -183,6 +195,11 @@ static bool asi_command(indigo_device *device, char *command, char *response, in
 		}
 		result = read(PRIVATE_DATA->handle, &c, 1);
 		if (result < 1) {
+			if (PRIVATE_DATA->is_network) {
+				// This is a disconnection
+				indigo_set_timer(device, 0, network_disconnection, NULL);
+				INDIGO_DRIVER_ERROR(DRIVER_NAME, "Unexpected disconnection from %s", DEVICE_PORT_ITEM->text.value);
+			}
 			pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
 			return false;
 		}
@@ -384,8 +401,9 @@ static bool asi_sync(indigo_device *device, double ra, double dec, int *error_co
 
 static bool asi_set_guide_rate(indigo_device *device, int ra, int dec) {
 	char command[128];
+	// asi miunt has one guide rate for ra and dec
 	if (ra < 10) ra = 10;
-	if (dec > 90) ra = 90;
+	if (ra > 90) ra = 90;
 	float rate = ra / 100.0;
 	sprintf(command, ":Rg%.1f#", rate);
 	return (asi_command(device, command, NULL, 0, 0));
@@ -447,16 +465,16 @@ static bool asi_set_tracking_rate(indigo_device *device) {
 static bool asi_set_slew_rate(indigo_device *device) {
 	if (MOUNT_SLEW_RATE_GUIDE_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 'g') {
 		PRIVATE_DATA->lastSlewRate = 'g';
-		return asi_command(device, ":RG#", NULL, 0, 0);
+		return asi_command(device, ":R1#", NULL, 0, 0);
 	} else if (MOUNT_SLEW_RATE_CENTERING_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 'c') {
 		PRIVATE_DATA->lastSlewRate = 'c';
-		return asi_command(device, ":RC#", NULL, 0, 0);
+		return asi_command(device, ":R4#", NULL, 0, 0);
 	} else if (MOUNT_SLEW_RATE_FIND_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 'm') {
 		PRIVATE_DATA->lastSlewRate = 'm';
-		return asi_command(device, ":RM#", NULL, 0, 0);
+		return asi_command(device, ":R8#", NULL, 0, 0);
 	} else if (MOUNT_SLEW_RATE_MAX_ITEM->sw.value && PRIVATE_DATA->lastSlewRate != 's') {
 		PRIVATE_DATA->lastSlewRate = 's';
-		return asi_command(device, ":RS#", NULL, 0, 0);
+		return asi_command(device, ":R9#", NULL, 0, 0);
 	}
 	return true;
 }
@@ -1231,12 +1249,31 @@ static indigo_result guider_detach(indigo_device *device) {
 	return indigo_guider_detach(device);
 }
 
+static void device_network_disconnection(indigo_device* device, indigo_timer_callback callback) {
+	if (CONNECTION_CONNECTED_ITEM->sw.value) {
+		indigo_set_switch(CONNECTION_PROPERTY, CONNECTION_DISCONNECTED_ITEM, true);
+		callback(device);
+		CONNECTION_PROPERTY->state = INDIGO_ALERT_STATE;  // The alert state signals the unexpected disconnection
+		indigo_update_property(device, CONNECTION_PROPERTY, NULL);
+		// Sending message as this update will not pass through the agent
+		indigo_send_message(device, "Error: Device disconnected unexpectedly", device->name);
+	}
+	// Otherwise not previously connected, nothing to do
+}
+
 // --------------------------------------------------------------------------------
 
 static asi_private_data *private_data = NULL;
 
 static indigo_device *mount = NULL;
 static indigo_device *mount_guider = NULL;
+
+static void network_disconnection(__attribute__((unused)) indigo_device* device) {
+	// Since the two devices share the same TCP connection,
+	// process the disconnection on all of them
+	device_network_disconnection(mount, mount_connect_callback);
+	device_network_disconnection(mount_guider, guider_connect_callback);
+}
 
 indigo_result indigo_mount_asi(indigo_driver_action action, indigo_driver_info *info) {
 	static indigo_device mount_template = INDIGO_DEVICE_INITIALIZER(

@@ -66,9 +66,9 @@ static char __buffer__[32];
 #define DEC_PER_SEC 1440
 #define RA_PER_SEC 96
 
-bool is_meade = true;
+bool is_meade = false;
 bool is_10micron = false;
-bool is_gemini = false;
+bool is_gemini = true;
 bool is_avalon = false;
 bool is_onstep = false;
 bool is_zwo = false;
@@ -376,9 +376,9 @@ void loop() {
         is_slewing = false;
         ra_slew = 0;
         dec_slew = 0;
-      } else if (!strcmp(buffer, "AP") || !strncmp(buffer, "190:192", 7) || !strcmp(buffer, "X122")) {
+      } else if (!strcmp(buffer, "AP") || !strncmp(buffer, "192", 3) || !strcmp(buffer, "X122")) {
         is_tracking = true;
-      } else if (!strcmp(buffer, "AL") || !strncmp(buffer, "190:191", 7) || !strcmp(buffer, "X120")) {
+      } else if (!strcmp(buffer, "AL") || !strncmp(buffer, "191", 3) || !strcmp(buffer, "X120")) {
         is_tracking = false;
       } else if (!strcmp(buffer, "GW")) {
         if (is_tracking)

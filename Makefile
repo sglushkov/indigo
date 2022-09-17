@@ -21,7 +21,7 @@
 #---------------------------------------------------------------------
 
 INDIGO_VERSION = 2.0
-INDIGO_BUILD = 184
+INDIGO_BUILD = 189
 
 # Keep the suffix empty for official releases
 INDIGO_BUILD_SUFFIX =
@@ -47,9 +47,9 @@ INSTALL_SHARE = $(INSTALL_ROOT)/usr/local/share
 INSTALL_RULES = $(INSTALL_ROOT)/lib/udev/rules.d
 INSTALL_FIRMWARE = $(INSTALL_ROOT)/lib/firmware
 
-STABLE_DRIVERS = agent_alignment agent_auxiliary agent_guider agent_imager agent_lx200_server agent_mount agent_snoop ao_sx aux_cloudwatcher aux_dragonfly aux_dsusb aux_fbc aux_flatmaster aux_flipflat aux_joystick aux_mgbox aux_ppb aux_sqm aux_upb aux_usbdp ccd_altair ccd_apogee ccd_asi ccd_atik ccd_dsi ccd_fli ccd_iidc ccd_mi ccd_ptp ccd_qsi ccd_sbig ccd_simulator ccd_ssag ccd_sx ccd_touptek ccd_uvc dome_dragonfly dome_nexdome3 dome_simulator focuser_asi focuser_dmfc focuser_dsd focuser_efa focuser_fcusb focuser_fli focuser_focusdreampro focuser_lunatico focuser_moonlite focuser_steeldrive2 focuser_usbv3 focuser_wemacro gps_gpsd gps_nmea gps_simulator guider_asi guider_cgusbst4 guider_gpusb mount_asi mount_ioptron mount_lx200 mount_nexstar mount_nexstaraux mount_pmc8 mount_simulator mount_synscan mount_temma rotator_lunatico rotator_simulator system_ascol wheel_asi wheel_atik wheel_fli wheel_manual wheel_qhy wheel_sx aux_rpio ccd_ica focuser_wemacro_bt guider_eqmac focuser_mypro2 agent_astrometry mount_rainbow agent_scripting focuser_mjkzz focuser_mjkzz_bt dome_talon6ror aux_geoptikflat ccd_svb agent_astap
+STABLE_DRIVERS = agent_alignment agent_auxiliary agent_guider agent_imager agent_lx200_server agent_mount agent_snoop ao_sx aux_cloudwatcher aux_dragonfly aux_dsusb aux_fbc aux_flatmaster aux_flipflat aux_joystick aux_mgbox aux_ppb aux_sqm aux_upb aux_usbdp ccd_altair ccd_apogee ccd_asi ccd_atik ccd_dsi ccd_fli ccd_iidc ccd_mi ccd_ptp ccd_qsi ccd_sbig ccd_simulator ccd_ssag ccd_sx ccd_touptek ccd_uvc dome_dragonfly dome_nexdome3 dome_simulator focuser_asi focuser_dmfc focuser_dsd focuser_efa focuser_fcusb focuser_fli focuser_focusdreampro focuser_lunatico focuser_moonlite focuser_steeldrive2 focuser_usbv3 focuser_wemacro gps_gpsd gps_nmea gps_simulator guider_asi guider_cgusbst4 guider_gpusb mount_asi mount_ioptron mount_lx200 mount_nexstar mount_nexstaraux mount_pmc8 mount_simulator mount_synscan mount_temma rotator_lunatico rotator_simulator system_ascol wheel_asi wheel_atik wheel_fli wheel_manual wheel_qhy wheel_sx aux_rpio ccd_ica focuser_wemacro_bt guider_eqmac focuser_mypro2 agent_astrometry mount_rainbow agent_scripting focuser_mjkzz focuser_mjkzz_bt dome_talon6ror aux_geoptikflat ccd_svb agent_astap ccd_playerone
 UNSTABLE_DRIVERS = ccd_qhy ccd_qhy2
-UNTESTED_DRIVERS = aux_arteskyflat aux_rts dome_baader dome_nexdome focuser_lakeside focuser_nfocus focuser_nstep focuser_optec focuser_robofocus wheel_optec wheel_quantum wheel_trutek wheel_xagyl dome_skyroof aux_skyalert agent_alpaca dome_beaver focuser_astromechanics aux_astromechanics rotator_optec mount_starbook
+UNTESTED_DRIVERS = aux_arteskyflat aux_rts dome_baader dome_nexdome focuser_lakeside focuser_nfocus focuser_nstep focuser_optec focuser_robofocus wheel_optec wheel_quantum wheel_trutek wheel_xagyl dome_skyroof aux_skyalert agent_alpaca dome_beaver focuser_astromechanics aux_astromechanics rotator_optec mount_starbook focuser_prodigy
 DEVELOPED_DRIVERS =
 OPTIONAL_DRIVERS = ccd_andor
 EXCLUDED_DRIVERS = ccd_gphoto2
@@ -100,11 +100,11 @@ else
 			ARCH_DETECTED = arm64
 			DEBIAN_ARCH = arm64
 			DRPI_MANAGEMENT = -DRPI_MANAGEMENT
-			#EXCLUDED_DRIVERS += ccd_sbig
 		endif
 		ifeq ($(ARCH_DETECTED),i686)
 			ARCH_DETECTED = x86
 			DEBIAN_ARCH = i386
+			EXCLUDED_DRIVERS += ccd_playerone
 		endif
 		ifeq ($(ARCH_DETECTED),x86_64)
 			ifneq ($(wildcard /lib/x86_64-linux-gnu/),)
@@ -396,8 +396,8 @@ debs-remote:
 
 debs-docker:
 	sh tools/make_source_tarball.sh $(INDIGO_VERSION)-$(INDIGO_BUILD)
-	sh tools/build_debs.sh "i386/debian:stretch-slim" "indigo-$(INDIGO_VERSION)-$(INDIGO_BUILD)-i386.deb" $(INDIGO_VERSION)-$(INDIGO_BUILD)
-	sh tools/build_debs.sh "amd64/debian:stretch-slim" "indigo-$(INDIGO_VERSION)-$(INDIGO_BUILD)-amd64.deb" $(INDIGO_VERSION)-$(INDIGO_BUILD)
+	sh tools/build_debs.sh "i386/debian:buster-slim" "indigo-$(INDIGO_VERSION)-$(INDIGO_BUILD)-i386.deb" $(INDIGO_VERSION)-$(INDIGO_BUILD)
+	sh tools/build_debs.sh "amd64/debian:buster-slim" "indigo-$(INDIGO_VERSION)-$(INDIGO_BUILD)-amd64.deb" $(INDIGO_VERSION)-$(INDIGO_BUILD)
 	sh tools/build_debs.sh "arm32v7/debian:buster-slim" "indigo-$(INDIGO_VERSION)-$(INDIGO_BUILD)-armhf.deb" $(INDIGO_VERSION)-$(INDIGO_BUILD)
 	sh tools/build_debs.sh "arm64v8/debian:buster-slim" "indigo-$(INDIGO_VERSION)-$(INDIGO_BUILD)-arm64.deb" $(INDIGO_VERSION)-$(INDIGO_BUILD)
 	rm indigo-$(INDIGO_VERSION)-$(INDIGO_BUILD).tar.gz

@@ -17,14 +17,14 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // version history
-// 2.0 by Rumen Bogdanovski <rumen@skyarchive.org>
+// 2.0 by Rumen Bogdanovski <rumenastro@gmail.com>
 
 
 /** INDIGO CCD driver for Apogee
  \file indigo_ccd_apogee.cpp
  */
 
-#define DRIVER_VERSION 0x0009
+#define DRIVER_VERSION 0x000A
 #define DRIVER_NAME	   "indigo_ccd_apogee"
 
 #include <stdlib.h>
@@ -612,6 +612,7 @@ static void exposure_timer_callback(indigo_device *device) {
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
 			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
 		} else {
+			indigo_ccd_failure_cleanup(device);
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
 			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, "Exposure failed");
 		}

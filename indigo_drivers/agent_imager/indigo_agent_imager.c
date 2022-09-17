@@ -23,7 +23,7 @@
  \file indigo_agent_imager.c
  */
 
-#define DRIVER_VERSION 0x0021
+#define DRIVER_VERSION 0x0022
 #define DRIVER_NAME	"indigo_agent_imager"
 
 #include <stdio.h>
@@ -100,6 +100,7 @@
 
 #define AGENT_PAUSE_PROCESS_PROPERTY					(DEVICE_PRIVATE_DATA->agent_pause_process_property)
 #define AGENT_PAUSE_PROCESS_ITEM      				(AGENT_PAUSE_PROCESS_PROPERTY->items+0)
+#define AGENT_PAUSE_PROCESS_WAIT_ITEM      		(AGENT_PAUSE_PROCESS_PROPERTY->items+1)
 
 #define AGENT_ABORT_PROCESS_PROPERTY					(DEVICE_PRIVATE_DATA->agent_abort_process_property)
 #define AGENT_ABORT_PROCESS_ITEM      				(AGENT_ABORT_PROCESS_PROPERTY->items+0)
@@ -385,8 +386,10 @@ static indigo_property_state _capture_raw_frame(indigo_device *device, uint8_t *
 		if (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE) {
 			while (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE)
 				indigo_usleep(200000);
-			exposure_attempt--;
-			continue;
+			if (AGENT_PAUSE_PROCESS_ITEM->sw.value) {
+				exposure_attempt--;
+				continue;
+			}
 		}
 		if (AGENT_ABORT_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE)
 			return INDIGO_ALERT_STATE;
@@ -414,8 +417,10 @@ static indigo_property_state _capture_raw_frame(indigo_device *device, uint8_t *
 		if (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE) {
 			while (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE)
 				indigo_usleep(200000);
-			exposure_attempt--;
-			continue;
+			if (AGENT_PAUSE_PROCESS_ITEM->sw.value) {
+				exposure_attempt--;
+				continue;
+			}
 		}
 		if (AGENT_ABORT_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE)
 			return INDIGO_ALERT_STATE;
@@ -572,6 +577,7 @@ static void preview_process(indigo_device *device) {
 static void check_breakpoint(indigo_device *device, indigo_item *breakpoint) {
 	if (breakpoint->sw.value) {
 		AGENT_PAUSE_PROCESS_PROPERTY->state = INDIGO_BUSY_STATE;
+		AGENT_PAUSE_PROCESS_ITEM->sw.value = true;
 		indigo_update_property(device, AGENT_PAUSE_PROCESS_PROPERTY, "%s paused on %s breakpoint", device->name, breakpoint->name);
 		while (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE) {
 			if (AGENT_ABORT_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE) {
@@ -580,11 +586,12 @@ static void check_breakpoint(indigo_device *device, indigo_item *breakpoint) {
 			}
 			if (AGENT_IMAGER_RESUME_CONDITION_BARRIER_ITEM->sw.value && DEVICE_PRIVATE_DATA->barrier_resume) {
 				const char *names[] = { AGENT_PAUSE_PROCESS_ITEM_NAME };
-				const bool values[] = { true };
+				const bool values[] = { false };
 				for (int i = 0; i < AGENT_IMAGER_BARRIER_STATE_PROPERTY->count; i++) {
 					indigo_item *item = AGENT_IMAGER_BARRIER_STATE_PROPERTY->items + i;
 					indigo_change_switch_property(FILTER_DEVICE_CONTEXT->client, item->name, AGENT_PAUSE_PROCESS_PROPERTY_NAME, 1, names, values);
 				}
+				AGENT_PAUSE_PROCESS_ITEM->sw.value = false;
 				AGENT_PAUSE_PROCESS_PROPERTY->state = INDIGO_OK_STATE;
 				break;
 			}
@@ -649,8 +656,10 @@ static bool exposure_batch(indigo_device *device) {
 			if (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE) {
 				while (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE)
 					indigo_usleep(200000);
-				exposure_attempt--;
-				continue;
+				if (AGENT_PAUSE_PROCESS_ITEM->sw.value) {
+					exposure_attempt--;
+					continue;
+				}
 			}
 			if (AGENT_ABORT_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE)
 				return false;
@@ -676,8 +685,10 @@ static bool exposure_batch(indigo_device *device) {
 			if (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE) {
 				while (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE)
 					indigo_usleep(200000);
-				exposure_attempt--;
-				continue;
+				if (AGENT_PAUSE_PROCESS_ITEM->sw.value) {
+					exposure_attempt--;
+					continue;
+				}
 			}
 			if (AGENT_ABORT_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE)
 				return false;
@@ -1828,10 +1839,11 @@ static indigo_result agent_device_attach(indigo_device *device) {
 		indigo_init_switch_item(AGENT_IMAGER_START_STREAMING_ITEM, AGENT_IMAGER_START_STREAMING_ITEM_NAME, "Start streaming batch", false);
 		indigo_init_switch_item(AGENT_IMAGER_START_FOCUSING_ITEM, AGENT_IMAGER_START_FOCUSING_ITEM_NAME, "Start focusing", false);
 		indigo_init_switch_item(AGENT_IMAGER_START_SEQUENCE_ITEM, AGENT_IMAGER_START_SEQUENCE_ITEM_NAME, "Start sequence", false);
-		AGENT_PAUSE_PROCESS_PROPERTY = indigo_init_switch_property(NULL, device->name, AGENT_PAUSE_PROCESS_PROPERTY_NAME, "Agent", "Pause/Resume process", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, 1);
+		AGENT_PAUSE_PROCESS_PROPERTY = indigo_init_switch_property(NULL, device->name, AGENT_PAUSE_PROCESS_PROPERTY_NAME, "Agent", "Pause/Resume process", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_AT_MOST_ONE_RULE, 2);
 		if (AGENT_PAUSE_PROCESS_PROPERTY == NULL)
 			return INDIGO_FAILED;
-		indigo_init_switch_item(AGENT_PAUSE_PROCESS_ITEM, AGENT_PAUSE_PROCESS_ITEM_NAME, "Pause/resume process", false);
+		indigo_init_switch_item(AGENT_PAUSE_PROCESS_ITEM, AGENT_PAUSE_PROCESS_ITEM_NAME, "Pause/resume process (with abort)", false);
+		indigo_init_switch_item(AGENT_PAUSE_PROCESS_WAIT_ITEM, AGENT_PAUSE_PROCESS_WAIT_ITEM_NAME, "Pause/resume process (with wait)", false);
 		AGENT_ABORT_PROCESS_PROPERTY = indigo_init_switch_property(NULL, device->name, AGENT_ABORT_PROCESS_PROPERTY_NAME, "Agent", "Abort process", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, 1);
 		if (AGENT_ABORT_PROCESS_PROPERTY == NULL)
 			return INDIGO_FAILED;
@@ -2120,15 +2132,16 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 		if (AGENT_START_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE) {
 			indigo_property_copy_values(AGENT_PAUSE_PROCESS_PROPERTY, property, false);
 			if (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE) {
+				AGENT_PAUSE_PROCESS_ITEM->sw.value = AGENT_PAUSE_PROCESS_WAIT_ITEM->sw.value =  false;
 				AGENT_PAUSE_PROCESS_PROPERTY->state = INDIGO_OK_STATE;
 			} else {
 				AGENT_PAUSE_PROCESS_PROPERTY->state = INDIGO_BUSY_STATE;
-				abort_process(device);
+				if (AGENT_PAUSE_PROCESS_ITEM->sw.value)
+					abort_process(device);
 			}
 		} else {
 			AGENT_PAUSE_PROCESS_PROPERTY->state = INDIGO_ALERT_STATE;
 		}
-		AGENT_PAUSE_PROCESS_ITEM->sw.value = false;
 		indigo_update_property(device, AGENT_PAUSE_PROCESS_PROPERTY, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match(AGENT_ABORT_PROCESS_PROPERTY, property)) {
@@ -2136,6 +2149,7 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 		if (AGENT_START_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE || AGENT_IMAGER_STARS_PROPERTY->state == INDIGO_BUSY_STATE) {
 			indigo_property_copy_values(AGENT_ABORT_PROCESS_PROPERTY, property, false);
 			if (AGENT_PAUSE_PROCESS_PROPERTY->state == INDIGO_BUSY_STATE) {
+				AGENT_PAUSE_PROCESS_ITEM->sw.value = AGENT_PAUSE_PROCESS_WAIT_ITEM->sw.value =  false;
 				AGENT_PAUSE_PROCESS_PROPERTY->state = INDIGO_ALERT_STATE;
 				indigo_update_property(device, AGENT_PAUSE_PROCESS_PROPERTY, NULL);
 			}
