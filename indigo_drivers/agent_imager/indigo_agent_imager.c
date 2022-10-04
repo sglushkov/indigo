@@ -189,6 +189,7 @@ typedef struct {
 	double saved_frame_left, saved_frame_top;
 	char current_folder[INDIGO_VALUE_SIZE];
 	void *image_buffer;
+	size_t image_buffer_size;
 	int focuser_position;
 	int saved_backlash;
 	indigo_star_detection stars[MAX_STAR_COUNT];
@@ -1754,12 +1755,19 @@ static void setup_download(indigo_device *device) {
 		struct dirent **entries;
 		int count = scandir(DEVICE_PRIVATE_DATA->current_folder, &entries, image_filter, alphasort);
 		if (count >= 0) {
-			int i;
 			AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY = indigo_resize_property(AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY, count + 1);
-			for (i = 0; i < count; i++) {
-				indigo_init_switch_item(AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY->items + i + 1, entries[i]->d_name,  entries[i]->d_name, false);
+			char file_name[INDIGO_VALUE_SIZE + INDIGO_NAME_SIZE];
+			struct stat file_stat;
+			int valid_count = 1; /* Refresh item is 0 */
+			for (int i = 0; i < count; i++) {
+				strcpy(file_name, DEVICE_PRIVATE_DATA->current_folder);
+				strcat(file_name, entries[i]->d_name);
+				if (stat(file_name, &file_stat) >= 0 && file_stat.st_size > 0) {
+					indigo_init_switch_item(AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY->items + valid_count++, entries[i]->d_name, entries[i]->d_name, false);
+				}
 				free(entries[i]);
 			}
+			AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY->count = valid_count;
 			free(entries);
 		}
 		AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY->state = INDIGO_OK_STATE;
@@ -1853,7 +1861,8 @@ static indigo_result agent_device_attach(indigo_device *device) {
 		if (AGENT_IMAGER_DOWNLOAD_FILE_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_text_item(AGENT_IMAGER_DOWNLOAD_FILE_ITEM, AGENT_IMAGER_DOWNLOAD_FILE_ITEM_NAME, "File name", "");
-		AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY = indigo_init_switch_property(NULL, device->name, AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY_NAME, "Agent", "Download image list", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, 1);
+		AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY = indigo_init_switch_property(NULL, device->name, AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY_NAME, "Agent", "Download image list", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, INDIGO_PREALLOCATED_COUNT);
+		AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY->count = 1;
 		if (AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_switch_item(AGENT_IMAGER_DOWNLOAD_FILES_REFRESH_ITEM, AGENT_IMAGER_DOWNLOAD_FILES_REFRESH_ITEM_NAME, "Refresh", false);
@@ -2171,13 +2180,23 @@ static indigo_result agent_change_property(indigo_device *device, indigo_client 
 				struct stat file_stat;
 				strcpy(file_name, DEVICE_PRIVATE_DATA->current_folder);
 				strcat(file_name, AGENT_IMAGER_DOWNLOAD_FILE_ITEM->text.value);
-				if (stat(file_name, &file_stat) < 0) {
+				if (stat(file_name, &file_stat) < 0 || file_stat.st_size == 0) {
+					AGENT_IMAGER_DOWNLOAD_IMAGE_PROPERTY->state = INDIGO_ALERT_STATE;
+					indigo_update_property(device, AGENT_IMAGER_DOWNLOAD_IMAGE_PROPERTY, NULL);
+					AGENT_IMAGER_DOWNLOAD_FILE_PROPERTY->state = INDIGO_ALERT_STATE;
 					break;
 				}
-				if (DEVICE_PRIVATE_DATA->image_buffer)
-					DEVICE_PRIVATE_DATA->image_buffer = indigo_safe_realloc(DEVICE_PRIVATE_DATA->image_buffer, file_stat.st_size);
-				else
-					DEVICE_PRIVATE_DATA->image_buffer = indigo_safe_malloc(file_stat.st_size);
+				/* allocate 5% more mem to accomodate size fluctuation of the compressed images
+				   and reallocate smaller buffer only if the next image is more than 50% smaller
+				*/
+				size_t malloc_size = 1.05 * file_stat.st_size;
+				if (DEVICE_PRIVATE_DATA->image_buffer && (DEVICE_PRIVATE_DATA->image_buffer_size < file_stat.st_size || DEVICE_PRIVATE_DATA->image_buffer_size > 2 * file_stat.st_size)) {
+					DEVICE_PRIVATE_DATA->image_buffer = indigo_safe_realloc(DEVICE_PRIVATE_DATA->image_buffer, malloc_size);
+					DEVICE_PRIVATE_DATA->image_buffer_size = malloc_size;
+				} else if (DEVICE_PRIVATE_DATA->image_buffer == NULL){
+					DEVICE_PRIVATE_DATA->image_buffer = indigo_safe_malloc(malloc_size);
+					DEVICE_PRIVATE_DATA->image_buffer_size = malloc_size;
+				}
 				int fd = open(file_name, O_RDONLY, 0);
 				if (fd == -1) {
 					break;
@@ -2352,6 +2371,7 @@ static indigo_result agent_device_detach(indigo_device *device) {
 	indigo_release_property(AGENT_WHEEL_FILTER_PROPERTY);
 	pthread_mutex_destroy(&DEVICE_PRIVATE_DATA->mutex);
 	indigo_safe_free(DEVICE_PRIVATE_DATA->image_buffer);
+	DEVICE_PRIVATE_DATA->image_buffer_size = 0;
 	indigo_safe_free(DEVICE_PRIVATE_DATA->last_image);
 	return indigo_filter_device_detach(device);
 }
