@@ -32,10 +32,50 @@ function indigo_log_with_property(message, property) {
 		var value = property.items[name];
 		if (typeof value == "string")
 			value = "'"+value+"'";
+		if (typeof value == "object") {
+			var str = "[";
+			var next = false;
+			for (field in value) {
+				var subvalue = value[field];
+				if (next)
+					str += ", ";
+				next = true;
+				if (typeof subvalue == "string")
+					subvalue = "'"+subvalue+"'";
+				str += field + ": " + subvalue;
+			}
+			value = str + "]";
+		}
 		indigo_log("  "+name+" = "+value+"");
 	}
 	if (property.message)
 		indigo_log("  message: "+message);
+}
+
+function indigo_error_with_property(message, property) {
+	indigo_error(message + " property '"+property.device+"'."+property.name+", state = "+property.state+", perm = "+property.perm);
+	for (name in property.items) {
+		var value = property.items[name];
+		if (typeof value == "string")
+			value = "'"+value+"'";
+		if (typeof value == "object") {
+			var str = "[";
+			var next = false;
+			for (field in value) {
+				var subvalue = value[field];
+				if (next)
+					str += ", ";
+				next = true;
+				if (typeof subvalue == "string")
+					subvalue = "'"+subvalue+"'";
+				str += field + ": " + subvalue;
+			}
+			value = str + "]";
+		}
+		indigo_error("  "+name+" = "+value+"");
+	}
+	if (property.message)
+		indigo_error("  message: "+message);
 }
 
 function indigo_on_define_property(device_name, property_name, items, state, perm, message) {

@@ -23,7 +23,7 @@
  \file indigo_agent_astrometry.c
  */
 
-#define DRIVER_VERSION 0x000D
+#define DRIVER_VERSION 0x000E
 #define DRIVER_NAME	"indigo_agent_astrometry"
 
 #include <stdio.h>
@@ -542,6 +542,11 @@ static bool astrometry_solve(indigo_device *device, void *image, unsigned long i
 		if (AGENT_PLATESOLVER_HINTS_DEPTH_ITEM->number.value > 0) {
 			hints_index += sprintf(hints + hints_index, " --depth %d", (int)AGENT_PLATESOLVER_HINTS_DEPTH_ITEM->number.value);
 		}
+		if (AGENT_PLATESOLVER_HINTS_SCALE_ITEM->number.value > 0) {
+			hints_index += sprintf(hints + hints_index, " --scale-units arcsecperpix --scale-low %.3f --scale-high %.3f", AGENT_PLATESOLVER_HINTS_SCALE_ITEM->number.value * 0.9 * 3600, AGENT_PLATESOLVER_HINTS_SCALE_ITEM->number.value * 1.1 * 3600);
+		} else if (INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->pixel_scale > 0 && AGENT_PLATESOLVER_HINTS_SCALE_ITEM->number.value < 0) {
+			hints_index += sprintf(hints + hints_index, " --scale-units arcsecperpix --scale-low %.3f --scale-high %.3f", INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->pixel_scale * 0.9 * 3600, INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->pixel_scale * 1.1 * 3600);
+		}
 		if (AGENT_PLATESOLVER_HINTS_CPU_LIMIT_ITEM->number.value > 0) {
 			hints_index += sprintf(hints + hints_index, " --cpulimit %d", (int)AGENT_PLATESOLVER_HINTS_CPU_LIMIT_ITEM->number.value);
 		}
@@ -618,9 +623,7 @@ static void sync_installed_indexes(indigo_device *device, char *dir, indigo_prop
 		if (remove) {
 			for (int j = 0; j < AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count; j++) {
 				if (!strcmp(item->name, AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items[j].name)) {
-					indigo_item tmp[AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count - j];
-					memcpy(tmp, AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + (j + 1), (AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count - j) * sizeof(indigo_item));
-					memcpy(AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + j, tmp, (AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count - j) * sizeof(indigo_item));
+					memmove(AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + j, AGENT_PLATESOLVER_USE_INDEX_PROPERTY->items + (j + 1), (AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count - j) * sizeof(indigo_item));
 					AGENT_PLATESOLVER_USE_INDEX_PROPERTY->count--;
 					break;
 				}
@@ -823,7 +826,7 @@ indigo_result indigo_agent_astrometry(indigo_driver_action action, indigo_driver
 	switch(action) {
 		case INDIGO_DRIVER_INIT:
 			if (!indigo_platesolver_validate_executable("solve-field") || !indigo_platesolver_validate_executable("image2xy") || !indigo_platesolver_validate_executable("curl")) {
-				indigo_error("astrometry.net is not available");
+				indigo_error("Astrometry.net or curl is not available");
 				return INDIGO_UNRESOLVED_DEPS;
 			}
 			last_action = action;

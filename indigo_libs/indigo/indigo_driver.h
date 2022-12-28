@@ -60,6 +60,10 @@ extern "C" {
  */
 #define DEVICE_CONTEXT                ((indigo_device_context *)device->device_context)
 
+/** Master device context pointer.
+ */
+#define MASTER_DEVICE_CONTEXT                ((indigo_device_context *)device->master_device->device_context)
+
 /** CONNECTION property pointer, property is mandatory, property change request handler should set property items and state and call indigo_device_change_property() on exit.
  */
 #define CONNECTION_PROPERTY           (DEVICE_CONTEXT->connection_property)
@@ -238,6 +242,7 @@ typedef indigo_result (*driver_entry_point)(indigo_driver_action, indigo_driver_
 typedef struct {
 	int property_save_file_handle;            ///< handle for property save
 	pthread_mutex_t config_mutex;							///< mutex for configuration load/save synchronisation
+	pthread_mutex_t multi_device_mutex;				///< mutex for synchronising multi-device access over single low level connection
 	indigo_timer *timers;											///< active timer list
 	indigo_property *connection_property;     ///< CONNECTION property pointer
 	indigo_property *info_property;           ///< INFO property pointer
@@ -386,6 +391,15 @@ extern bool indigo_ignore_connection_change(indigo_device *device, indigo_proper
 /** Calculate position corrected with a backlash
 */
 extern int indigo_compensate_backlash(int requested_position, int current_position, int backlash, bool *is_last_move_poitive);
+
+/** Lock multidevice mutex on master device
+ */
+extern void indigo_lock_master_device(indigo_device *device);
+
+/** Unlock multidevice mutex on master device
+ */
+extern void indigo_unlock_master_device(indigo_device *device);
+
 
 #ifdef __cplusplus
 }

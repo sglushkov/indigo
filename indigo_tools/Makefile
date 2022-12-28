@@ -23,7 +23,12 @@
 include ../Makefile.inc
 
 SIMULATOR_LIBS=$(wildcard $(BUILD_DRIVERS)/indigo_*_simulator.a)
-DRIVER_LIBS=$(wildcard $(BUILD_DRIVERS)/indigo_*.a)
+
+ifeq ($(OS_DETECTED),Linux)
+	INDIGO_LIBS = -lindigo
+else
+	INDIGO_LIBS = $(BUILD_LIB)/libindigo.a -lz -ldl -lm
+endif
 
 all: $(BUILD_BIN)/indigo_prop_tool $(BUILD_BIN)/indigo_raw_to_fits $(BUILD_BIN)/indigo_drivers
 
@@ -32,22 +37,22 @@ install: all
 	cp $(BUILD_BIN)/indigo_raw_to_fits $(INSTALL_BIN)
 
 uninstall:
-	rm -f $(INSTALL_BIN)/indigo_prop_tool
+	rm -f $(INSTALL_BIN)/indigo_prop_tool $(INSTALL_BIN)/indigo_raw_to_fits
 
 status:
 	@printf "\nindigo_tools -------------------------\n\n"
 
 clean: status
-	rm -f *.o $(BUILD_BIN)/indigo_prop_tool $(BUILD_BIN)/indigo_drivers
+	rm -f *.o $(BUILD_BIN)/indigo_prop_tool $(BUILD_BIN)/indigo_raw_to_fits $(BUILD_BIN)/indigo_drivers
 
 clean-all: status
 	git clean -dfx
 
 $(BUILD_BIN)/indigo_prop_tool: indigo_prop_tool.o
-	$(CC) $(CFLAGS)  -o $@ indigo_prop_tool.o $(LDFLAGS) -lindigo
+	$(CC) $(CFLAGS)  -o $@ indigo_prop_tool.o $(LDFLAGS) $(INDIGO_LIBS)
 
 $(BUILD_BIN)/indigo_raw_to_fits: indigo_raw_to_fits.o
-	$(CC) $(CFLAGS)  -o $@ indigo_raw_to_fits.o $(LDFLAGS) -lindigo
+	$(CC) $(CFLAGS)  -o $@ indigo_raw_to_fits.o $(LDFLAGS) $(INDIGO_LIBS)
 
 $(BUILD_BIN)/indigo_drivers: indigo_drivers.o
 	$(CC) $(CFLAGS)  -o $@ indigo_drivers.o $(LDFLAGS) -lindigo

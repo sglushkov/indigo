@@ -975,6 +975,7 @@ static indigo_result init_camera_property(indigo_device *device, ASI_CONTROL_CAP
 
 
 static void handle_ccd_connect_property(indigo_device *device) {
+	indigo_lock_master_device(device);
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		if (!device->is_connected) {
 			if (asi_open(device)) {
@@ -1060,6 +1061,7 @@ static void handle_ccd_connect_property(indigo_device *device) {
 		}
 	}
 	indigo_ccd_change_property(device, NULL, CONNECTION_PROPERTY);
+	indigo_unlock_master_device(device);
 }
 
 
@@ -1450,6 +1452,7 @@ static indigo_result guider_attach(indigo_device *device) {
 
 
 static void handle_guider_connection_property(indigo_device *device) {
+	indigo_lock_master_device(device);
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		if (!device->is_connected) {
 			if (asi_open(device)) {
@@ -1472,6 +1475,7 @@ static void handle_guider_connection_property(indigo_device *device) {
 		}
 	}
 	indigo_guider_change_property(device, NULL, CONNECTION_PROPERTY);
+	indigo_unlock_master_device(device);
 }
 
 

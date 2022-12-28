@@ -731,10 +731,9 @@ indigo_result indigo_send_message(indigo_device *device, const char *format, ...
 }
 
 indigo_result indigo_stop() {
-	pthread_mutex_lock(&device_mutex);
-	pthread_mutex_lock(&client_mutex);
 	INDIGO_TRACE(indigo_trace("INDIGO Bus: stop request"));
 	if (is_started) {
+		pthread_mutex_lock(&client_mutex);
 		for (int i = 0; i < MAX_CLIENTS; i++) {
 			indigo_client *client = clients[i];
 			if (client != NULL && client->detach != NULL) {
@@ -742,17 +741,19 @@ indigo_result indigo_stop() {
 				client->last_result = client->detach(client);
 			}
 		}
+		pthread_mutex_unlock(&client_mutex);
+		pthread_mutex_lock(&device_mutex);
 		for (int i = 0; i < MAX_DEVICES; i++) {
 			indigo_device *device = devices[i];
-			if (device != NULL && device->detach != NULL) {
-				devices[i] = NULL;
-				device->last_result = device->detach(device);
+			if (device != NULL) {
+				indigo_error("INDIGO Bus: can't stop, '%s' is attached", device->name);
+				pthread_mutex_unlock(&device_mutex);
+				return INDIGO_BUSY;
 			}
 		}
+		pthread_mutex_unlock(&device_mutex);
 		is_started = false;
 	}
-	pthread_mutex_unlock(&client_mutex);
-	pthread_mutex_unlock(&device_mutex);
 	return INDIGO_OK;
 }
 
@@ -764,7 +765,7 @@ indigo_property *indigo_init_text_property(indigo_property *property, const char
 		property = indigo_safe_malloc(size);
 		property->allocated_count = count;
 	} else {
-		indigo_resize_property(property, count);
+		property = indigo_resize_property(property, count);
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -787,7 +788,7 @@ indigo_property *indigo_init_number_property(indigo_property *property, const ch
 		property = indigo_safe_malloc(size);
 		property->allocated_count = count;
 	} else {
-		indigo_resize_property(property, count);
+		property = indigo_resize_property(property, count);
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -810,7 +811,7 @@ indigo_property *indigo_init_switch_property(indigo_property *property, const ch
 		property = indigo_safe_malloc(size);
 		property->allocated_count = count;
 	} else {
-		indigo_resize_property(property, count);
+		property = indigo_resize_property(property, count);
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -834,7 +835,7 @@ indigo_property *indigo_init_light_property(indigo_property *property, const cha
 		property = indigo_safe_malloc(size);
 		property->allocated_count = count;
 	} else {
-		indigo_resize_property(property, count);
+		property = indigo_resize_property(property, count);
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -862,7 +863,7 @@ indigo_property *indigo_init_blob_property_p(indigo_property *property, const ch
 		property = indigo_safe_malloc(size);
 		property->allocated_count = count;
 	} else {
-		indigo_resize_property(property, count);
+		property = indigo_resize_property(property, count);
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -1790,4 +1791,12 @@ void indigo_free_large_buffer(void *large_buffer) {
 	}
 	pthread_mutex_unlock(&buffer_mutex);
 	free(large_buffer);
+}
+
+double indigo_pixel_scale(double focal_length_cm, double pixel_size_um) {
+	if (focal_length_cm > 0) {
+		return 20.6265 * pixel_size_um / focal_length_cm;
+	} else {
+		return 0;
+	}
 }

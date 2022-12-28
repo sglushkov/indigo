@@ -442,7 +442,9 @@ extern "C" {
  */
 typedef struct {
 	indigo_device_context device_context;         ///< device context base
-	bool countdown_enabled;												///< countdown enabled
+	bool countdown_canceled;									///< countdown canceled
+	bool countdown_enabled;									///< countdown enabled
+	double countdown_endtime;									///< countdown end time
 	indigo_timer *countdown_timer;								///< countdown timer
 	void *preview_image;													///< preview image buffer
 	unsigned long preview_image_size;							///< preview image buffer size
@@ -478,10 +480,6 @@ typedef struct {
 	indigo_property *ccd_rbi_flush_enable_property; ///< CCD_RBI_FLUSH_ENABLE property pointer
 	indigo_property *ccd_rbi_flush_property;			///< CCD_RBI_FLUSH property pointer
 } indigo_ccd_context;
-
-/** Calculate pixel scale in arcsec/pixel
- */
-extern double indigo_pixel_scale(double focal_length_cm, double pixel_size_um);
 
 /** Suspend countdown.
  */
@@ -528,6 +526,10 @@ extern void indigo_process_dslr_preview_image(indigo_device *device, void *data,
 /** Finalize video stream.
  */
 extern void indigo_finalize_video_stream(indigo_device *device);
+
+/** Finalize DSLR video stream.
+ */
+extern void indigo_finalize_dslr_video_stream(indigo_device *device);
 
 /** Set alert state on dependent properties.
  */

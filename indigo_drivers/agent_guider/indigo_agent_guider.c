@@ -23,7 +23,7 @@
  \file indigo_agent_guider.c
  */
 
-#define DRIVER_VERSION 0x001A
+#define DRIVER_VERSION 0x001B
 #define DRIVER_NAME	"indigo_agent_guider"
 
 #include <stdlib.h>
@@ -154,8 +154,6 @@ typedef struct {
 	double rmse_ra_sum, rmse_dec_sum;
 	double rmse_ra_s_sum, rmse_dec_s_sum;
 	double rmse_ra_threshold, rmse_dec_threshold;
-	double ccd_pixel_height, ccd_pixel_width;
-	double guider_focal_length;
 	unsigned long rmse_count;
 	void *last_image;
 	enum { IGNORE = -2, PREVIEW, GUIDING, INIT, CLEAR_DEC, CLEAR_RA, MOVE_NORTH, MOVE_SOUTH, MOVE_WEST, MOVE_EAST, FAILED, DONE } phase;
@@ -511,16 +509,13 @@ static indigo_property_state capture_raw_frame(indigo_device *device) {
 				double stddev_x = indigo_stddev(DEVICE_PRIVATE_DATA->stack_x, count);
 				double stddev_y = indigo_stddev(DEVICE_PRIVATE_DATA->stack_y, count);
 
-				double tmp[MAX_STACK - 1];
-
 				/* Use Modified PID controller - Large random errors are not used in I, to prevent overshoots */
 				if (
 					fabs(DEVICE_PRIVATE_DATA->drift_x) < 5 * stddev_x ||
 					AGENT_GUIDER_SETTINGS_STACK_ITEM->number.value > DEVICE_PRIVATE_DATA->stack_size ||
 					AGENT_GUIDER_SETTINGS_STACK_ITEM->number.value == 1
 				) {
-					memcpy(tmp, DEVICE_PRIVATE_DATA->stack_x, sizeof(double) * (MAX_STACK - 1));
-					memcpy(DEVICE_PRIVATE_DATA->stack_x + 1, tmp, sizeof(double) * (MAX_STACK - 1));
+					memmove(DEVICE_PRIVATE_DATA->stack_x + 1, DEVICE_PRIVATE_DATA->stack_x, sizeof(double) * (MAX_STACK - 1));
 					DEVICE_PRIVATE_DATA->stack_x[0] = DEVICE_PRIVATE_DATA->drift_x;
 				} else {
 					indigo_debug(
@@ -536,8 +531,7 @@ static indigo_property_state capture_raw_frame(indigo_device *device) {
 					AGENT_GUIDER_SETTINGS_STACK_ITEM->number.value > DEVICE_PRIVATE_DATA->stack_size ||
 					AGENT_GUIDER_SETTINGS_STACK_ITEM->number.value == 1
 				) {
-					memcpy(tmp, DEVICE_PRIVATE_DATA->stack_y, sizeof(double) * (MAX_STACK - 1));
-					memcpy(DEVICE_PRIVATE_DATA->stack_y + 1, tmp, sizeof(double) * (MAX_STACK - 1));
+					memmove(DEVICE_PRIVATE_DATA->stack_y + 1, DEVICE_PRIVATE_DATA->stack_y, sizeof(double) * (MAX_STACK - 1));
 					DEVICE_PRIVATE_DATA->stack_y[0] = DEVICE_PRIVATE_DATA->drift_y;
 				} else {
 					indigo_debug(
@@ -1177,8 +1171,8 @@ static void guide_process(indigo_device *device) {
 			double angle = -PI * AGENT_GUIDER_SETTINGS_ANGLE_ITEM->number.value / 180;
 			double sin_angle = sin(angle);
 			double cos_angle = cos(angle);
-			double pix_scale_x = indigo_pixel_scale(DEVICE_PRIVATE_DATA->guider_focal_length, DEVICE_PRIVATE_DATA->ccd_pixel_width);
-			double pix_scale_y = indigo_pixel_scale(DEVICE_PRIVATE_DATA->guider_focal_length, DEVICE_PRIVATE_DATA->ccd_pixel_height);
+			double pix_scale_x = FILTER_DEVICE_CONTEXT->pixel_scale_horizontal;
+			double pix_scale_y = FILTER_DEVICE_CONTEXT->pixel_scale_vertical;
 			double min_error = AGENT_GUIDER_SETTINGS_MIN_ERR_ITEM->number.value;
 			double min_pulse = AGENT_GUIDER_SETTINGS_MIN_PULSE_ITEM->number.value;
 			double max_pulse = AGENT_GUIDER_SETTINGS_MAX_PULSE_ITEM->number.value;
@@ -1792,30 +1786,6 @@ static indigo_result agent_device_detach(indigo_device *device) {
 // -------------------------------------------------------------------------------- INDIGO agent client implementation
 
 static indigo_result agent_define_property(indigo_client *client, indigo_device *device, indigo_property *property, const char *message) {
-	if (*FILTER_CLIENT_CONTEXT->device_name[INDIGO_FILTER_CCD_INDEX] && !strcmp(property->device, FILTER_CLIENT_CONTEXT->device_name[INDIGO_FILTER_CCD_INDEX])) {
-		if (property->state == INDIGO_OK_STATE && !strcmp(property->name, CCD_LENS_PROPERTY_NAME)) {
-			for (int i = 0; i < property->count; i++) {
-				if (!strcmp(&property->items[i], CCD_LENS_FOCAL_LENGTH_ITEM_NAME)) {
-					CLIENT_PRIVATE_DATA->guider_focal_length = property->items[i].number.value;
-					break;
-				}
-			}
-		} else if (property->state == INDIGO_OK_STATE && !strcmp(property->name, CCD_INFO_PROPERTY_NAME)) {
-			double pixel_size = 0;
-			for (int i = 0; i < property->count; i++) {
-				if (!strcmp(&property->items[i], CCD_INFO_PIXEL_SIZE_ITEM_NAME)) {
-					pixel_size = property->items[i].number.value;
-				} else if (!strcmp(&property->items[i], CCD_INFO_PIXEL_WIDTH_ITEM_NAME)) {
-					CLIENT_PRIVATE_DATA->ccd_pixel_width = property->items[i].number.value;
-				} else if (!strcmp(&property->items[i], CCD_INFO_PIXEL_HEIGHT_ITEM_NAME)) {
-					CLIENT_PRIVATE_DATA->ccd_pixel_height = property->items[i].number.value;
-				}
-			}
-			if (CLIENT_PRIVATE_DATA->ccd_pixel_width <= 0 || CLIENT_PRIVATE_DATA->ccd_pixel_height <= 0) {
-				CLIENT_PRIVATE_DATA->ccd_pixel_width = CLIENT_PRIVATE_DATA->ccd_pixel_height = pixel_size;
-			}
-		}
-	}
 	return indigo_filter_define_property(client, device, property, message);
 }
 
@@ -1830,27 +1800,6 @@ static indigo_result agent_update_property(indigo_client *client, indigo_device 
 			} else if (CLIENT_PRIVATE_DATA->last_image) {
 				free(CLIENT_PRIVATE_DATA->last_image);
 				CLIENT_PRIVATE_DATA->last_image = NULL;
-			}
-		} else if (property->state == INDIGO_OK_STATE && !strcmp(property->name, CCD_LENS_PROPERTY_NAME)) {
-			for (int i = 0; i < property->count; i++) {
-				if (!strcmp(&property->items[i], CCD_LENS_FOCAL_LENGTH_ITEM_NAME)) {
-					CLIENT_PRIVATE_DATA->guider_focal_length = property->items[i].number.value;
-					break;
-				}
-			}
-		} else if (property->state == INDIGO_OK_STATE && !strcmp(property->name, CCD_INFO_PROPERTY_NAME)) {
-			double pixel_size = 0;
-			for (int i = 0; i < property->count; i++) {
-				if (!strcmp(&property->items[i], CCD_INFO_PIXEL_SIZE_ITEM_NAME)) {
-					pixel_size = property->items[i].number.value;
-				} else if (!strcmp(&property->items[i], CCD_INFO_PIXEL_WIDTH_ITEM_NAME)) {
-					CLIENT_PRIVATE_DATA->ccd_pixel_width = property->items[i].number.value;
-				} else if (!strcmp(&property->items[i], CCD_INFO_PIXEL_HEIGHT_ITEM_NAME)) {
-					CLIENT_PRIVATE_DATA->ccd_pixel_height = property->items[i].number.value;
-				}
-			}
-			if (CLIENT_PRIVATE_DATA->ccd_pixel_width <= 0 || CLIENT_PRIVATE_DATA->ccd_pixel_height <= 0) {
-				CLIENT_PRIVATE_DATA->ccd_pixel_width = CLIENT_PRIVATE_DATA->ccd_pixel_height = pixel_size;
 			}
 		}
 	}

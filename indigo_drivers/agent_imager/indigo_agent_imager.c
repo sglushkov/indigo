@@ -1749,11 +1749,47 @@ static int image_filter(const struct dirent *entry) {
 	return strstr(entry->d_name, ".fits") || strstr(entry->d_name, ".xisf") || strstr(entry->d_name, ".raw") || strstr(entry->d_name, ".jpeg") || strstr(entry->d_name, ".tiff") || strstr(entry->d_name, ".avi") || strstr(entry->d_name, ".ser") || strstr(entry->d_name, ".nef") || strstr(entry->d_name, ".cr") || strstr(entry->d_name, ".sr") || strstr(entry->d_name, ".arw") || strstr(entry->d_name, ".raf");
 }
 
+static char imagedir[INDIGO_VALUE_SIZE] = "";
+
+static inline int datetimesort(const struct dirent **a, const struct dirent **b) {
+    int rc;
+    struct stat stat1, stat2;
+    char path1[INDIGO_VALUE_SIZE], path2[INDIGO_VALUE_SIZE];
+
+    snprintf(path1, INDIGO_VALUE_SIZE, "%s/%s", imagedir, (*a)->d_name);
+    snprintf(path2, INDIGO_VALUE_SIZE, "%s/%s", imagedir, (*b)->d_name);
+
+    rc = stat(path1, &stat1);
+    if (rc) {
+        INDIGO_DRIVER_ERROR(DRIVER_NAME, "Can not stat %s", path1);
+        return 0;
+    }
+    rc = stat(path2, &stat2);
+    if (rc) {
+        INDIGO_DRIVER_ERROR(DRIVER_NAME, "Can not stat %s", path1);
+        return 0;
+    }
+
+	if (stat1.st_mtime > stat2.st_mtime) return 1;
+	if (stat1.st_mtime < stat2.st_mtime) return -1;
+	if (stat1.st_mtime == stat2.st_mtime) {
+		#if defined(INDIGO_LINUX)
+		if (stat1.st_mtim.tv_nsec > stat2.st_mtim.tv_nsec) return 1;
+		if (stat1.st_mtim.tv_nsec < stat2.st_mtim.tv_nsec) return -1;
+		#elif defined(INDIGO_MACOS)
+		if (stat1.st_mtimespec.tv_nsec > stat2.st_mtimespec.tv_nsec) return 1;
+		if (stat1.st_mtimespec.tv_nsec < stat2.st_mtimespec.tv_nsec) return -1;
+		#endif
+	}
+	return 0;
+}
+
 static void setup_download(indigo_device *device) {
 	if (*DEVICE_PRIVATE_DATA->current_folder) {
 		indigo_delete_property(device, AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY, NULL);
 		struct dirent **entries;
-		int count = scandir(DEVICE_PRIVATE_DATA->current_folder, &entries, image_filter, alphasort);
+		strncpy(imagedir, DEVICE_PRIVATE_DATA->current_folder, INDIGO_VALUE_SIZE);
+		int count = scandir(DEVICE_PRIVATE_DATA->current_folder, &entries, image_filter, datetimesort);
 		if (count >= 0) {
 			AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY = indigo_resize_property(AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY, count + 1);
 			char file_name[INDIGO_VALUE_SIZE + INDIGO_NAME_SIZE];

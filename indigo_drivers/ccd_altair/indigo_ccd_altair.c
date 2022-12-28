@@ -23,7 +23,7 @@
  \file indigo_ccd_altair.c
  */
 
-#define DRIVER_VERSION 0x0014
+#define DRIVER_VERSION 0x0015
 #define DRIVER_NAME "indigo_ccd_altair"
 
 #include <stdlib.h>
@@ -32,6 +32,7 @@
 #include <math.h>
 #include <assert.h>
 #include <pthread.h>
+#include <ctype.h>
 #include <sys/time.h>
 
 #include <indigo/indigo_usb_utils.h>
@@ -154,6 +155,28 @@ static void ccd_temperature_callback(indigo_device *device) {
 	} else {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "Altaircam_get_Temperature() -> %08x", result);
 	}
+	if (!CCD_COOLER_POWER_PROPERTY->hidden) {
+		int current_voltage = 0, max_voltage = 0;
+		/* When cooler is OFF current_voltage is reported as the last measured when
+		   power was ON, so we set it to 0 to show correct percentage
+		*/
+		if (CCD_COOLER_ON_ITEM->sw.value) {
+			result = Altaircam_get_Option(PRIVATE_DATA->handle, ALTAIRCAM_OPTION_TEC_VOLTAGE, &current_voltage);
+		} else {
+			current_voltage = 0;
+		}
+		result = Altaircam_get_Option(PRIVATE_DATA->handle, ALTAIRCAM_OPTION_TEC_VOLTAGE_MAX, &max_voltage);
+		if (result >= 0 && max_voltage > 0) {
+			double cooler_power = (double)current_voltage/max_voltage * 100;
+			CCD_COOLER_POWER_PROPERTY->state = INDIGO_OK_STATE;
+			CCD_COOLER_POWER_ITEM->number.value = round(cooler_power);
+		} else {
+			INDIGO_DRIVER_ERROR(DRIVER_NAME, "Altaircam_get_Option(ALTAIRCAM_OPTION_TEC_VOLTAGE_MAX) -> %08x", result);
+			CCD_COOLER_POWER_PROPERTY->state = INDIGO_ALERT_STATE;
+			CCD_COOLER_POWER_ITEM->number.value = 0;
+		}
+		indigo_update_property(device, CCD_COOLER_POWER_PROPERTY, NULL);
+	}
 	indigo_reschedule_timer(device, 5, &PRIVATE_DATA->temperature_timer);
 }
 
@@ -228,8 +251,8 @@ static void setup_exposure(indigo_device *device) {
 			PRIVATE_DATA->height = height;
 		}
 	}
-	result = Altaircam_Flush(PRIVATE_DATA->handle);
-	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Altaircam_Flush() -> %08x", result);
+	result = Altaircam_put_Option(PRIVATE_DATA->handle, ALTAIRCAM_OPTION_FLUSH, 3);
+	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Altaircam_put_Option(ALTAIRCAM_OPTION_FLUSH) -> %08x", result);
 }
 
 static indigo_result ccd_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property);
@@ -262,13 +285,13 @@ static indigo_result ccd_attach(indigo_device *device) {
 			if ((flags & ALTAIRCAM_FLAG_MONO) == 0) {
 				if (flags & ALTAIRCAM_FLAG_RAW8) {
 					snprintf(name, sizeof(name), "RAW08_%d", i);
-					snprintf(label, sizeof(label), "RAW %d x %d x 8", frame_width, frame_height);
+					snprintf(label, sizeof(label), "RAW 8 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					CCD_MODE_PROPERTY->count++;
 				}
 				if (flags & ALTAIRCAM_FLAG_RAW10) {
 					snprintf(name, sizeof(name), "RAW10_%d", i);
-					snprintf(label, sizeof(label), "RAW %d x %d x 10", frame_width, frame_height);
+					snprintf(label, sizeof(label), "RAW 10 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					if (CCD_INFO_BITS_PER_PIXEL_ITEM->number.value < 10)
 						CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = CCD_FRAME_BITS_PER_PIXEL_ITEM->number.max = 10;
@@ -276,7 +299,7 @@ static indigo_result ccd_attach(indigo_device *device) {
 				}
 				if (flags & ALTAIRCAM_FLAG_RAW12) {
 					snprintf(name, sizeof(name), "RAW12_%d", i);
-					snprintf(label, sizeof(label), "RAW %d x %d x 12", frame_width, frame_height);
+					snprintf(label, sizeof(label), "RAW 12 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					if (CCD_INFO_BITS_PER_PIXEL_ITEM->number.value < 12)
 						CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = CCD_FRAME_BITS_PER_PIXEL_ITEM->number.max = 12;
@@ -284,7 +307,7 @@ static indigo_result ccd_attach(indigo_device *device) {
 				}
 				if (flags & ALTAIRCAM_FLAG_RAW14) {
 					snprintf(name, sizeof(name), "RAW14_%d", i);
-					snprintf(label, sizeof(label), "RAW %d x %d x 14", frame_width, frame_height);
+					snprintf(label, sizeof(label), "RAW 14 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					if (CCD_INFO_BITS_PER_PIXEL_ITEM->number.value < 14)
 						CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = CCD_FRAME_BITS_PER_PIXEL_ITEM->number.max = 14;
@@ -292,26 +315,26 @@ static indigo_result ccd_attach(indigo_device *device) {
 				}
 				if (flags & ALTAIRCAM_FLAG_RAW16) {
 					snprintf(name, sizeof(name), "RAW16_%d", i);
-					snprintf(label, sizeof(label), "RAW %d x %d x 16", frame_width, frame_height);
+					snprintf(label, sizeof(label), "RAW 16 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					if (CCD_INFO_BITS_PER_PIXEL_ITEM->number.value < 16)
 						CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = CCD_FRAME_BITS_PER_PIXEL_ITEM->number.max = 16;
 					CCD_MODE_PROPERTY->count++;
 				}
 				snprintf(name, sizeof(name), "RGB08_%d", i);
-				snprintf(label, sizeof(label), "RGB %d x %d x 24", frame_width, frame_height);
+				snprintf(label, sizeof(label), "RGB 24 %dx%d", frame_width, frame_height);
 				indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 				CCD_MODE_PROPERTY->count++;
 			} else {
 				if (flags & ALTAIRCAM_FLAG_RAW8) {
 					snprintf(name, sizeof(name), "MON08_%d", i);
-					snprintf(label, sizeof(label), "MON %d x %d x 8", frame_width, frame_height);
+					snprintf(label, sizeof(label), "MON 8 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					CCD_MODE_PROPERTY->count++;
 				}
 				if (flags & ALTAIRCAM_FLAG_RAW10) {
 					snprintf(name, sizeof(name), "MON10_%d", i);
-					snprintf(label, sizeof(label), "MON %d x %d x 10", frame_width, frame_height);
+					snprintf(label, sizeof(label), "MON 10 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					if (CCD_INFO_BITS_PER_PIXEL_ITEM->number.value < 10)
 						CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = CCD_FRAME_BITS_PER_PIXEL_ITEM->number.max = 10;
@@ -319,7 +342,7 @@ static indigo_result ccd_attach(indigo_device *device) {
 				}
 				if (flags & ALTAIRCAM_FLAG_RAW12) {
 					snprintf(name, sizeof(name), "MON12_%d", i);
-					snprintf(label, sizeof(label), "MON %d x %d x 12", frame_width, frame_height);
+					snprintf(label, sizeof(label), "MON 12 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					if (CCD_INFO_BITS_PER_PIXEL_ITEM->number.value < 12)
 						CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = CCD_FRAME_BITS_PER_PIXEL_ITEM->number.max = 12;
@@ -327,7 +350,7 @@ static indigo_result ccd_attach(indigo_device *device) {
 				}
 				if (flags & ALTAIRCAM_FLAG_RAW14) {
 					snprintf(name, sizeof(name), "MON14_%d", i);
-					snprintf(label, sizeof(label), "MON %d x %d x 14", frame_width, frame_height);
+					snprintf(label, sizeof(label), "MON 14 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					if (CCD_INFO_BITS_PER_PIXEL_ITEM->number.value < 14)
 						CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = CCD_FRAME_BITS_PER_PIXEL_ITEM->number.max = 14;
@@ -335,7 +358,7 @@ static indigo_result ccd_attach(indigo_device *device) {
 				}
 				if (flags & ALTAIRCAM_FLAG_RAW16) {
 					snprintf(name, sizeof(name), "MON16_%d", i);
-					snprintf(label, sizeof(label), "MON %d x %d x 16", frame_width, frame_height);
+					snprintf(label, sizeof(label), "MON 16 %dx%d", frame_width, frame_height);
 					indigo_init_switch_item(CCD_MODE_ITEM + CCD_MODE_PROPERTY->count, name, label, false);
 					if (CCD_INFO_BITS_PER_PIXEL_ITEM->number.value < 16)
 						CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = CCD_FRAME_BITS_PER_PIXEL_ITEM->number.max = 16;
@@ -363,6 +386,7 @@ static indigo_result ccd_attach(indigo_device *device) {
 			if (PRIVATE_DATA->cam.model->flag & ALTAIRCAM_FLAG_TEC_ONOFF) {
 				CCD_TEMPERATURE_PROPERTY->perm = INDIGO_RW_PERM;
 				CCD_COOLER_PROPERTY->hidden = false;
+				CCD_COOLER_POWER_PROPERTY->hidden = false;
 				indigo_set_switch(CCD_COOLER_PROPERTY, CCD_COOLER_OFF_ITEM, true);
 			} else {
 				CCD_TEMPERATURE_PROPERTY->perm = INDIGO_RO_PERM;
@@ -410,6 +434,7 @@ static indigo_result ccd_enumerate_properties(indigo_device *device, indigo_clie
 
 static void ccd_connect_callback(indigo_device *device) {
 	HRESULT result;
+	indigo_lock_master_device(device);
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		if (PRIVATE_DATA->handle == NULL) {
 			if (indigo_try_global_lock(device) != INDIGO_OK) {
@@ -524,7 +549,7 @@ static void ccd_connect_callback(indigo_device *device) {
 		if (X_CCD_FAN_PROPERTY)
 			indigo_delete_property(device, X_CCD_FAN_PROPERTY, NULL);
 		if (PRIVATE_DATA->guider && PRIVATE_DATA->guider->gp_bits == 0) {
-			if (((altair_private_data *)PRIVATE_DATA->guider->private_data)->handle == NULL) {
+			if (PRIVATE_DATA->handle != NULL) {
 				pthread_mutex_lock(&PRIVATE_DATA->mutex);
 				Altaircam_Close(PRIVATE_DATA->handle);
 				pthread_mutex_unlock(&PRIVATE_DATA->mutex);
@@ -536,6 +561,7 @@ static void ccd_connect_callback(indigo_device *device) {
 		CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 	}
 	indigo_ccd_change_property(device, NULL, CONNECTION_PROPERTY);
+	indigo_unlock_master_device(device);
 }
 
 static indigo_result ccd_change_property(indigo_device *device, indigo_client *client, indigo_property *property) {
@@ -844,6 +870,7 @@ static indigo_result guider_attach(indigo_device *device) {
 }
 
 static void guider_connect_callback(indigo_device *device) {
+	indigo_lock_master_device(device);
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		if (PRIVATE_DATA->handle == NULL) {
 			if (indigo_try_global_lock(device) != INDIGO_OK) {
@@ -874,7 +901,7 @@ static void guider_connect_callback(indigo_device *device) {
 		}
 	} else {
 		if (PRIVATE_DATA->camera && PRIVATE_DATA->camera->gp_bits == 0) {
-			if (((altair_private_data *)PRIVATE_DATA->camera->private_data)->handle == NULL) {
+			if (PRIVATE_DATA->handle != NULL) {
 				pthread_mutex_lock(&PRIVATE_DATA->mutex);
 				Altaircam_Close(PRIVATE_DATA->handle);
 				pthread_mutex_unlock(&PRIVATE_DATA->mutex);
@@ -886,6 +913,7 @@ static void guider_connect_callback(indigo_device *device) {
 		CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 	}
 	indigo_guider_change_property(device, NULL, CONNECTION_PROPERTY);
+	indigo_unlock_master_device(device);
 }
 
 static indigo_result guider_change_property(indigo_device *device, indigo_client *client, indigo_property *property) {
@@ -958,7 +986,7 @@ static void process_plug_event(indigo_device *unusued) {
 		bool found = false;
 		for (int i = 0; i < ALTAIRCAM_MAX; i++) {
 			indigo_device *device = devices[i];
-			if (device && memcmp(PRIVATE_DATA->cam.id, cam.id, sizeof(cam.id)) == 0) {
+			if (device && !strncmp(PRIVATE_DATA->cam.id, cam.id, sizeof(cam.id))) {
 				found = true;
 				PRIVATE_DATA->present = true;
 				break;
@@ -972,17 +1000,34 @@ static void process_plug_event(indigo_device *unusued) {
 				ccd_change_property,
 				NULL,
 				ccd_detach
-				);
+			);
+
+			/* cam.id is not constant it changes at replug so we remove the increasing field */
+			/* cam_id format is #tp-N-XX-NNNN-NNNN whenre XX increases everytime the camera is pluged in */
+			char camera_id[32] = {0};
+			strncpy(camera_id, cam.id, 32);
+			if (camera_id[4] == '-' && isdigit(camera_id[5])) {
+				int index = 5;
+				int base = 5;
+				while (isdigit(camera_id[index++]));
+				while (camera_id[index] != 0) {
+					camera_id[base++] = camera_id[index++];
+				}
+				camera_id[base]='\0';
+			}
+			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Camera ID '%s' changed to '%s'", cam.id, camera_id);
+
 			altair_private_data *private_data = indigo_safe_malloc(sizeof(altair_private_data));
 			private_data->cam = cam;
 			private_data->present = true;
 			indigo_device *camera = indigo_safe_malloc_copy(sizeof(indigo_device), &ccd_template);
-			snprintf(camera->name, INDIGO_NAME_SIZE, "AltairAstro %s #%s", cam.displayname, cam.id);
+			snprintf(camera->name, INDIGO_NAME_SIZE, "Altair %s #%s", cam.displayname, camera_id);
 			camera->private_data = private_data;
+			camera->master_device = camera;
 			private_data->camera = camera;
 			for (int i = 0; i < ALTAIRCAM_MAX; i++) {
-				if (devices[j] == NULL) {
-					indigo_attach_device(devices[j] = camera);
+				if (devices[i] == NULL) {
+					indigo_attach_device(devices[i] = camera);
 					break;
 				}
 			}
@@ -996,8 +1041,9 @@ static void process_plug_event(indigo_device *unusued) {
 					guider_detach
 					);
 				indigo_device *guider = indigo_safe_malloc_copy(sizeof(indigo_device), &guider_template);
-				snprintf(guider->name, INDIGO_NAME_SIZE, "AltairAstro %s (guider) #%s", cam.displayname, cam.id);
+				snprintf(guider->name, INDIGO_NAME_SIZE, "Altair %s (guider) #%s", cam.displayname, camera_id);
 				guider->private_data = private_data;
+				guider->master_device = camera;
 				private_data->guider = guider;
 				indigo_attach_device(guider);
 			}
@@ -1025,6 +1071,24 @@ static void hotplug_callback(void* pCallbackCtx) {
 	indigo_set_timer(NULL, 0.5, process_plug_event, NULL);
 }
 
+static void remove_all_devices() {
+	for (int i = 0; i < ALTAIRCAM_MAX; i++) {
+		indigo_device *device = devices[i];
+		if (device) {
+			indigo_device *guider = PRIVATE_DATA->guider;
+			if (guider) {
+				indigo_detach_device(guider);
+				free(guider);
+			}
+			indigo_detach_device(device);
+			if (device->private_data)
+				free(device->private_data);
+			free(device);
+			devices[i] = NULL;
+		}
+	}
+}
+
 indigo_result indigo_ccd_altair(indigo_driver_action action, indigo_driver_info *info) {
 	static indigo_driver_action last_action = INDIGO_DRIVER_SHUTDOWN;
 
@@ -1047,11 +1111,13 @@ indigo_result indigo_ccd_altair(indigo_driver_action action, indigo_driver_info 
 			break;
 		}
 		case INDIGO_DRIVER_SHUTDOWN:
-			last_action = action;
-			Altaircam_HotPlug(NULL, NULL);
-			hotplug_callback_initialized = false;
-			for (int i = 0; i < ALTAIRCAM_MAX; i++)
+			for (int i = 0; i < ALTAIRCAM_MAX; i++) {
 				VERIFY_NOT_CONNECTED(devices[i]);
+			}
+			last_action = action;
+			//Altaircam_HotPlug(NULL, NULL); // if used, after unload/load hot plug doesn't work anymore
+			hotplug_callback_initialized = false;
+			remove_all_devices();
 			break;
 
 		case INDIGO_DRIVER_INFO:

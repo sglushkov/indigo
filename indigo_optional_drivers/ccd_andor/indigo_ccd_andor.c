@@ -23,7 +23,7 @@
   \file indigo_ccd_andor.c
   */
 
-#define DRIVER_VERSION 0x000D
+#define DRIVER_VERSION 0x000E
 #define DRIVER_NAME	"indigo_ccd_andor"
 
 #include <stdlib.h>
@@ -1127,7 +1127,7 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 			}
 		}
 		indigo_update_property(device, CCD_FRAME_PROPERTY, NULL);
-	} else if (indigo_property_match_d (CCD_BIN_PROPERTY, property)) {
+	} else if (indigo_property_match_changeable(CCD_BIN_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_BIN
 		indigo_property_copy_values(CCD_BIN_PROPERTY, property, false);
 		CCD_BIN_PROPERTY->state = INDIGO_OK_STATE;

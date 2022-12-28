@@ -71,30 +71,42 @@ static void jpeg_decompress_error_callback(j_common_ptr cinfo) {
 	longjmp(((struct indigo_jpeg_decompress_struct *)cinfo)->jpeg_error, 1);
 }
 
-static void countdown_timer_callback(indigo_device *device) {
-	if (CCD_CONTEXT->countdown_enabled && CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE && CCD_EXPOSURE_ITEM->number.value >= 1) {
-		CCD_EXPOSURE_ITEM->number.value -= 1;
-		if (CCD_EXPOSURE_ITEM->number.value < 0) CCD_EXPOSURE_ITEM->number.value = 0;
-		indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
-		indigo_reschedule_timer(device, 1.0, &CCD_CONTEXT->countdown_timer);
-	}
+static double get_time_hd() {
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	return (double)(now.tv_sec) + now.tv_usec/1e6;
 }
 
-double indigo_pixel_scale(double focal_length_cm, double pixel_size_um) {
-	if (focal_length_cm > 0) {
-		return 20.6265 * pixel_size_um / focal_length_cm;
-	} else {
-		return 0;
+static void countdown_timer_callback(indigo_device *device) {
+	double now;
+	while(!CCD_CONTEXT->countdown_canceled) {
+		now = get_time_hd();
+		if (
+			CCD_CONTEXT->countdown_enabled &&
+			CCD_CONTEXT->countdown_endtime > 0 &&
+			CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE &&
+			CCD_EXPOSURE_ITEM->number.value >= 1
+		) {
+			//indigo_error("%lf - %lf = %lf (%f)", CCD_CONTEXT->countdown_endtime, now, CCD_CONTEXT->countdown_endtime - now, ceil(CCD_CONTEXT->countdown_endtime - now));
+			CCD_EXPOSURE_ITEM->number.value = ceil(CCD_CONTEXT->countdown_endtime - now);
+			if (CCD_EXPOSURE_ITEM->number.value <= 0) {
+				CCD_EXPOSURE_ITEM->number.value = 0;
+				CCD_CONTEXT->countdown_endtime = 0;
+			}
+			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
+		}
+		indigo_usleep(0.25 * ONE_SECOND_DELAY);
 	}
 }
 
 void indigo_ccd_suspend_countdown(indigo_device *device) {
 	CCD_CONTEXT->countdown_enabled = false;
+	CCD_CONTEXT->countdown_endtime = 0;
 }
 
 void indigo_ccd_resume_countdown(indigo_device *device) {
+	CCD_CONTEXT->countdown_endtime = get_time_hd() + CCD_EXPOSURE_ITEM->number.value;
 	CCD_CONTEXT->countdown_enabled = true;
-	indigo_set_timer(device, 1.0, countdown_timer_callback, &CCD_CONTEXT->countdown_timer);
 }
 
 void indigo_use_shortest_exposure_if_bias(indigo_device *device) {
@@ -124,7 +136,7 @@ indigo_result indigo_ccd_attach(indigo_device *device, const char* driver_name, 
 			indigo_init_number_item(CCD_INFO_PIXEL_HEIGHT_ITEM, CCD_INFO_PIXEL_HEIGHT_ITEM_NAME, "Pixel height (um)", 0, 0, 0, 0);
 			indigo_init_number_item(CCD_INFO_BITS_PER_PIXEL_ITEM, CCD_INFO_BITS_PER_PIXEL_ITEM_NAME, "Bits/pixel", 0, 0, 0, 0);
 			// -------------------------------------------------------------------------------- CCD_LENS
-			CCD_LENS_PROPERTY = indigo_init_number_property(NULL, device->name, CCD_LENS_PROPERTY_NAME, CCD_MAIN_GROUP, "Lens profile", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
+			CCD_LENS_PROPERTY = indigo_init_number_property(NULL, device->name, CCD_LENS_PROPERTY_NAME, CCD_MAIN_GROUP, "Lens profile", INDIGO_IDLE_STATE, INDIGO_RW_PERM, 2);
 			if (CCD_LENS_PROPERTY == NULL)
 				return INDIGO_FAILED;
 			indigo_init_number_item(CCD_LENS_APERTURE_ITEM, CCD_LENS_APERTURE_ITEM_NAME, "Aperture (cm)", 0, 2000, 1, 0);
@@ -169,7 +181,6 @@ indigo_result indigo_ccd_attach(indigo_device *device, const char* driver_name, 
 				return INDIGO_FAILED;
 			indigo_init_number_item(CCD_EXPOSURE_ITEM, CCD_EXPOSURE_ITEM_NAME, "Start exposure", 0, 10000, 1, 0);
 			strcpy(CCD_EXPOSURE_ITEM->number.format, "%g");
-			CCD_CONTEXT->countdown_enabled = true;
 			// -------------------------------------------------------------------------------- CCD_STREAMING
 			CCD_STREAMING_PROPERTY = indigo_init_number_property(NULL, device->name, CCD_STREAMING_PROPERTY_NAME, CCD_MAIN_GROUP, "Start streaming", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
 			if (CCD_STREAMING_PROPERTY == NULL)
@@ -437,7 +448,12 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 			indigo_define_property(device, CCD_JPEG_SETTINGS_PROPERTY, NULL);
 			indigo_define_property(device, CCD_RBI_FLUSH_ENABLE_PROPERTY, NULL);
 			indigo_define_property(device, CCD_RBI_FLUSH_PROPERTY, NULL);
+			CCD_CONTEXT->countdown_canceled = false;
+			CCD_CONTEXT->countdown_enabled = true;
+			CCD_CONTEXT->countdown_endtime = 0;
+			indigo_set_timer(device, 0, countdown_timer_callback, &CCD_CONTEXT->countdown_timer);
 		} else {
+			CCD_CONTEXT->countdown_canceled = true;
 			CCD_STREAMING_COUNT_ITEM->number.value = 0;
 			CCD_EXPOSURE_ITEM->number.value = 0;
 			CCD_STREAMING_PROPERTY->state = INDIGO_OK_STATE;
@@ -496,6 +512,9 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 	} else if (indigo_property_match_changeable(CCD_LENS_PROPERTY, property)) {
 		indigo_property_copy_values(CCD_LENS_PROPERTY, property, false);
 		CCD_LENS_PROPERTY->state = INDIGO_OK_STATE;
+		if (CCD_LENS_FOCAL_LENGTH_ITEM->number.value == 0 && CCD_LENS_APERTURE_ITEM->number.value == 0) {
+			CCD_LENS_PROPERTY->state = INDIGO_IDLE_STATE;
+		}
 		indigo_update_property(device, CCD_LENS_PROPERTY, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match_changeable(CCD_EXPOSURE_PROPERTY, property)) {
@@ -514,7 +533,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 				}
 			}
 			if (CCD_EXPOSURE_ITEM->number.value >= 1) {
-				 indigo_set_timer(device, 1.0, countdown_timer_callback, &CCD_CONTEXT->countdown_timer);
+				CCD_CONTEXT->countdown_endtime = get_time_hd() + CCD_EXPOSURE_ITEM->number.target;
 			}
 		}
 		return INDIGO_OK;
@@ -523,7 +542,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 		indigo_ccd_failure_cleanup(device);
 		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
-			indigo_cancel_timer(device, &CCD_CONTEXT->countdown_timer);
+			CCD_CONTEXT->countdown_endtime = 0;
 			CCD_EXPOSURE_ITEM->number.value = 0;
 			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
 			CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
@@ -757,6 +776,8 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 
 indigo_result indigo_ccd_detach(indigo_device *device) {
 	assert(device != NULL);
+	CCD_CONTEXT->countdown_canceled = true;
+	indigo_cancel_timer_sync(device, &CCD_CONTEXT->countdown_timer);
 	indigo_release_property(CCD_INFO_PROPERTY);
 	indigo_release_property(CCD_LENS_PROPERTY);
 	indigo_release_property(CCD_UPLOAD_MODE_PROPERTY);
@@ -1280,32 +1301,26 @@ static bool create_file_name(indigo_device *device, void *blob_value, long blob_
 				continue;
 			}
 			struct stat sb;
-			int max = 0;
 			strncpy(tmp, format, fs - format + 1);
 			switch (fs[1]) {
 				case '1':
 					strcat(tmp, "01d");
-					max = 10;
 					break;
 				case '2':
 					strcat(tmp, "02d");
-					max = 100;
 					break;
 				case '3':
 					strcat(tmp, "03d");
-					max = 1000;
 					break;
 				case '4':
 					strcat(tmp, "04d");
-					max = 10000;
 					break;
 				case '5':
 					strcat(tmp, "05d");
-					max = 100000;
 					break;
 			}
 			strcat(tmp, fs + 3);
-			for (int i = 0; i < max; i++) {
+			for (int i = 1; i < 100000; i++) {
 				snprintf(format, PATH_MAX, tmp, i);
 				if (stat(format, &sb) == 0 && S_ISREG(sb.st_mode))
 					continue;;
@@ -1393,13 +1408,35 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 
 	if (CCD_IMAGE_FORMAT_FITS_ITEM->sw.value) {
 		INDIGO_DEBUG(clock_t start = clock());
-		time_t timer;
-		struct tm* tm_info;
-		char date_time_end[20];
-		time(&timer);
-		timer -= CCD_EXPOSURE_ITEM->number.target;
-		tm_info = gmtime(&timer);
-		strftime(date_time_end, 20, "%Y-%m-%dT%H:%M:%S", tm_info);
+		struct timeval tv;
+		struct tm tm_info;
+		char date_time[20], date_time_end[25];
+		gettimeofday(&tv, NULL);
+		long millisec = lrint(tv.tv_usec/1000.0);
+		if (millisec >= 1000) {
+			millisec -= 1000;
+			tv.tv_sec++;
+		}
+		if (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
+			double secs = floor(CCD_STREAMING_EXPOSURE_ITEM->number.target);
+			millisec -= (long)((CCD_STREAMING_EXPOSURE_ITEM->number.target - secs) * 1000);
+			if (millisec < 0) {
+				millisec += 1000;
+				tv.tv_sec--;
+			}
+			tv.tv_sec -= (int)secs;
+		} else {
+			double secs = floor(CCD_EXPOSURE_ITEM->number.target);
+			millisec -= (long)((CCD_EXPOSURE_ITEM->number.target - secs) * 1000);
+			if (millisec < 0) {
+				millisec += 1000;
+				tv.tv_sec--;
+			}
+			tv.tv_sec -= (int)secs;
+		}
+		gmtime_r(&tv.tv_sec, &tm_info);
+		strftime(date_time, sizeof(date_time), "%Y-%m-%dT%H:%M:%S", &tm_info);
+		snprintf(date_time_end, sizeof(date_time_end), "%s.%03ld", date_time, millisec);
 		char *header = data;
 		memset(header, ' ', FITS_HEADER_SIZE);
 		add_key(&header, true,  "SIMPLE  =                    T / file conforms to FITS standard");
@@ -1426,10 +1463,17 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 			add_key(&header, true,  "XPIXSZ  = %20.2f / pixel width [microns]", CCD_INFO_PIXEL_WIDTH_ITEM->number.value * horizontal_bin);
 			add_key(&header, true,  "YPIXSZ  = %20.2f / pixel height [microns]", CCD_INFO_PIXEL_HEIGHT_ITEM->number.value * vertical_bin);
 		}
-		if (CCD_EXPOSURE_ITEM->number.target >= 1.0)
-			add_key(&header, true,  "EXPTIME = %20.2f / exposure time [s]", CCD_EXPOSURE_ITEM->number.target);
-		else
-			add_key(&header, true,  "EXPTIME = %20.4f / exposure time [s]", CCD_EXPOSURE_ITEM->number.target);
+		if (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
+			if (CCD_STREAMING_EXPOSURE_ITEM->number.target >= 1.0)
+				add_key(&header, true,  "EXPTIME = %20.2f / exposure time [s]", CCD_STREAMING_EXPOSURE_ITEM->number.target);
+			else
+				add_key(&header, true,  "EXPTIME = %20.4f / exposure time [s]", CCD_STREAMING_EXPOSURE_ITEM->number.target);
+		} else {
+			if (CCD_EXPOSURE_ITEM->number.target >= 1.0)
+				add_key(&header, true,  "EXPTIME = %20.2f / exposure time [s]", CCD_EXPOSURE_ITEM->number.target);
+			else
+				add_key(&header, true,  "EXPTIME = %20.4f / exposure time [s]", CCD_EXPOSURE_ITEM->number.target);
+		}
 		if (!CCD_TEMPERATURE_PROPERTY->hidden)
 			add_key(&header, true,  "CCD-TEMP= %20.2f / CCD temperature [C]", CCD_TEMPERATURE_ITEM->number.value);
 		if (CCD_FRAME_TYPE_LIGHT_ITEM->sw.value)
@@ -2188,25 +2232,27 @@ void indigo_process_dslr_preview_image(indigo_device *device, void *data, int bl
 
 void indigo_finalize_video_stream(indigo_device *device) {
 	if (CCD_CONTEXT->video_stream) {
-		if (CCD_IMAGE_FORMAT_PROPERTY->count == 3) {
-			if (CCD_IMAGE_FORMAT_NATIVE_AVI_ITEM->sw.value) {
-				gwavi_close((struct gwavi_t *)(CCD_CONTEXT->video_stream));
-				CCD_CONTEXT->video_stream = NULL;
-				CCD_IMAGE_FILE_PROPERTY->state = INDIGO_OK_STATE;
-				indigo_update_property(device, CCD_IMAGE_FILE_PROPERTY, NULL);
-			}
-		} else {
-			if (CCD_IMAGE_FORMAT_JPEG_AVI_ITEM->sw.value) {
-				gwavi_close((struct gwavi_t *)(CCD_CONTEXT->video_stream));
-				CCD_CONTEXT->video_stream = NULL;
-				CCD_IMAGE_FILE_PROPERTY->state = INDIGO_OK_STATE;
-				indigo_update_property(device, CCD_IMAGE_FILE_PROPERTY, NULL);
-			} else if (CCD_IMAGE_FORMAT_RAW_SER_ITEM->sw.value) {
-				indigo_ser_close((indigo_ser *)(CCD_CONTEXT->video_stream));
-				CCD_CONTEXT->video_stream = NULL;
-				CCD_IMAGE_FILE_PROPERTY->state = INDIGO_OK_STATE;
-				indigo_update_property(device, CCD_IMAGE_FILE_PROPERTY, NULL);
-			}
+		if (CCD_IMAGE_FORMAT_JPEG_AVI_ITEM->sw.value) {
+			gwavi_close((struct gwavi_t *)(CCD_CONTEXT->video_stream));
+			CCD_CONTEXT->video_stream = NULL;
+			CCD_IMAGE_FILE_PROPERTY->state = INDIGO_OK_STATE;
+			indigo_update_property(device, CCD_IMAGE_FILE_PROPERTY, NULL);
+		} else if (CCD_IMAGE_FORMAT_RAW_SER_ITEM->sw.value) {
+			indigo_ser_close((indigo_ser *)(CCD_CONTEXT->video_stream));
+			CCD_CONTEXT->video_stream = NULL;
+			CCD_IMAGE_FILE_PROPERTY->state = INDIGO_OK_STATE;
+			indigo_update_property(device, CCD_IMAGE_FILE_PROPERTY, NULL);
+		}
+	}
+}
+
+void indigo_finalize_dslr_video_stream(indigo_device *device) {
+	if (CCD_CONTEXT->video_stream) {
+		if (CCD_IMAGE_FORMAT_NATIVE_AVI_ITEM->sw.value) {
+			gwavi_close((struct gwavi_t *)(CCD_CONTEXT->video_stream));
+			CCD_CONTEXT->video_stream = NULL;
+			CCD_IMAGE_FILE_PROPERTY->state = INDIGO_OK_STATE;
+			indigo_update_property(device, CCD_IMAGE_FILE_PROPERTY, NULL);
 		}
 	}
 }

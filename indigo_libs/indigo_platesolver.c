@@ -655,7 +655,7 @@ indigo_result indigo_platesolver_device_attach(indigo_device *device, const char
 		indigo_init_sexagesimal_number_item(AGENT_PLATESOLVER_HINTS_RA_ITEM, AGENT_PLATESOLVER_HINTS_RA_ITEM_NAME, "RA (hours)", 0, 24, 0, 0);
 		indigo_init_sexagesimal_number_item(AGENT_PLATESOLVER_HINTS_DEC_ITEM, AGENT_PLATESOLVER_HINTS_DEC_ITEM_NAME, "Dec (°)", -90, 90, 0, 0);
 		indigo_init_number_item(AGENT_PLATESOLVER_HINTS_EPOCH_ITEM, AGENT_PLATESOLVER_HINTS_EPOCH_ITEM_NAME, "J2000 (1=J2000, 0=JNow)", 0, 1, 1, 1);
-		indigo_init_number_item(AGENT_PLATESOLVER_HINTS_SCALE_ITEM, AGENT_PLATESOLVER_HINTS_SCALE_ITEM_NAME, "Pixel scale (°/pixel)", 0, 1000, 0, 0);
+		indigo_init_number_item(AGENT_PLATESOLVER_HINTS_SCALE_ITEM, AGENT_PLATESOLVER_HINTS_SCALE_ITEM_NAME, "Pixel scale ( < 0: camera scale) (°/pixel)", -1, 5, -1, 0);
 		indigo_init_number_item(AGENT_PLATESOLVER_HINTS_PARITY_ITEM, AGENT_PLATESOLVER_HINTS_PARITY_ITEM_NAME, "Parity (-1,0,1)", -1, 1, 1, 0);
 		indigo_init_number_item(AGENT_PLATESOLVER_HINTS_DOWNSAMPLE_ITEM, AGENT_PLATESOLVER_HINTS_DOWNSAMPLE_ITEM_NAME, "Downsample", 1, 16, 1, 2);
 		indigo_init_number_item(AGENT_PLATESOLVER_HINTS_DEPTH_ITEM, AGENT_PLATESOLVER_HINTS_DEPTH_ITEM_NAME, "Depth", 0, 1000, 5, 0);
@@ -716,8 +716,8 @@ indigo_result indigo_platesolver_device_attach(indigo_device *device, const char
 		if (AGENT_PLATESOLVER_PA_STATE_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(AGENT_PLATESOLVER_PA_STATE_ITEM, AGENT_PLATESOLVER_PA_STATE_ITEM_NAME, "Polar alignment state", 0, 10, 0, 0);
-		indigo_init_number_item(AGENT_PLATESOLVER_PA_STATE_DEC_DRIFT_2_ITEM, AGENT_PLATESOLVER_PA_STATE_DEC_DRIFT_2_ITEM_NAME, "Decliantion drift at point 2 (°)", -45, 45, 0, 0);
-		indigo_init_number_item(AGENT_PLATESOLVER_PA_STATE_DEC_DRIFT_3_ITEM, AGENT_PLATESOLVER_PA_STATE_DEC_DRIFT_3_ITEM_NAME, "Decliantion drift at point 3 (°)", -45, 45, 0, 0);
+		indigo_init_number_item(AGENT_PLATESOLVER_PA_STATE_DEC_DRIFT_2_ITEM, AGENT_PLATESOLVER_PA_STATE_DEC_DRIFT_2_ITEM_NAME, "Declination drift at point 2 (°)", -45, 45, 0, 0);
+		indigo_init_number_item(AGENT_PLATESOLVER_PA_STATE_DEC_DRIFT_3_ITEM, AGENT_PLATESOLVER_PA_STATE_DEC_DRIFT_3_ITEM_NAME, "Declination drift at point 3 (°)", -45, 45, 0, 0);
 		indigo_init_number_item(AGENT_PLATESOLVER_PA_STATE_TARGET_RA_ITEM, AGENT_PLATESOLVER_PA_STATE_TARGET_RA_ITEM_NAME, "Target position RA (h)", 0, 24, 0, 0);
 		indigo_init_number_item(AGENT_PLATESOLVER_PA_STATE_TARGET_DEC_ITEM, AGENT_PLATESOLVER_PA_STATE_TARGET_DEC_ITEM_NAME, "Target position DEC (°)", -90, +90, 0, 0);
 		indigo_init_number_item(AGENT_PLATESOLVER_PA_STATE_CURRENT_RA_ITEM, AGENT_PLATESOLVER_PA_STATE_CURRENT_RA_ITEM_NAME, "Current position RA (h)", 0, 24, 0, 0);
@@ -836,6 +836,8 @@ indigo_result indigo_platesolver_change_property(indigo_device *device, indigo_c
 			indigo_platesolver_task *task = indigo_safe_malloc(sizeof(indigo_platesolver_task));
 			task->device = device;
 			task->image = indigo_safe_malloc_copy(task->size = AGENT_PLATESOLVER_IMAGE_ITEM->blob.size, AGENT_PLATESOLVER_IMAGE_ITEM->blob.value);
+			// uploaded files should not use camera pixel scale
+			INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->pixel_scale = 0;
 			indigo_async((void *(*)(void *))solve, task);
 			AGENT_PLATESOLVER_IMAGE_PROPERTY->state = INDIGO_OK_STATE;
 		} else {
@@ -959,6 +961,25 @@ static void indigo_platesolver_handle_property(indigo_client *client, indigo_dev
 							INDIGO_PLATESOLVER_CLIENT_PRIVATE_DATA->can_start_exposure = i > 0;
 							break;
 						}
+					}
+					break;
+				}
+			}
+		} else if (!strcmp(property->name, CCD_LENS_FOV_PROPERTY_NAME)) {
+			indigo_property *related_agents = FILTER_CLIENT_CONTEXT->filter_related_agent_list_property;
+			for (int j = 0; j < related_agents->count; j++) {
+				indigo_item *item = related_agents->items + j;
+				if (item->sw.value && !strcmp(item->name, device_name)) {
+					indigo_debug("%s(): %s.%s: state %d", __FUNCTION__, device_name, property->name, property->state);
+					if (property->state == INDIGO_OK_STATE) {
+						indigo_item *item = indigo_get_item(property, CCD_LENS_FOV_PIXEL_SCALE_HEIGHT_ITEM_NAME);
+						if (item) {
+							INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->pixel_scale = item->number.value;
+							indigo_debug("%s(): %s.%s: pixel_scale = %f", __FUNCTION__, device_name, property->name, INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->pixel_scale);
+						}
+					} else {
+						INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->pixel_scale = 0;
+						indigo_debug("%s(): %s.%s not in OK state, pixel_scale = %f", __FUNCTION__, device_name, property->name, INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->pixel_scale);
 					}
 					break;
 				}
