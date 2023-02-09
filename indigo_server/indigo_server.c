@@ -158,6 +158,12 @@
 #include "focuser_prodigy/indigo_focuser_prodigy.h"
 #include "agent_config/indigo_agent_config.h"
 #include "mount_asi/indigo_mount_asi.h"
+#include "wheel_indigo/indigo_wheel_indigo.h"
+#include "rotator_falcon/indigo_rotator_falcon.h"
+#include "wheel_playerone/indigo_wheel_playerone.h"
+#include "ccd_omegonpro/indigo_ccd_omegonpro.h"
+#include "ccd_ssg/indigo_ccd_ssg.h"
+#include "ccd_rising/indigo_ccd_rising.h"
 #ifndef __aarch64__
 #include "ccd_sbig/indigo_ccd_sbig.h"
 #endif
@@ -228,15 +234,18 @@ driver_entry_point static_drivers[] = {
 #endif
 	indigo_ccd_iidc,
 	indigo_ccd_mi,
+	indigo_ccd_omegonpro,
 	indigo_ccd_playerone,
 	indigo_ccd_ptp,
 	indigo_ccd_qhy2,
 	indigo_ccd_qsi,
+	indigo_ccd_rising,
 #ifndef __aarch64__
 	indigo_ccd_sbig,
 #endif
 	indigo_ccd_simulator,
 	indigo_ccd_ssag,
+	indigo_ccd_ssg,
 	indigo_ccd_svb,
 	indigo_ccd_sx,
 	indigo_ccd_touptek,
@@ -296,14 +305,17 @@ driver_entry_point static_drivers[] = {
 	indigo_mount_starbook,
 	indigo_mount_synscan,
 	indigo_mount_temma,
+	indigo_rotator_falcon,
 	indigo_rotator_lunatico,
 	indigo_rotator_optec,
 	indigo_rotator_simulator,
 	indigo_wheel_asi,
 	indigo_wheel_atik,
 	indigo_wheel_fli,
+	indigo_wheel_indigo,
 	indigo_wheel_manual,
 	indigo_wheel_optec,
+	indigo_wheel_playerone,
 	indigo_wheel_qhy,
 	indigo_wheel_quantum,
 	indigo_wheel_sx,
@@ -1367,7 +1379,7 @@ static void add_drivers(const char *folder) {
 static void server_main() {
 	indigo_start_usb_event_handler();
 	indigo_start();
-	indigo_log("INDIGO server %d.%d-%s built on %s %s", (INDIGO_VERSION_CURRENT >> 8) & 0xFF, INDIGO_VERSION_CURRENT & 0xFF, INDIGO_BUILD, __DATE__, __TIME__);
+	indigo_log("INDIGO server %d.%d-%s built on %s %s", (INDIGO_VERSION_CURRENT >> 8) & 0xFF, INDIGO_VERSION_CURRENT & 0xFF, INDIGO_BUILD, INDIGO_BUILD_TIME, INDIGO_BUILD_COMMIT);
 
 	indigo_use_blob_caching = true;
 

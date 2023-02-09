@@ -23,7 +23,7 @@
  \file indigo_agent_guider.c
  */
 
-#define DRIVER_VERSION 0x001B
+#define DRIVER_VERSION 0x001C
 #define DRIVER_NAME	"indigo_agent_guider"
 
 #include <stdlib.h>
@@ -201,6 +201,7 @@ static indigo_property_state capture_raw_frame(indigo_device *device) {
 		return INDIGO_ALERT_STATE;
 	}
 	indigo_change_switch_property_1(FILTER_DEVICE_CONTEXT->client, ccd_name, CCD_IMAGE_FORMAT_PROPERTY_NAME, CCD_IMAGE_FORMAT_RAW_ITEM_NAME, true);
+	indigo_change_switch_property_1(FILTER_DEVICE_CONTEXT->client, ccd_name, CCD_UPLOAD_MODE_PROPERTY_NAME, CCD_UPLOAD_MODE_CLIENT_ITEM_NAME, true);
 	FILTER_DEVICE_CONTEXT->property_removed = false;
 	for (int exposure_attempt = 0; exposure_attempt < 3; exposure_attempt++) {
 		if (FILTER_DEVICE_CONTEXT->property_removed)
@@ -1171,8 +1172,8 @@ static void guide_process(indigo_device *device) {
 			double angle = -PI * AGENT_GUIDER_SETTINGS_ANGLE_ITEM->number.value / 180;
 			double sin_angle = sin(angle);
 			double cos_angle = cos(angle);
-			double pix_scale_x = FILTER_DEVICE_CONTEXT->pixel_scale_horizontal;
-			double pix_scale_y = FILTER_DEVICE_CONTEXT->pixel_scale_vertical;
+			double pix_scale_x = CCD_LENS_FOV_PIXEL_SCALE_WIDTH_ITEM->number.value * 3600;
+			double pix_scale_y = CCD_LENS_FOV_PIXEL_SCALE_HEIGHT_ITEM->number.value * 3600;
 			double min_error = AGENT_GUIDER_SETTINGS_MIN_ERR_ITEM->number.value;
 			double min_pulse = AGENT_GUIDER_SETTINGS_MIN_PULSE_ITEM->number.value;
 			double max_pulse = AGENT_GUIDER_SETTINGS_MAX_PULSE_ITEM->number.value;

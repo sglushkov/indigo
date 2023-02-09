@@ -25,7 +25,7 @@
  \file indigo_ccd_svb.c
  */
 
-#define DRIVER_VERSION 0x000D
+#define DRIVER_VERSION 0x000F
 #define DRIVER_NAME "indigo_ccd_svb"
 
 #include <stdlib.h>
@@ -323,10 +323,20 @@ static bool svb_setup_exposure(indigo_device *device, double exposure, int frame
 		}
 	}
 
-	PRIVATE_DATA->exp_bin_x = bin;
-	PRIVATE_DATA->exp_bin_y = bin;
-	PRIVATE_DATA->exp_frame_width = frame_width;
-	PRIVATE_DATA->exp_frame_height = frame_height;
+	res = SVBGetROIFormat(id, &c_frame_left, &c_frame_top, &c_frame_width, &c_frame_height, &c_bin);
+	if (res) {
+		INDIGO_DRIVER_ERROR(DRIVER_NAME, "SVBGetROIFormat(%d) = %d", id, res);
+		PRIVATE_DATA->exp_bin_x = bin;
+		PRIVATE_DATA->exp_bin_y = bin;
+		PRIVATE_DATA->exp_frame_width = frame_width;
+		PRIVATE_DATA->exp_frame_height = frame_height;
+	} else {
+		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "SVBGetROIFormat(%d, %d, %d, %d, %d, %d)", id, c_frame_left, c_frame_top, c_frame_width, c_frame_height, c_bin);
+		PRIVATE_DATA->exp_bin_x = c_bin;
+		PRIVATE_DATA->exp_bin_y = c_bin;
+		PRIVATE_DATA->exp_frame_width = c_frame_width * c_bin;
+		PRIVATE_DATA->exp_frame_height = c_frame_height * c_bin;
+	}
 	PRIVATE_DATA->exp_bpp = (int)CCD_FRAME_BITS_PER_PIXEL_ITEM->number.value;
 	pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
 	return true;
@@ -476,7 +486,6 @@ static void exposure_timer_callback(indigo_device *device) {
 		} else {
 			indigo_process_image(device, PRIVATE_DATA->buffer, (int)(PRIVATE_DATA->exp_frame_width / PRIVATE_DATA->exp_bin_x), (int)(PRIVATE_DATA->exp_frame_height / PRIVATE_DATA->exp_bin_y), PRIVATE_DATA->exp_bpp, true, false, NULL, true);
 		}
-		indigo_finalize_video_stream(device);
 	}
 	indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
 	if (CCD_ABORT_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
@@ -548,6 +557,7 @@ static void streaming_timer_callback(indigo_device *device) {
 		pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
 		time_t start = time(NULL);
 		while (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
+			PRIVATE_DATA->can_check_temperature = false;
 			if (CCD_ABORT_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 				CCD_STREAMING_PROPERTY->state = INDIGO_ALERT_STATE;
 				svb_clear_video_buffer(device, true);
@@ -556,6 +566,7 @@ static void streaming_timer_callback(indigo_device *device) {
 			pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 			res = SVBGetVideoData(id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size, 100);
 			pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
+			PRIVATE_DATA->can_check_temperature = true;
 			double remaining = CCD_STREAMING_EXPOSURE_ITEM->number.target - (time(NULL) - start);
 			if (res == SVB_SUCCESS) {
 				break;
@@ -592,7 +603,6 @@ static void streaming_timer_callback(indigo_device *device) {
 	pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 	SVBStopVideoCapture(id);
 	pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
-	PRIVATE_DATA->can_check_temperature = true;
 	indigo_finalize_video_stream(device);
 	if (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
 		if (res) {
@@ -617,7 +627,6 @@ static void streaming_handler(indigo_device *device) {
 		return;
 	int id = PRIVATE_DATA->dev_id;
 	SVB_ERROR_CODE res;
-	PRIVATE_DATA->can_check_temperature = false;
 	pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 	svb_clear_video_buffer(device, false);
 	res = SVBStopVideoCapture(id);
@@ -738,6 +747,20 @@ static indigo_result ccd_attach(indigo_device *device) {
 		CCD_FRAME_BITS_PER_PIXEL_ITEM->number.value = CCD_FRAME_BITS_PER_PIXEL_ITEM->number.target = get_pixel_depth(device);
 		CCD_FRAME_BITS_PER_PIXEL_ITEM->number.min = 8;
 		CCD_FRAME_BITS_PER_PIXEL_ITEM->number.max = 24;
+		if (
+			strstr(PRIVATE_DATA->info.FriendlyName, "305") ||
+			strstr(PRIVATE_DATA->info.FriendlyName, "505") ||
+			strstr(PRIVATE_DATA->info.FriendlyName, "705")
+		)
+			CCD_INFO_PIXEL_SIZE_ITEM->number.value = CCD_INFO_PIXEL_WIDTH_ITEM->number.value = CCD_INFO_PIXEL_HEIGHT_ITEM->number.value = 2.9;
+		else if (strstr(PRIVATE_DATA->info.FriendlyName, "405"))
+			CCD_INFO_PIXEL_SIZE_ITEM->number.value = CCD_INFO_PIXEL_WIDTH_ITEM->number.value = CCD_INFO_PIXEL_HEIGHT_ITEM->number.value = 4.63;
+		else if (strstr(PRIVATE_DATA->info.FriendlyName, "605"))
+			CCD_INFO_PIXEL_SIZE_ITEM->number.value = CCD_INFO_PIXEL_WIDTH_ITEM->number.value = CCD_INFO_PIXEL_HEIGHT_ITEM->number.value = 3.76;
+		else if (strstr(PRIVATE_DATA->info.FriendlyName, "905"))
+			CCD_INFO_PIXEL_SIZE_ITEM->number.value = CCD_INFO_PIXEL_WIDTH_ITEM->number.value = CCD_INFO_PIXEL_HEIGHT_ITEM->number.value = 3.75;
+		else
+			CCD_INFO_PIXEL_SIZE_ITEM->number.value = CCD_INFO_PIXEL_WIDTH_ITEM->number.value = CCD_INFO_PIXEL_HEIGHT_ITEM->number.value = 0;
 
 		/* find max binning */
 		int max_bin = 1;
@@ -1160,6 +1183,11 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		return INDIGO_OK;
 		// ------------------------------------------------------------------------------- CCD_GAMMA
 	} else if (indigo_property_match_changeable(CCD_GAMMA_PROPERTY, property)) {
+		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE || CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
+			CCD_GAMMA_PROPERTY->state = INDIGO_ALERT_STATE;
+			indigo_update_property(device, CCD_GAMMA_PROPERTY, "Exposure in progress, gamma can not be changed.");
+			return INDIGO_OK;
+		}
 		CCD_GAMMA_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_property_copy_values(CCD_GAMMA_PROPERTY, property, false);
 		long value = (long)CCD_GAMMA_ITEM->number.value;
@@ -1177,6 +1205,11 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		return INDIGO_OK;
 		// ------------------------------------------------------------------------------- CCD_OFFSET
 	} else if (indigo_property_match_changeable(CCD_OFFSET_PROPERTY, property)) {
+		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE || CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
+			CCD_OFFSET_PROPERTY->state = INDIGO_ALERT_STATE;
+			indigo_update_property(device, CCD_OFFSET_PROPERTY, "Exposure in progress, offset can not be changed.");
+			return INDIGO_OK;
+		}
 		CCD_OFFSET_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_property_copy_values(CCD_OFFSET_PROPERTY, property, false);
 		long value = (long)CCD_OFFSET_ITEM->number.value;
@@ -1194,6 +1227,11 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		return INDIGO_OK;
 		// ------------------------------------------------------------------------------- CCD_GAIN
 	} else if (indigo_property_match_changeable(CCD_GAIN_PROPERTY, property)) {
+		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE || CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
+			CCD_GAIN_PROPERTY->state = INDIGO_ALERT_STATE;
+			indigo_update_property(device, CCD_GAIN_PROPERTY, "Exposure in progress, gain can not be changed.");
+			return INDIGO_OK;
+		}
 		CCD_GAIN_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_property_copy_values(CCD_GAIN_PROPERTY, property, false);
 		long value = (long)CCD_GAIN_ITEM->number.value;
@@ -1333,10 +1371,26 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		return INDIGO_OK;
 	} else if (indigo_property_match_changeable(CCD_BIN_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_BIN
+		int prev_h_bin = (int)CCD_BIN_HORIZONTAL_ITEM->number.value;
+		int prev_v_bin = (int)CCD_BIN_VERTICAL_ITEM->number.value;
 		indigo_property_copy_values(CCD_BIN_PROPERTY, property, false);
 		CCD_BIN_PROPERTY->state = INDIGO_OK_STATE;
 		int horizontal_bin = (int)CCD_BIN_HORIZONTAL_ITEM->number.value;
 		int vertical_bin = (int)CCD_BIN_VERTICAL_ITEM->number.value;
+		/* SvBony cameras work with binx = biny for we force it here */
+		if (prev_h_bin != horizontal_bin) {
+			vertical_bin =
+			CCD_BIN_HORIZONTAL_ITEM->number.target =
+			CCD_BIN_HORIZONTAL_ITEM->number.value =
+			CCD_BIN_VERTICAL_ITEM->number.target =
+			CCD_BIN_VERTICAL_ITEM->number.value = horizontal_bin;
+		} else if (prev_v_bin != vertical_bin) {
+			horizontal_bin =
+			CCD_BIN_HORIZONTAL_ITEM->number.target =
+			CCD_BIN_HORIZONTAL_ITEM->number.value =
+			CCD_BIN_VERTICAL_ITEM->number.target =
+			CCD_BIN_VERTICAL_ITEM->number.value = vertical_bin;
+		}
 		char name[32] = "";
 		for (int i = 0; i < PIXEL_FORMAT_PROPERTY->count; i++) {
 			if (PIXEL_FORMAT_PROPERTY->items[i].sw.value) {

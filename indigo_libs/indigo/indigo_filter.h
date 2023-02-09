@@ -202,7 +202,6 @@ typedef struct {
 	indigo_property *device_property_cache[INDIGO_FILTER_MAX_CACHED_PROPERTIES];
 	indigo_property *agent_property_cache[INDIGO_FILTER_MAX_CACHED_PROPERTIES];
 	indigo_property *connection_property_cache[INDIGO_FILTER_MAX_DEVICES];
-	char *connection_property_device_cache[INDIGO_FILTER_MAX_DEVICES];
 	bool running_process;
 	bool property_removed;
 	bool (*validate_related_agent)(indigo_device *device, indigo_property *info_property, int mask);
@@ -214,7 +213,6 @@ typedef struct {
 	int bin_horizontal, bin_vertical;
 	double pixel_width, pixel_height;
 	double focal_length;
-	double pixel_scale_horizontal, pixel_scale_vertical;
 	double fov_width, fov_height;
 } indigo_filter_context;
 

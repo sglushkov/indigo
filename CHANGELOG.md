@@ -2,6 +2,192 @@
 
 All notable changes to INDIGO framework will be documented in this file.
 
+# [2.0-220] - 08 Feb Wed 2023
+### Overall
+- fixed the timer race that we were chading for months!
+
+# [2.0-218] - 06 Feb Mon 2023
+### Overall
+- revert timer issue introdiced in Januaryc + another approach to fix the race
+
+
+# [2.0-216] - 02 Feb Thu 2023
+### Overall
+- logging cleanup, indigo_log_message_handler signature changed
+- INDIGO_BUILD_COMMIT, INDIGO_BUILD_TIME added in log
+
+### New Drivers:
+- indigo_ccd_omegonpro:
+	- Omegon camera driver based on Touptek
+
+- indigo_ccd_ssg:
+	- Orion StarShootG camera driver based on Touptek
+
+- indigo_ccd_rising:
+	- RisingCam camera driver based on Touptek
+	- also supports Levenhuk and EHD imaging cameras
+	- SDK version 53.22004.20230115
+
+- indigo_ccd_mallin:
+	- MallinCam camera driver based on Touptek
+
+### Driver Fixes:
+- indigo_ccd_touptek & family:
+	- fix exposure problem on linux
+	- fix camera changed (use part of serial number on mac, when sdk is fixed will be used on linux too)
+	- add conversion gain control HCG, LCG and HDR
+
+- indigo_ccd_touptek:
+	- SDK version 53.22004.20230115
+
+- indigo_wheel_asi:
+	- fix error handling at connect
+
+- indigo_wheel_playerone:
+	- issues fixed
+	- SDK version 1.1.1
+
+- indigo_ccd_altair:
+	- SDK version 53.22004.20230115
+
+- indigo_ccd_playerone:
+	 - update SDK to v.3.1.1
+	 - many bug fixes (including frame readdout. binnig, ROIs, temperatire reading)
+	 - add workaround for a bug in POAGetImageData()
+	 - code refacroring
+	 - added gain/offset presets property
+	 - gain/offset can not be changed while exposure is in progress
+	 - add warning for USB2 connection as some cameras do not work on USB2 (SDK issue)
+
+- indigo_ccd_svbony:
+	- connect bin_x = bin_y as SvBony camseras have one bin
+	- fix frame size when binning
+	- gain/offset can not be changed while exposure is in progress
+
+- indigo_ccd_asi:
+	- fix frame size when binning
+	- gain/offset can not be changed while exposure is in progress
+
+
+# [2.0-214] - 20 Jan Thu 2023
+
+### Driver Fixes:
+- indigo_agent_guider: fixed pixel scale 
+
+# [2.0-212] - 19 Jan Thu 2023
+- replace usleep() with nanosleep() in indigo_usleep();
+- indigo_timer: fixes race in indigo_set_timer();
+- indigo_ccd_driver: use balanced approach to countdown timer - fixes potential race
+- all agents:
+	- selection can not be changed while list is busy - fixes connect race
+	- CCD_LENS_FOV created for CCDs only
+
+### Driver Fixes:
+- indigo_ccd_ssag:
+	- custom vid/pid enabled
+
+# [2.0-210] - 16 Jan Mon 2023
+### Overall
+- indigo_ccd_driver: Changed API to custom add fits headers to avoid possible races via CCD_SET_FITS_HEADER/CCD_REMOVE_FITS_HEADER.
+- indigo_get_utc_offset() and indigo_get_dst_state() added
+- all mount drivers: use indigo_get_utc_offset() and indigo_get_dst_state()
+- APTDIA and FOCALLEN added to fits headers
+- device profile names are configurable
+
+### New Drivers:
+- indigo_wheel_indigo:
+	- PegasusAstro Indigo filter wheel driver - looking for testers!
+
+- indigo_focuser_prodigy:
+	- PegasusAstro Prodigy Microfocuser driver - looking for testers!
+
+- insigo_rotator_falcon:
+	- PegasusAstro Falcon rotator driver added - looking for testers!
+
+- indigo_rotator_optec:
+	- Optec Pyxis camera field rotator - looking for testers!
+
+### Driver Fixes:
+- indigo_agent_astrometry:
+	- use same reference RA and Dec for the 3 points in polar alignment
+	- fix bug in polar error recalculation leading to offset between 0" and 20"
+
+- indigo_agent_astap:
+	- use same reference RA and Dec for the 3 points in polar alignment
+	- fix bug in polar error recalculation leading to offset between 0" and 20"
+
+- indigo_agent_guider:
+	- forces upload to clinet on frame request
+
+- indigo_ccd_playerone:
+	- CCD_INFO_PIXEL_SIZE_ITEM is properly set
+	- SDK updated to 3.1.0
+	- several fixes
+
+- indigo_ccd_svb:
+	- CCD_INFO_PIXEL_SIZE_ITEM is properly set
+
+- indigo_ccd_uvc:
+	- CCD_INFO_PIXEL_SIZE_ITEM set to 0 as value is not known
+
+- indigo_ccd_iidc:
+	- CCD_INFO_PIXEL_SIZE_ITEM is properly set
+
+- indigo_wheel_asi:
+	- add calibration function
+
+- indigo_mount_lx200:
+	- StarGO2 support added
+	- epoch support removed
+	- Gemini mounts forced to accept JNow
+
+# [2.0-208] - 04 Jan Wed 2023
+### Overall
+- indigo_ccd_driver: more robust exposure countdown timer implementation
+- webGUI: mounts without park feature fixed
+- debs: add curl dependency in the deb as it is used by astrometry agent
+- global lock/unlock fixed
+- shared multi_device_mutex added to device context
+- all drivers: connect synchronisation fixed
+- indigo_lock_master_device()/indigo_unlock_master_device() added
+- INDIGO bus stop fixed
+
+### Driver Fixes:
+- indigo_agent_config:
+	- add AGENT_CONFIG_LAST_CONFIG proeprty
+	- replace spaces from config names with undercore
+	- synchronisation improved
+	- unused drivers unload is optional
+	- make AGENT_CONFIG_SETUP items more descriptive
+	- describe agent operation
+	- AGENT_CONFIG_LOAD property waits in busy state until finished
+
+- indigo_mount_lx200:
+	- AM5 autodetection fixed
+
+- indigo_ccd_altair:
+	- SDK v.53.21849.20221208
+	- fix driver shutdown
+	- use better device ids in the device name
+	- show cooler power
+	- do not use the depricated XXX_Flush() function
+	- multi device support fixed
+	- hotplug/unplug fixed
+	- unify labels of CCD_MODE items to match the template of other drivers
+
+- indigo_ccd_touptek:
+	- updated SDK v.53.21849.20221208
+	- fix driver shutdown
+	- use better device ids in the device name
+	- show cooler power
+	- do not use the depricated XXX_Flush() function
+	- multi-device support fixed
+	- hotplug/unplug fixed
+	- unify labels of CCD_MODE items to match the template of other drivers
+
+- indigo_ccd_andor:
+	- small fixes
+
 # [2.0-206] - 10 Dec Sat 2022
 
 ### Overall
