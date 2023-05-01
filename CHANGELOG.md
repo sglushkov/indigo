@@ -2,6 +2,242 @@
 
 All notable changes to INDIGO framework will be documented in this file.
 
+# [2.0-232] - 28 Apr Thu 2023
+### Overall:
+- indigo_mount_driver:
+	- add MOUNT_ALIGNMENT_RESET property which reset alignment data
+
+- indigo_ccd_driver:
+	- support larger headers for FITS and XIFS images
+	- fix "Instrument:Camera:FocalLength" XISF proeprty
+
+### New Drivers:
+- indigo_focuser_primaluce:
+	- driver for PrimaLuceLab SESTO SENSO 2 and ESATTO focusers, plus ARCO rotators
+
+## Driver Fixes:
+- indigo_mount_asi:
+	- use more generic symlink as AM3 and AM5 share the same PID (AM3 is supported)
+	- add park
+	- clear alignment data implemented
+
+- indigo_ccd_ssg:
+	- update sdk 53.22412.20230409
+	- enable apple silicon build
+
+- indigo_ccd_ptp:
+	- remove unsupported Canon EOS M6
+
+- indigo_focuser_prodigy:
+	- fix property enumeration
+
+# [2.0-230] - 13 Apr Thu 2023
+### Overall
+- indigosky:
+	- better wifi performance in AP mode
+
+- indigo_bus:
+	- add indigo_get_peoperty_hint() and indigo_get_item_hint()
+	- documentatrion added for new hints
+
+- indigo_xml:
+	- fix property hints propagation to client
+
+- fix logging issues
+
+### Driver Fixes
+- indigo_ccd_uvc:
+	-usb rules file added
+
+- indigo_agent_astrometry:
+	- add hints to some properties
+
+- indigo_agent_guider:
+	- enforced rounding for int values
+
+- indigo_ccd_touptek & family:
+	- add camera offset
+	- update SDK 53.22412.20230409 (except StarShootG)
+	- native apple silicon support (except StarShootG)
+
+# [2.0-228] - 14 Mar Tue 2023
+### Overall
+- logging format changes
+
+- indigo_log_analyzer: tool to analyze indigo bus logs
+- indigo_ccd_driver:
+	- CCD_EXPOSURE_PROPERTY updated once a second.
+	- exposure countdown fixed
+
+### Driver Fixes
+- indigo_agent_astrometry:
+	- add basic index file integritiy check when downloaded
+
+- indigo_mount_asi:
+	- proper error handling os ':Te#' and ':Td#'
+
+- indigo_ccd_svb:
+	- SDK updated to v.1.11.1
+	- add natve apple silicon support
+
+- indigo_ccd_atik:
+	- SDK updated to 2023_03_17
+
+- indigo_ccd_touptek & family:
+	- fix bias exposures
+
+- indigo_focuser_asi:
+	- SDK updated to v.1.6
+	- show SDK version
+
+- indigo_ccd_svb:
+	- Updated MI library to 0.8.0/0.7.0
+    - Added support for C2-9000 camera
+
+- indigo_wheel_playerone:
+	- add intel32 support
+	- SDK updated to v.1.2.0
+
+# [2.0-226] - 14 Mar Tue 2023
+### Overall
+- indigo_client:
+	- fix disconnect
+	- fix shutdown race
+	- shutdown flag added to remote server
+	- failed socket closed properly
+	- 0 is alowed as a valid socket descriptor
+	- service discovery API added for Linux Windows and MacOS
+	- a lot better indigo_client library for Windows
+	- indigo_client.dll can be built with MSVC and MinGW
+	- building on windows better documented
+
+- overall code cleanup
+- indigo_docs: explain service discovery routines
+- add service_discovery example
+
+- indigo_prop_tool:
+	- add discover command
+	- can be built on windows with MinGW
+
+### Driver Fixes
+- indigo_ccd_touptek & family:
+	- fix guider timer issue
+
+- indigo_ccd_svb:
+	- updated to sdk v.1.10.2
+	- fix image buffer size
+
+- indigo_ccd_playerone:
+	- fix ROI buffer size issue
+	- update to sdk 3.2.2
+	- enable x86 linux build as Player One provided v86 SDK
+
+- indigo_ccd_asi:
+	- fix image buffer size
+
+- indigo_mount_asi:
+	- implement meridian limits and flip (requires yet unreleased firmware)
+
+# [2.0-224] - 01 Mar Wed 2023
+### Overall
+- CCD_SET_FITS_HEADER random content issue fixed
+- removed misleading log messages
+- experimental client side bonjour support added (macOS only first)
+- default server callback added to tcp server
+- indigo_disconnect_server behaviour fixed
+- tcp server: less verbose logging
+- Avahi dependency moved from indigo_server to libindigo
+- indigo_server_start fixed for linux
+- timers: logging fixed
+
+### Driver Fixes
+- indigo_ccd_asi:
+	- custom suffix changed to string to string
+	- logging fixes
+
+- indigo_focuser_asi:
+	- add support for custom device name suffix
+	- fix crash when unpluging connected device
+	- rename custom proeprtyies to follow the driver convention
+	- show device name in INFO proeprty
+	- logging fixes
+
+- indigo_wheel_asi:
+	- hot plug fixes
+	- show device name in INFO proeprty
+	- add support for custom device name suffix
+
+- indigo_ccd_svb:
+	- update SDK to v1.10.1
+	- show warning if the camera firmware needs update
+
+- indigo_wheel_playerone:
+	- use 'model #suffix' custom device name format
+	- code clenup
+
+- indigo_ccd_playerone:
+	- update SDK to v.3.2.1
+	- remove USB2.0 warning as SDK is fixed
+	- use gain/offset ptesets from the SDK
+	- use 'name #suffix' custom device name format
+
+- indigo_mount_ioptron:
+	- protocol version can be forced manually
+
+- indigo_mount_lx200:
+	- Pegasus NYX support added
+	- initialization fixed
+
+- indigo_ccd_touptec & familly:
+	- add bayer pattern in FITS header
+	- binning and subframing rewrite and fix
+	- add binning mode support - average, clip or expand to 16bit (for 10, 12 and 14-bit data)
+	- add sensor window heater control support
+	- remove odd coller conrol from setup_exposure()
+
+# [2.0-222] - 12 Feb Sun 2023
+### Overall
+- add indigo_device_name_exists() and indigo_make_name_unique()
+- add indigo_reschedule_timer_with_callback()
+
+### All drivers:
+- use indigo_device_name_exists() and indigo_make_name_unique() to make device names unique - prmanent where devices support it
+- for hotplug drivers, the first device of a type will not have a suffix #XXX (unless it has permaned suffix added, only ASI and Player one support it)
+- fixed reseting of timer reference while callback is still executed
+
+### New Drivers:
+- indigo ccd_ogma:
+	- OMGA Camera driver added - toupteck clone
+
+### Driver Fixes:
+- indigo_ccd_sx:
+	- long exposure fixed - regression
+
+- indigo_ccd_fli:
+	- long exposure fixed - regression
+	- small fixes
+
+- indigo_ccd_qhy:
+	- long exposure fixed - regression
+
+- indigo_ccd_dsi:
+	- long exposure fixed - regression
+
+- indigo_ccd_sbig:
+	- long exposure fixed - regression
+
+- indigo_ccd_playerone:
+	- add permanent user defined camera suffix
+	- exposure countdown fixed
+
+- indigo_wheel_playerone:
+	- add permanent user defined camera suffix
+
+- indigo_ccd_asi:
+	- libasicamera v.1.28
+	- add permaned user defined camera suffix
+ 
+
 # [2.0-220] - 08 Feb Wed 2023
 ### Overall
 - fixed the timer race that we were chading for months!

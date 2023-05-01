@@ -24,7 +24,7 @@
  \file indigo_ccd_apogee.cpp
  */
 
-#define DRIVER_VERSION 0x000A
+#define DRIVER_VERSION 0x000B
 #define DRIVER_NAME	   "indigo_ccd_apogee"
 
 #include <stdlib.h>
@@ -600,7 +600,6 @@ static void apogee_close(indigo_device *device) {
 
 
 static void exposure_timer_callback(indigo_device *device) {
-	PRIVATE_DATA->exposure_timer = NULL;
 	if (!CONNECTION_CONNECTED_ITEM->sw.value) return;
 
 	PRIVATE_DATA->can_check_temperature = false;
@@ -1230,7 +1229,8 @@ static void ethernet_discover(char *network, bool cam_found) {
 		device->private_data = private_data;
 		PRIVATE_DATA->discovery_string = discovery_string;
 		std::string model = GetModelName(discovery_string);
-		snprintf(device->name, INDIGO_NAME_SIZE, "Apogee %s #%d", model.c_str(), id);
+		snprintf(device->name, INDIGO_NAME_SIZE, "Apogee %s", model.c_str());
+		indigo_make_name_unique(device->name, "%d", id);
 		for (int j = 0; j < MAX_DEVICES; j++) {
 			if (devices[j] == NULL) {
 				indigo_attach_device(device);
@@ -1355,7 +1355,8 @@ static void process_plug_event(indigo_device *unused) {
 		device->private_data = private_data;
 		PRIVATE_DATA->discovery_string = discovery_string;
 		std::string model = GetItemFromFindStr(discovery_string, "model=");
-		snprintf(device->name, INDIGO_NAME_SIZE, "Apogee %s #%d", model.c_str(), id);
+		snprintf(device->name, INDIGO_NAME_SIZE, "Apogee %s", model.c_str());
+		indigo_make_name_unique(device->name, "%d", id);
 		for (int j = 0; j < MAX_DEVICES; j++) {
 			if (devices[j] == NULL) {
 				indigo_attach_device(devices[j] = device);

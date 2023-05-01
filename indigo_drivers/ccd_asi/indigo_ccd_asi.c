@@ -26,7 +26,7 @@
  \file indigo_ccd_asi.c
  */
 
-#define DRIVER_VERSION 0x0026
+#define DRIVER_VERSION 0x0027
 #define DRIVER_NAME "indigo_ccd_asi"
 
 #include <stdlib.h>
@@ -78,6 +78,10 @@
 #define ASI_LOWEST_RN_ITEM        (ASI_PRESETS_PROPERTY->items+2)
 #define ASI_LOWEST_RN_NAME        "ASI_LOWEST_RN"
 
+#define ASI_CUSTOM_SUFFIX_PROPERTY     (PRIVATE_DATA->asi_custom_suffix_property)
+#define ASI_CUSTOM_SUFFIX_ITEM         (ASI_CUSTOM_SUFFIX_PROPERTY->items+0)
+#define ASI_CUSTOM_SUFFIX_NAME         "SUFFIX"
+
 #define ASI_ADVANCED_PROPERTY      (PRIVATE_DATA->asi_advanced_property)
 
 // gp_bits is used as boolean
@@ -93,6 +97,7 @@ typedef struct {
 	int dev_id;
 	int count_open;
 	char serial_number[17];
+	char custom_suffix[9];
 	int exp_bin_x, exp_bin_y;
 	int exp_frame_width, exp_frame_height;
 	int exp_bpp;
@@ -115,6 +120,7 @@ typedef struct {
 	int offset_lowest_rn;
 	indigo_property *pixel_format_property;
 	indigo_property *asi_presets_property;
+	indigo_property *asi_custom_suffix_property;
 	indigo_property *asi_advanced_property;
 } asi_private_data;
 
@@ -232,6 +238,8 @@ static indigo_result asi_enumerate_properties(indigo_device *device, indigo_clie
 			indigo_define_property(device, PIXEL_FORMAT_PROPERTY, NULL);
 		if (indigo_property_match(ASI_PRESETS_PROPERTY, property))
 			indigo_define_property(device, ASI_PRESETS_PROPERTY, NULL);
+		if (indigo_property_match(ASI_CUSTOM_SUFFIX_PROPERTY, property))
+			indigo_define_property(device, ASI_CUSTOM_SUFFIX_PROPERTY, NULL);
 		if (indigo_property_match(ASI_ADVANCED_PROPERTY, property))
 			indigo_define_property(device, ASI_ADVANCED_PROPERTY, NULL);
 	}
@@ -386,7 +394,7 @@ static bool asi_read_pixels(indigo_device *device) {
 
 	if (status == ASI_EXP_SUCCESS) {
 		pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
-		res = ASIGetDataAfterExp(PRIVATE_DATA->dev_id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size);
+		res = ASIGetDataAfterExp(PRIVATE_DATA->dev_id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size - FITS_HEADER_SIZE);
 		pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
 		if (res) {
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASIGetDataAfterExp(%d) = %d", PRIVATE_DATA->dev_id, res);
@@ -511,7 +519,6 @@ static void asi_close(indigo_device *device) {
 
 // callback for image download
 static void exposure_timer_callback(indigo_device *device) {
-	PRIVATE_DATA->exposure_timer = NULL;
 	if (!CONNECTION_CONNECTED_ITEM->sw.value) return;
 
 	if (PRIVATE_DATA->in_exposure_callback) {
@@ -577,7 +584,7 @@ static void streaming_timer_callback(indigo_device *device) {
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASIStartVideoCapture(%d) = %d", id, res);
 			while (CCD_STREAMING_COUNT_ITEM->number.value != 0) {
 				pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
-				res = ASIGetVideoData(id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size, timeout);
+				res = ASIGetVideoData(id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size - FITS_HEADER_SIZE, timeout);
 				pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
 				if (res) {
 					INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASIGetVideoData((%d) = %d", id, res);
@@ -796,7 +803,11 @@ static indigo_result ccd_attach(indigo_device *device) {
 		ASI_PRESETS_PROPERTY = indigo_init_switch_property(NULL, device->name, "ASI_PRESETS", CCD_ADVANCED_GROUP, "Presets (Gain, Offset)", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_AT_MOST_ONE_RULE, 3);
 		if (ASI_PRESETS_PROPERTY == NULL)
 			return INDIGO_FAILED;
-
+		// --------------------------------------------------------------------------------- ASI_CUSTOM_SUFFIX
+		ASI_CUSTOM_SUFFIX_PROPERTY = indigo_init_text_property(NULL, device->name, "ASI_CUSTOM_SUFFIX", CCD_ADVANCED_GROUP, "Device name custom suffix", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
+		if (ASI_CUSTOM_SUFFIX_PROPERTY == NULL)
+			return INDIGO_FAILED;
+		indigo_init_text_item(ASI_CUSTOM_SUFFIX_ITEM, ASI_CUSTOM_SUFFIX_NAME, "Suffix", PRIVATE_DATA->custom_suffix);
 		// -------------------------------------------------------------------------------- ASI_ADVANCED
 		ASI_ADVANCED_PROPERTY = indigo_init_number_property(NULL, device->name, "ASI_ADVANCED", CCD_ADVANCED_GROUP, "Advanced", INDIGO_OK_STATE, INDIGO_RW_PERM, 0);
 		if (ASI_ADVANCED_PROPERTY == NULL)
@@ -1046,6 +1057,8 @@ static void handle_ccd_connect_property(indigo_device *device) {
 				adjust_preset_switches(device);
 				indigo_define_property(device, ASI_PRESETS_PROPERTY, NULL);
 
+				indigo_define_property(device, ASI_CUSTOM_SUFFIX_PROPERTY, NULL);
+
 				device->is_connected = true;
 				PRIVATE_DATA->in_exposure_callback = false;
 				CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
@@ -1074,6 +1087,7 @@ static void handle_ccd_connect_property(indigo_device *device) {
 			}
 			indigo_delete_property(device, PIXEL_FORMAT_PROPERTY, NULL);
 			indigo_delete_property(device, ASI_PRESETS_PROPERTY, NULL);
+			indigo_delete_property(device, ASI_CUSTOM_SUFFIX_PROPERTY, NULL);
 			indigo_delete_property(device, ASI_ADVANCED_PROPERTY, NULL);
 			asi_close(device);
 			device->is_connected = false;
@@ -1286,6 +1300,40 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		indigo_update_property(device, CCD_OFFSET_PROPERTY, NULL);
 		indigo_update_property(device, ASI_PRESETS_PROPERTY, NULL);
 		return INDIGO_OK;
+		// ------------------------------------------------------------------------------- ASI_CUSTOM_SUFFIX
+	} else if (indigo_property_match_changeable(ASI_CUSTOM_SUFFIX_PROPERTY, property)) {
+		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE || CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
+			ASI_CUSTOM_SUFFIX_PROPERTY->state = INDIGO_ALERT_STATE;
+			indigo_update_property(device, ASI_CUSTOM_SUFFIX_PROPERTY, "Exposure in progress, custom camera ID can not be changed");
+			return INDIGO_OK;
+		}
+		ASI_CUSTOM_SUFFIX_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_property_copy_values(ASI_CUSTOM_SUFFIX_PROPERTY, property, false);
+		if (strlen(ASI_CUSTOM_SUFFIX_ITEM->text.value) > 8) {
+			ASI_CUSTOM_SUFFIX_PROPERTY->state = INDIGO_ALERT_STATE;
+			indigo_update_property(device, ASI_CUSTOM_SUFFIX_PROPERTY, "Custom suffix too long");
+			return INDIGO_OK;
+		}
+		pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
+		ASI_ID asi_id = {0};
+		memcpy(asi_id.id, ASI_CUSTOM_SUFFIX_ITEM->text.value, 8);
+		memcpy(PRIVATE_DATA->custom_suffix, ASI_CUSTOM_SUFFIX_ITEM->text.value, sizeof(PRIVATE_DATA->custom_suffix));
+		int res = ASISetID(PRIVATE_DATA->dev_id, asi_id);
+		pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
+		if (res) {
+			INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASISetID(%d, \"%s\") = %d", PRIVATE_DATA->dev_id, ASI_CUSTOM_SUFFIX_ITEM->text.value, res);
+			ASI_CUSTOM_SUFFIX_PROPERTY->state = INDIGO_ALERT_STATE;
+			indigo_update_property(device, ASI_CUSTOM_SUFFIX_PROPERTY, NULL);
+		} else {
+			INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASISetID(%d, \"%s\") = %d", PRIVATE_DATA->dev_id, ASI_CUSTOM_SUFFIX_ITEM->text.value, res);
+			ASI_CUSTOM_SUFFIX_PROPERTY->state = INDIGO_OK_STATE;
+			if (strlen(ASI_CUSTOM_SUFFIX_ITEM->text.value) > 0) {
+				indigo_update_property(device, ASI_CUSTOM_SUFFIX_PROPERTY, "Camera name suffix '#%s' will be used on replug", ASI_CUSTOM_SUFFIX_ITEM->text.value);
+			} else {
+				indigo_update_property(device, ASI_CUSTOM_SUFFIX_PROPERTY, "Camera name suffix cleared, will be used on replug");
+			}
+		}
+		return INDIGO_OK;
 		// ------------------------------------------------------------------------------- CCD_FRAME
 	} else if (indigo_property_match_changeable(CCD_FRAME_PROPERTY, property)) {
 		indigo_property_copy_values(CCD_FRAME_PROPERTY, property, false);
@@ -1472,6 +1520,7 @@ static indigo_result ccd_detach(indigo_device *device) {
 
 	indigo_release_property(PIXEL_FORMAT_PROPERTY);
 	indigo_release_property(ASI_PRESETS_PROPERTY);
+	indigo_release_property(ASI_CUSTOM_SUFFIX_PROPERTY);
 	indigo_release_property(ASI_ADVANCED_PROPERTY);
 
 	return indigo_ccd_detach(device);
@@ -1754,14 +1803,15 @@ static void process_plug_event(indigo_device *unused) {
 
 	ASI_SN serial = {0};
 	char serial_number[17] = {0};
-	char identifier[17] = {0};
+	char custom_suffix[9] = {0};
+	ASI_ID custom_id = {0};
 	int res = ASIOpenCamera(id);
 	if (res == ASI_SUCCESS) {
-		res = ASIGetID(id, &serial);
+		res = ASIGetID(id, &custom_id);
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASIGetID(%d) = %d", id, res);
 		if (res == ASI_SUCCESS) {
-			memcpy(identifier, serial.id, 8);
-			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Camera identifier = '%s'", identifier);
+			memcpy(custom_suffix, custom_id.id, 8);
+			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Camera identifier = '%s'", custom_suffix);
 		}
 		res = ASIGetSerialNumber(id, &serial);
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ASIGetSerialNumber(%d) = %d", id, res);
@@ -1783,19 +1833,36 @@ static void process_plug_event(indigo_device *unused) {
 		}
 		ASICloseCamera(id);
 	}
-	if (identifier[0] == '\0') {
-		snprintf(identifier, sizeof(identifier), "%d", id);
+	char device_name[INDIGO_NAME_SIZE] = {0};
+	char guider_device_name[INDIGO_NAME_SIZE] = {0};
+	bool name_collision = false;
+	if (strlen(custom_suffix) < 1) {
+		if (indigo_device_name_exists(info.Name)) {
+			name_collision = true;
+			sprintf(device_name, "%s #%d", info.Name, id);
+			sprintf(guider_device_name, "%s (guider) #%d", info.Name, id);
+		} else {
+			strncpy(device_name, info.Name, INDIGO_NAME_SIZE);
+			sprintf(guider_device_name, "%s (guider)", info.Name);
+		}
+	} else {
+		sprintf(device_name, "%s #%s", info.Name, custom_suffix);
+		sprintf(guider_device_name, "%s (guider) #%s", info.Name, custom_suffix);
 	}
 
 	device->master_device = master_device;
-	sprintf(device->name, "%s #%s", info.Name, identifier);
+	strncpy(device->name, device_name, sizeof(device->name));
 	INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 	asi_private_data *private_data = indigo_safe_malloc(sizeof(asi_private_data));
 	private_data->dev_id = id;
 	memcpy(&(private_data->info), &info, sizeof(ASI_CAMERA_INFO));
+	strcpy(private_data->custom_suffix, custom_suffix);
 	strncpy(private_data->serial_number, serial_number, sizeof(private_data->serial_number));
 	device->private_data = private_data;
 	indigo_attach_device(device);
+	if (name_collision) {
+		indigo_send_message(device,"Warning: Camera model '%s' is already attached, please condsider changing the camera identifier", info.Name);
+	}
 	devices[slot]=device;
 	if (info.ST4Port) {
 		slot = find_available_device_slot();
@@ -1806,7 +1873,7 @@ static void process_plug_event(indigo_device *unused) {
 		}
 		device = indigo_safe_malloc_copy(sizeof(indigo_device), &guider_template);
 		device->master_device = master_device;
-		sprintf(device->name, "%s Guider #%s", info.Name, identifier);
+		strncpy(device->name, guider_device_name, sizeof(device->name));
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		device->private_data = private_data;
 		indigo_attach_device(device);

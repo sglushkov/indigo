@@ -161,7 +161,7 @@ bool indigo_set_timer_with_data(indigo_device *device, double delay, indigo_time
 	pthread_mutex_lock(&free_timer_mutex);
 	if (free_timer != NULL) {
 		t = free_timer;
-		INDIGO_TRACE(indigo_trace("timer #%d - reusing (%p)", t->timer_id, timer));
+		INDIGO_TRACE(indigo_trace("timer #%d - reusing (%p)", t->timer_id, t));
 		free_timer = free_timer->next;
 		t->wake = true;
 		t->callback_running = false;
@@ -182,7 +182,7 @@ bool indigo_set_timer_with_data(indigo_device *device, double delay, indigo_time
 	} else {
 		t = indigo_safe_malloc(sizeof(indigo_timer));
 		t->timer_id = timer_count++;
-		INDIGO_TRACE(indigo_trace("timer #%d - allocating (%p)", t->timer_id, timer));
+		INDIGO_TRACE(indigo_trace("timer #%d - allocating (%p)", t->timer_id, t));
 		pthread_mutex_init(&t->mutex, NULL);
 		pthread_mutex_init(&t->callback_mutex, NULL);
 		pthread_cond_init(&t->cond, NULL);
@@ -213,17 +213,29 @@ bool indigo_set_timer_with_data(indigo_device *device, double delay, indigo_time
 // TODO: do we need device?
 
 bool indigo_reschedule_timer(indigo_device *device, double delay, indigo_timer **timer) {
+	if (*timer != NULL) {
+		return indigo_reschedule_timer_with_callback(device, delay, (*timer)->callback, timer);
+	} else {
+		indigo_error("Attempt to reschedule timer without reference!");
+		return false;
+	}
+}
+	
+bool indigo_reschedule_timer_with_callback(indigo_device *device, double delay, indigo_timer_callback callback, indigo_timer **timer) {
 	bool result = false;
 	pthread_mutex_lock(&cancel_timer_mutex);
 	if (*timer != NULL && (*timer)->canceled == false) {
 		if (*timer != *(*timer)->reference) {
-			indigo_error("timer #%d - attempt to reschedule timer with outdated reference!");
+			indigo_error("timer #%d - attempt to reschedule timer with outdated reference!", (*timer)->timer_id);
 		} else {
 			INDIGO_TRACE(indigo_trace("timer #%d - rescheduled for %gs", (*timer)->timer_id, (*timer)->delay));
 			(*timer)->delay = delay;
 			(*timer)->scheduled = true;
+			(*timer)->callback = callback;
 			result = true;
 		}
+	} else {
+		indigo_error("Attempt to reschedule timer without reference or canceled timer!");
 	}
 	pthread_mutex_unlock(&cancel_timer_mutex);
 	return result;
@@ -236,7 +248,7 @@ bool indigo_cancel_timer(indigo_device *device, indigo_timer **timer) {
 	pthread_mutex_lock(&cancel_timer_mutex);
 	if (*timer != NULL) {
 		if (*timer != *(*timer)->reference) {
-			indigo_error("timer #%d - attempt to cancel timer with outdated reference!");
+			indigo_error("timer #%d - attempt to cancel timer with outdated reference!", (*timer)->timer_id);
 		} else {
 			INDIGO_TRACE(indigo_trace("timer #%d - cancel requested", (*timer)->timer_id));
 			(*timer)->canceled = true;

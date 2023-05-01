@@ -254,3 +254,54 @@ Date: 2022-12-07
 2. Fixed the issue that SV605CC triggers the photo time
 3. Fix some bugs
 4. Add new API interface functions SVBGetCameraFirmwareVersion and SVBIsCameraNeedToUpgrade
+
+
+##########################################################
+版本:v1.10.1
+日期:2023-02-10
+1.新增动态坏点自动修正的开关
+2.增加API接口函数SVBRestoreDefaultParam，可恢复相机默认参数
+
+Version: v1.10.1
+Date: 2023-02-10
+1. Added a switch for automatic correction of dynamic dead pixels
+2. Add the API interface function SVBRestoreDefaultParam, which can restore the default parameters of the camera
+
+
+
+##########################################################
+版本:v1.10.2
+日期:2023-02-23
+1.解决SV405CC软触发不出图的问题
+2.Linux和MacOS上导出SVBRestoreDefaultParam
+3.MacOS下的libSVBCameraSDK.dylib设置rpath
+
+Version: v1.10.2
+Date: 2023-02-23
+1. Solve the problem that SV405CC soft trigger does not plot
+Export SVBRestoreDefaultParam on Linux and MacOS
+3.libSVBCameraSDK.dylib under MacOS sets rpath
+
+
+##########################################################
+版本:v1.11.0
+日期:2023-03-03
+1.支持相机SV305C
+2.修正黑白相机在16位模式时图像的第一行和最后一行不正确的问题
+
+Version: v1.11.0
+Date: 2023-03-03
+1. Support camera SV305C
+2. Fix the problem that the first line and the last line of the image are incorrect when the mono camera is in 16-bit mode
+
+
+##########################################################
+版本:v1.11.1
+日期:2023-03-27
+1.SV305C支持饱和度参数
+2.提高SV305C在小ROI时的帧率
+
+Version: v1.11.1
+Date: 2023-03-27
+1. SV305C supports saturation
+2. Improve the frame rate of SV305C in small ROI

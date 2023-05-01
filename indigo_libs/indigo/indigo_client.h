@@ -43,6 +43,16 @@ extern "C" {
 
 #define INDIGO_MAX_SERVERS    10
 
+/** Use <enableBLOB>URL</enableBLOB> for remote INDIGO servers;
+ *  defined in indigo_xml.c
+ */
+extern bool indigo_use_blob_urls;
+
+/** Client name used for enumeration requests to set adapter name on server side for client identification in trace logs. Defaults to argv[0]
+ */
+
+extern char *indigo_client_name;
+
 #if defined(INDIGO_LINUX) || defined(INDIGO_MACOS)
 #define INDIGO_MAX_DRIVERS    128
 
@@ -114,6 +124,7 @@ typedef struct {
 	int socket;                             ///< stream socket
 	indigo_device *protocol_adapter;        ///< server protocol adapter
 	char last_error[256];										///< last error reported within client thread
+	bool shutdown;													///< request shutdown
 } indigo_server_entry;
 
 

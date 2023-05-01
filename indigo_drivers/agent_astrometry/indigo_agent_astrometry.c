@@ -23,7 +23,7 @@
  \file indigo_agent_astrometry.c
  */
 
-#define DRIVER_VERSION 0x000E
+#define DRIVER_VERSION 0x000F
 #define DRIVER_NAME	"indigo_agent_astrometry"
 
 #include <stdio.h>
@@ -595,6 +595,31 @@ static void sync_installed_indexes(indigo_device *device, char *dir, indigo_prop
 						pthread_mutex_unlock(&mutex);
 						return;
 					}
+
+					/* basic index file integritiy check as curl saves HTTP
+					   errors like "404: not found" in the output file
+					*/
+					bool failed = false;
+					char signature[7]={0};
+					FILE *fp=fopen(path,"rb");
+					if (fp) {
+						size_t read = fread(signature, 6, 1, fp);
+						fclose(fp);
+						if (strncmp(signature, "SIMPLE", 6)) {
+							failed = true;
+						}
+					} else {
+						failed = true;
+					}
+					if (failed) {
+						unlink(path);
+						item->sw.value = false;
+						property->state = INDIGO_ALERT_STATE;
+						indigo_update_property(device, property, "Index download failed: '%s'", path);
+						pthread_mutex_unlock(&mutex);
+						return;
+					}
+
 					indigo_send_message(device, "Done", file_name);
 					add = true;
 					continue;
@@ -669,6 +694,7 @@ static indigo_result agent_device_attach(indigo_device *device) {
 		char name[INDIGO_NAME_SIZE], label[INDIGO_VALUE_SIZE], path[INDIGO_VALUE_SIZE];
 		bool present;
 		AGENT_ASTROMETRY_INDEX_41XX_PROPERTY = indigo_init_switch_property(NULL, device->name, AGENT_ASTROMETRY_INDEX_41XX_PROPERTY_NAME, "Index managememt", "Installed Tycho-2 catalog indexes", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, 13);
+		strcpy(AGENT_ASTROMETRY_INDEX_41XX_PROPERTY->hints,"warn_on_clear:\"Delete Tycho-2 index file?\";");
 		if (AGENT_ASTROMETRY_INDEX_41XX_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		for (int i = 19; i >=7; i--) {
@@ -689,6 +715,7 @@ static indigo_result agent_device_attach(indigo_device *device) {
 				}
 			}
 			indigo_init_switch_item(AGENT_ASTROMETRY_INDEX_41XX_PROPERTY->items - (i - 19), name, label, present);
+			sprintf((AGENT_ASTROMETRY_INDEX_41XX_PROPERTY->items - (i - 19))->hints, "warn_on_clear:\"Delete Tycho-2 index 41%02d?\";", i);
 			if (present) {
 				char long_label[INDIGO_VALUE_SIZE];
 				snprintf(long_label, INDIGO_VALUE_SIZE, "Tycho-2 %s", label);
@@ -696,6 +723,7 @@ static indigo_result agent_device_attach(indigo_device *device) {
 			}
 		}
 		AGENT_ASTROMETRY_INDEX_42XX_PROPERTY = indigo_init_switch_property(NULL, device->name, AGENT_ASTROMETRY_INDEX_42XX_PROPERTY_NAME, "Index managememt", "Installed 2MASS catalog indexes", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, 20);
+		strcpy(AGENT_ASTROMETRY_INDEX_42XX_PROPERTY->hints, "warn_on_clear:\"Delete 2MASS index file?\";");
 		if (AGENT_ASTROMETRY_INDEX_42XX_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		for (int i = 19; i >=0; i--) {
@@ -716,6 +744,7 @@ static indigo_result agent_device_attach(indigo_device *device) {
 				}
 			}
 			indigo_init_switch_item(AGENT_ASTROMETRY_INDEX_42XX_PROPERTY->items - (i - 19), name, label, present);
+			sprintf((AGENT_ASTROMETRY_INDEX_42XX_PROPERTY->items - (i - 19))->hints, "warn_on_clear:\"Delete 2MASS index 42%02d?\";", i);
 			if (present) {
 				char long_label[INDIGO_VALUE_SIZE];
 				snprintf(long_label, INDIGO_VALUE_SIZE, "2MASS %s", label);

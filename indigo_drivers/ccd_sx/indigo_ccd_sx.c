@@ -23,7 +23,7 @@
  \file indigo_ccd_sx.c
  */
 
-#define DRIVER_VERSION 0x000D
+#define DRIVER_VERSION 0x000E
 #define DRIVER_NAME "indigo_ccd_sx"
 
 #include <stdlib.h>
@@ -683,7 +683,6 @@ static void sx_close(indigo_device *device) {
 
 static void exposure_timer_callback(indigo_device *device) {
 	if (!CONNECTION_CONNECTED_ITEM->sw.value) return;
-	PRIVATE_DATA->exposure_timer = NULL;
 	if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 		CCD_EXPOSURE_ITEM->number.value = 0;
 		indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
@@ -705,9 +704,7 @@ static void clear_reg_timer_callback(indigo_device *device) {
 	if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 		PRIVATE_DATA->can_check_temperature = false;
 		sx_clear_regs(device);
-		indigo_set_timer(device, 3, exposure_timer_callback, &PRIVATE_DATA->exposure_timer);
-	} else {
-		PRIVATE_DATA->exposure_timer = NULL;
+		indigo_reschedule_timer_with_callback(device, 3, exposure_timer_callback, &PRIVATE_DATA->exposure_timer);
 	}
 }
 
@@ -844,11 +841,11 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		}
 	} else if (indigo_property_match_changeable(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_ABORT_EXPOSURE
+		indigo_property_copy_values(CCD_ABORT_EXPOSURE_PROPERTY, property, false);
 		if (indigo_cancel_timer(device, &PRIVATE_DATA->exposure_timer)) {
 			sx_abort_exposure(device);
 		}
 		PRIVATE_DATA->can_check_temperature = true;
-		indigo_property_copy_values(CCD_ABORT_EXPOSURE_PROPERTY, property, false);
 	} else if (indigo_property_match_changeable(CCD_FRAME_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_FRAME
 		indigo_property_copy_values(CCD_FRAME_PROPERTY, property, false);
@@ -922,7 +919,6 @@ static indigo_result ccd_detach(indigo_device *device) {
 
 static void guider_timer_callback(indigo_device *device) {
 	if (!CONNECTION_CONNECTED_ITEM->sw.value) return;
-	PRIVATE_DATA->guider_timer = NULL;
 	sx_guide_relays(device, 0);
 	if (PRIVATE_DATA->relay_mask & (SX_GUIDE_NORTH | SX_GUIDE_SOUTH)) {
 		GUIDER_GUIDE_NORTH_ITEM->number.value = 0;
@@ -1148,7 +1144,8 @@ static void process_plug_event(libusb_device *dev) {
 			device->master_device = master_device;
 			char usb_path[INDIGO_NAME_SIZE];
 			indigo_get_usb_path(dev, usb_path);
-			snprintf(device->name, INDIGO_NAME_SIZE, "%s #%s", SX_PRODUCTS[i].name, usb_path);
+			snprintf(device->name, INDIGO_NAME_SIZE, "%s", SX_PRODUCTS[i].name);
+			indigo_make_name_unique(device->name, "%s", usb_path);
 			device->private_data = private_data;
 			for (int j = 0; j < MAX_DEVICES; j++) {
 				if (devices[j] == NULL) {
@@ -1158,7 +1155,8 @@ static void process_plug_event(libusb_device *dev) {
 			}
 			device = indigo_safe_malloc_copy(sizeof(indigo_device), &guider_template);
 			device->master_device = master_device;
-			snprintf(device->name, INDIGO_NAME_SIZE, "%s (guider) #%s", SX_PRODUCTS[i].name, usb_path);
+			snprintf(device->name, INDIGO_NAME_SIZE, "%s (guider)", SX_PRODUCTS[i].name);
+			indigo_make_name_unique(device->name, "%s", usb_path);
 			device->private_data = private_data;
 			for (int j = 0; j < MAX_DEVICES; j++) {
 				if (devices[j] == NULL) {

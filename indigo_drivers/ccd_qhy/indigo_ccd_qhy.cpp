@@ -25,7 +25,7 @@
  \NOTE: This file should be .cpp as qhy headers are in C++
  */
 
-#define DRIVER_VERSION 0x0015
+#define DRIVER_VERSION 0x0016
 
 #include <stdlib.h>
 #include <string.h>
@@ -487,7 +487,6 @@ static void qhy_close(indigo_device *device) {
 
 // callback for image download
 static void exposure_timer_callback(indigo_device *device) {
-	PRIVATE_DATA->exposure_timer = NULL;
 	if (!CONNECTION_CONNECTED_ITEM->sw.value)
 		return;
 	if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
@@ -563,9 +562,7 @@ static void clear_reg_timer_callback(indigo_device *device) {
 	if (!CONNECTION_CONNECTED_ITEM->sw.value) return;
 	if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 		PRIVATE_DATA->can_check_temperature = false;
-		indigo_set_timer(device, 4, exposure_timer_callback, &PRIVATE_DATA->exposure_timer);
-	} else {
-		PRIVATE_DATA->exposure_timer = NULL;
+		indigo_reschedule_timer_with_callback(device, 4, exposure_timer_callback, &PRIVATE_DATA->exposure_timer);
 	}
 }
 
@@ -1841,7 +1838,8 @@ static void add_all_devices() {
 		assert(device != NULL);
 		memcpy(device, &ccd_template, sizeof(indigo_device));
 		device->master_device = master_device;
-		sprintf(device->name, "%s #%s", dev_name, dev_usbpath);
+		snprintf(device->name, INDIGO_NAME_SIZE, "%s", dev_name);
+		indigo_make_name_unique(device->name, "%s", dev_usbpath);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		qhy_private_data *private_data = (qhy_private_data*)malloc(sizeof(qhy_private_data));
 		assert(private_data);
@@ -1857,7 +1855,8 @@ static void add_all_devices() {
 			assert(device != NULL);
 			memcpy(device, &guider_template, sizeof(indigo_device));
 			device->master_device = master_device;
-			sprintf(device->name, "%s Guider #%s", dev_name, dev_usbpath);
+			snprintf(device->name, INDIGO_NAME_SIZE, "%s (guider)", dev_name);
+			indigo_make_name_unique(device->name, "%s", dev_usbpath);
 			INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 			private_data->fw_count = FW_COUNT;
 			device->private_data = private_data;
@@ -1871,7 +1870,8 @@ static void add_all_devices() {
 			assert(device != NULL);
 			memcpy(device, &wheel_template, sizeof(indigo_device));
 			device->master_device = master_device;
-			sprintf(device->name, "%s Wheel #%s", dev_name, dev_usbpath);
+			snprintf(device->name, INDIGO_NAME_SIZE, "%s (wheel)", dev_name);
+			indigo_make_name_unique(device->name, "%s", dev_usbpath);
 			INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 			device->private_data = private_data;
 			indigo_attach_device(device);

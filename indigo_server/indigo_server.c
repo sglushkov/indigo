@@ -164,6 +164,8 @@
 #include "ccd_omegonpro/indigo_ccd_omegonpro.h"
 #include "ccd_ssg/indigo_ccd_ssg.h"
 #include "ccd_rising/indigo_ccd_rising.h"
+#include "ccd_ogma/indigo_ccd_ogma.h"
+#include "focuser_primaluce/indigo_focuser_primaluce.h"
 #ifndef __aarch64__
 #include "ccd_sbig/indigo_ccd_sbig.h"
 #endif
@@ -184,8 +186,6 @@
 #include "agent_scripting/indigo_agent_scripting.h"
 #endif
 
-#define MDNS_INDIGO_TYPE    "_indigo._tcp"
-#define MDNS_HTTP_TYPE      "_http._tcp"
 #define SERVER_NAME         "INDIGO Server"
 
 driver_entry_point static_drivers[] = {
@@ -234,6 +234,7 @@ driver_entry_point static_drivers[] = {
 #endif
 	indigo_ccd_iidc,
 	indigo_ccd_mi,
+	indigo_ccd_ogma,
 	indigo_ccd_omegonpro,
 	indigo_ccd_playerone,
 	indigo_ccd_ptp,
@@ -277,6 +278,7 @@ driver_entry_point static_drivers[] = {
 	indigo_focuser_nfocus,
 	indigo_focuser_nstep,
 	indigo_focuser_optec,
+	indigo_focuser_primaluce,
 	indigo_focuser_prodigy,
 	indigo_focuser_robofocus,
 	indigo_focuser_usbv3,
@@ -360,9 +362,6 @@ static indigo_property *install_property;
 static pthread_mutex_t install_property_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
-static DNSServiceRef sd_http;
-static DNSServiceRef sd_indigo;
-
 static void *star_data = NULL;
 static void *dso_data = NULL;
 static void *constellation_data = NULL;
@@ -392,7 +391,8 @@ static bool runLoop = true;
 #define SERVER_LOG_LEVEL_ERROR_ITEM								(SERVER_LOG_LEVEL_PROPERTY->items + 0)
 #define SERVER_LOG_LEVEL_INFO_ITEM								(SERVER_LOG_LEVEL_PROPERTY->items + 1)
 #define SERVER_LOG_LEVEL_DEBUG_ITEM								(SERVER_LOG_LEVEL_PROPERTY->items + 2)
-#define SERVER_LOG_LEVEL_TRACE_ITEM								(SERVER_LOG_LEVEL_PROPERTY->items + 3)
+#define SERVER_LOG_LEVEL_TRACE_BUS_ITEM						(SERVER_LOG_LEVEL_PROPERTY->items + 3)
+#define SERVER_LOG_LEVEL_TRACE_ITEM								(SERVER_LOG_LEVEL_PROPERTY->items + 4)
 
 #define SERVER_BLOB_BUFFERING_PROPERTY						blob_buffering_property
 #define SERVER_BLOB_BUFFERING_DISABLED_ITEM				(SERVER_BLOB_BUFFERING_PROPERTY->items + 0)
@@ -438,8 +438,6 @@ static bool runLoop = true;
 static pid_t server_pid = 0;
 static bool keep_server_running = true;
 static bool use_sigkill = false;
-static bool server_startup = true;
-static bool use_bonjour = true;
 static bool use_ctrl_panel = true;
 static bool use_web_apps = true;
 
@@ -702,26 +700,6 @@ static void *indigo_add_constellations_lines_json_resource() {
 	return data;
 }
 
-static void server_callback(int count) {
-	if (server_startup) {
-		char hostname[INDIGO_NAME_SIZE];
-		gethostname(hostname, sizeof(hostname));
-		if (use_bonjour) {
-			/* UGLY but the only way to suppress compat mode warning messages on Linux */
-			setenv("AVAHI_COMPAT_NOWARN", "1", 1);
-			if (*indigo_local_service_name == 0) {
-				indigo_service_name(hostname, indigo_server_tcp_port, indigo_local_service_name);
-			}
-			DNSServiceRegister(&sd_http, 0, 0, indigo_local_service_name, MDNS_HTTP_TYPE, NULL, NULL, htons(indigo_server_tcp_port), 0, NULL, NULL, NULL);
-			DNSServiceRegister(&sd_indigo, 0, 0, indigo_local_service_name, MDNS_INDIGO_TYPE, NULL, NULL, htons(indigo_server_tcp_port), 0, NULL, NULL, NULL);
-		}
-		strcpy(SERVER_INFO_SERVICE_ITEM->text.value, hostname);
-		server_startup = false;
-	} else {
-		INDIGO_LOG(indigo_log("%d clients", count));
-	}
-}
-
 #ifdef RPI_MANAGEMENT
 
 static indigo_result execute_command(indigo_device *device, indigo_property *property, char *command, ...) {
@@ -840,9 +818,14 @@ static void check_versions(indigo_device *device) {
 
 static indigo_result attach(indigo_device *device) {
 	assert(device != NULL);
+	char hostname[INDIGO_NAME_SIZE];
+	gethostname(hostname, sizeof(hostname));
+	if (*indigo_local_service_name == 0) {
+		indigo_service_name(hostname, indigo_server_tcp_port, indigo_local_service_name);
+	}
 	SERVER_INFO_PROPERTY = indigo_init_text_property(NULL, server_device.name, SERVER_INFO_PROPERTY_NAME, MAIN_GROUP, "Server info", INDIGO_OK_STATE, INDIGO_RO_PERM, 2);
 	indigo_init_text_item(SERVER_INFO_VERSION_ITEM, SERVER_INFO_VERSION_ITEM_NAME, "INDIGO version", "%d.%d-%s", INDIGO_VERSION_MAJOR(INDIGO_VERSION_CURRENT), INDIGO_VERSION_MINOR(INDIGO_VERSION_CURRENT), INDIGO_BUILD);
-	indigo_init_text_item(SERVER_INFO_SERVICE_ITEM, SERVER_INFO_SERVICE_ITEM_NAME, "INDIGO service", "");
+	indigo_init_text_item(SERVER_INFO_SERVICE_ITEM, SERVER_INFO_SERVICE_ITEM_NAME, "INDIGO service", indigo_local_service_name);
 	SERVER_DRIVERS_PROPERTY = indigo_init_switch_property(NULL, server_device.name, SERVER_DRIVERS_PROPERTY_NAME, MAIN_GROUP, "Available drivers", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, INDIGO_MAX_DRIVERS);
 	SERVER_DRIVERS_PROPERTY->count = 0;
 	for (int i = 0; i < INDIGO_MAX_DRIVERS; i++)
@@ -877,10 +860,11 @@ static indigo_result attach(indigo_device *device) {
 	indigo_init_text_item(SERVER_UNLOAD_ITEM,SERVER_UNLOAD_ITEM_NAME, "Unload driver", "");
 	SERVER_RESTART_PROPERTY = indigo_init_switch_property(NULL, server_device.name, SERVER_RESTART_PROPERTY_NAME, MAIN_GROUP, "Restart", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, 1);
 	indigo_init_switch_item(SERVER_RESTART_ITEM, SERVER_RESTART_ITEM_NAME, "Restart server", false);
-	SERVER_LOG_LEVEL_PROPERTY = indigo_init_switch_property(NULL, device->name, SERVER_LOG_LEVEL_PROPERTY_NAME, MAIN_GROUP, "Log level", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 4);
+	SERVER_LOG_LEVEL_PROPERTY = indigo_init_switch_property(NULL, device->name, SERVER_LOG_LEVEL_PROPERTY_NAME, MAIN_GROUP, "Log level", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 5);
 	indigo_init_switch_item(SERVER_LOG_LEVEL_ERROR_ITEM, SERVER_LOG_LEVEL_ERROR_ITEM_NAME, "Error", false);
 	indigo_init_switch_item(SERVER_LOG_LEVEL_INFO_ITEM, SERVER_LOG_LEVEL_INFO_ITEM_NAME, "Info", false);
 	indigo_init_switch_item(SERVER_LOG_LEVEL_DEBUG_ITEM, SERVER_LOG_LEVEL_DEBUG_ITEM_NAME, "Debug", false);
+	indigo_init_switch_item(SERVER_LOG_LEVEL_TRACE_BUS_ITEM, SERVER_LOG_LEVEL_TRACE_BUS_ITEM_NAME, "Trace bus", false);
 	indigo_init_switch_item(SERVER_LOG_LEVEL_TRACE_ITEM, SERVER_LOG_LEVEL_TRACE_ITEM_NAME, "Trace", false);
 	SERVER_BLOB_BUFFERING_PROPERTY = indigo_init_switch_property(NULL, device->name, SERVER_BLOB_BUFFERING_PROPERTY_NAME, MAIN_GROUP, "BLOB buffering", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 3);
 	indigo_init_switch_item(SERVER_BLOB_BUFFERING_DISABLED_ITEM, SERVER_BLOB_BUFFERING_DISABLED_ITEM_NAME, "Disabled", !indigo_use_blob_buffering);
@@ -890,7 +874,7 @@ static indigo_result attach(indigo_device *device) {
 	indigo_init_switch_item(SERVER_BLOB_PROXY_DISABLED_ITEM, SERVER_BLOB_PROXY_DISABLED_ITEM_NAME, "Disabled", !indigo_proxy_blob);
 	indigo_init_switch_item(SERVER_BLOB_PROXY_ENABLED_ITEM, SERVER_BLOB_PROXY_ENABLED_ITEM_NAME, "Enabled", indigo_proxy_blob);
 	SERVER_FEATURES_PROPERTY = indigo_init_switch_property(NULL, device->name, SERVER_FEATURES_PROPERTY_NAME, MAIN_GROUP, "Features", INDIGO_OK_STATE, INDIGO_RO_PERM, INDIGO_ONE_OF_MANY_RULE, 3);
-	indigo_init_switch_item(SERVER_BONJOUR_ITEM, SERVER_BONJOUR_ITEM_NAME, "Bonjour", use_bonjour);
+	indigo_init_switch_item(SERVER_BONJOUR_ITEM, SERVER_BONJOUR_ITEM_NAME, "Bonjour", indigo_use_bonjour);
 	indigo_init_switch_item(SERVER_CTRL_PANEL_ITEM, SERVER_CTRL_PANEL_ITEM_NAME, "Control panel / Server manager", use_ctrl_panel);
 	indigo_init_switch_item(SERVER_WEB_APPS_ITEM, SERVER_WEB_APPS_ITEM_NAME, "Web applications", use_web_apps);
 #ifdef RPI_MANAGEMENT
@@ -955,6 +939,9 @@ static indigo_result attach(indigo_device *device) {
 			break;
 		case INDIGO_LOG_DEBUG:
 			SERVER_LOG_LEVEL_DEBUG_ITEM->sw.value = true;
+			break;
+		case INDIGO_LOG_TRACE_BUS:
+			SERVER_LOG_LEVEL_TRACE_BUS_ITEM->sw.value = true;
 			break;
 		case INDIGO_LOG_TRACE:
 			SERVER_LOG_LEVEL_TRACE_ITEM->sw.value = true;
@@ -1186,6 +1173,8 @@ static indigo_result change_property(indigo_device *device, indigo_client *clien
 			indigo_set_log_level(INDIGO_LOG_INFO);
 		} else if (SERVER_LOG_LEVEL_DEBUG_ITEM->sw.value) {
 			indigo_set_log_level(INDIGO_LOG_DEBUG);
+		} else if (SERVER_LOG_LEVEL_TRACE_BUS_ITEM->sw.value) {
+			indigo_set_log_level(INDIGO_LOG_TRACE_BUS);
 		} else if (SERVER_LOG_LEVEL_TRACE_ITEM->sw.value) {
 			indigo_set_log_level(INDIGO_LOG_TRACE);
 		}
@@ -1422,7 +1411,7 @@ static void server_main() {
 			/* just skip it - handled above */
 			i++;
 		} else if (!strcmp(server_argv[i], "-b-") || !strcmp(server_argv[i], "--disable-bonjour")) {
-			use_bonjour = false;
+			indigo_use_bonjour = false;
 		} else if (!strcmp(server_argv[i], "-b") || !strcmp(server_argv[i], "--bonjour")) {
 			indigo_copy_name(indigo_local_service_name, server_argv[i + 1]);
 			i++;
@@ -1616,21 +1605,16 @@ static void server_main() {
 	indigo_attach_device(&server_device);
 
 #ifdef INDIGO_LINUX
-	indigo_server_start(server_callback);
+	indigo_server_start(NULL);
 #endif
 #ifdef INDIGO_MACOS
-	if (!indigo_async((void * (*)(void *))indigo_server_start, server_callback)) {
+	if (!indigo_async((void * (*)(void *))indigo_server_start, NULL)) {
 		INDIGO_ERROR(indigo_error("Error creating thread for server"));
 	}
 	runLoop = true;
 	while (runLoop) {
 		CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1, true);
 	}
-#endif
-
-#ifdef INDIGO_MACOS
-	DNSServiceRefDeallocate(sd_indigo);
-	DNSServiceRefDeallocate(sd_http);
 #endif
 
 	for (int i = 0; i < INDIGO_MAX_DRIVERS; i++) {
@@ -1720,6 +1704,7 @@ int main(int argc, const char * argv[]) {
 #endif /* RPI_MANAGEMENT */
 			       "       -v  | --enable-info\n"
 			       "       -vv | --enable-debug\n"
+						 "       -vvb| --enable-trace-bus\n"
 			       "       -vvv| --enable-trace\n"
 			       "       -r  | --remote-server host[:port]     (default port: 7624)\n"
 			       "       -x  | --enable-blob-proxy\n"

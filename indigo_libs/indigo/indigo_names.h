@@ -1731,6 +1731,15 @@
 #define MOUNT_ALIGNMENT_DELETE_ALL_POINTS_ITEM_NAME	"ALL"
 
 //----------------------------------------------------------------------
+/** MOUNT_ALIGNMENT_RESET property name.
+ */
+#define MOUNT_ALIGNMENT_RESET_PROPERTY_NAME	"MOUNT_ALIGNMENT_RESET"
+
+/** MOUNT_ALIGNMENT_RESET.RESET property item name.
+ */
+#define MOUNT_ALIGNMENT_RESET_ITEM_NAME	"RESET"
+
+//----------------------------------------------------------------------
 /** MOUNT_EPOCH property name.
  */
 #define MOUNT_EPOCH_PROPERTY_NAME							"MOUNT_EPOCH"
@@ -2764,6 +2773,7 @@
 #define SERVER_LOG_LEVEL_ERROR_ITEM_NAME							"ERROR"
 #define SERVER_LOG_LEVEL_INFO_ITEM_NAME								"INFO"
 #define SERVER_LOG_LEVEL_DEBUG_ITEM_NAME							"DEBUG"
+#define SERVER_LOG_LEVEL_TRACE_BUS_ITEM_NAME					"TRACE_BUS"
 #define SERVER_LOG_LEVEL_TRACE_ITEM_NAME							"TRACE"
 
 #define SERVER_BLOB_BUFFERING_PROPERTY_NAME						"BLOB_BUFFERING"

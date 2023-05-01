@@ -1,3 +1,20 @@
+2023.03.13(3.2.2)
+- Fix a issue that In some cases, the frame is incomplete in video mode
+- Add linux x86 lib
+- Add some convenience functions in 'ConvFuncs.h', hope to make it easier for you to use our SDK for development
+
+2023.03.01(3.2.1)
+- Fix the issue that get iamge data failed when switching RAW8 to RAW16 on linux and mac
+- Fix some cameras hot pixels increase issue when bin3
+- Add static version library
+
+2023.02.24(3.2.0)
+- Support PlayerOne new camera model(Artemis series)
+- Enhance the stability of data transmission when using USB2.0 on the linux and mac
+- Fix the issue of failing to get iamge data on Nvidia Jestson
+- Fix the image flickering issue of Saturn SQR series cameras when the exposure is in the range [1-3]s
+- Add the POAGetGainsAndOffsets function to get more preset gains and offsets
+
 2023.01.18(3.1.1)
 - Optimize gain settings for Poseidon series 
 - Fix that on PI, Snap Mode exposure, after stop exposure manually, start exposure again, can not get data from camera

@@ -25,7 +25,7 @@
  \file indigo_ccd_svb.c
  */
 
-#define DRIVER_VERSION 0x000F
+#define DRIVER_VERSION 0x0011
 #define DRIVER_NAME "indigo_ccd_svb"
 
 #include <stdlib.h>
@@ -39,8 +39,6 @@
 #include <indigo/indigo_driver_xml.h>
 
 #include "indigo_ccd_svb.h"
-
-#if !(defined(__APPLE__) && defined(__arm64__))
 
 #if defined(INDIGO_MACOS)
 #include <libusb-1.0/libusb.h>
@@ -180,7 +178,7 @@ static void svb_clear_video_buffer(indigo_device *device, bool aggressive) {
 		SVBSetControlValue(id, SVB_EXPOSURE, 1, SVB_FALSE);
 		indigo_usleep(10);
 	}
-	while (SVBGetVideoData(id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size, 100) == SVB_SUCCESS) {
+	while (SVBGetVideoData(id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size - FITS_HEADER_SIZE, 100) == SVB_SUCCESS) {
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Clearing video buffer %s", aggressive ? "aggressively" : "relaxed");
 	}
 	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Video buffer clean");
@@ -209,6 +207,20 @@ static bool svb_open(indigo_device *device) {
 			return false;
 		}
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "SVBOpenCamera(%d) = %d", id, res);
+
+		char min_version[64] = {0};
+		SVB_BOOL is_update_needed;
+		res = SVBIsCameraNeedToUpgrade(id, &is_update_needed, min_version);
+		if (res == SVB_SUCCESS && is_update_needed) {
+			indigo_send_message(device, "Warning: Camera firmware needs to be updated. Minimal required version: %s", min_version);
+			INDIGO_DRIVER_ERROR(DRIVER_NAME, "%s firmware needs to be updated. Minimal required version: %s", device->name, min_version);
+		} else {
+			if (res == SVB_SUCCESS) {
+				INDIGO_DRIVER_DEBUG(DRIVER_NAME, "%s firmware update not needed. Minimal required version: %s", device->name, min_version);
+			} else {
+				INDIGO_DRIVER_ERROR(DRIVER_NAME, "SVBIsCameraNeedToUpgrade(%d) = %d", id, res);
+			}
+		}
 
 		/* disable saving config - seems it leads to a deadlock */
 		res = SVBSetAutoSaveParam(id, SVB_FALSE);
@@ -450,7 +462,7 @@ static void exposure_timer_callback(indigo_device *device) {
 			break;
 		}
 		pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
-		res = SVBGetVideoData(id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size, 100);
+		res = SVBGetVideoData(id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size - FITS_HEADER_SIZE, 100);
 		pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
 		if (res == SVB_SUCCESS) {
 			CCD_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
@@ -564,7 +576,7 @@ static void streaming_timer_callback(indigo_device *device) {
 				break;
 			}
 			pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
-			res = SVBGetVideoData(id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size, 100);
+			res = SVBGetVideoData(id, PRIVATE_DATA->buffer + FITS_HEADER_SIZE, PRIVATE_DATA->buffer_size - FITS_HEADER_SIZE, 100);
 			pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
 			PRIVATE_DATA->can_check_temperature = true;
 			double remaining = CCD_STREAMING_EXPOSURE_ITEM->number.target - (time(NULL) - start);
@@ -1709,8 +1721,10 @@ static void process_plug_event(indigo_device *unused) {
 		char *p = strstr(info.FriendlyName, "(CAM");
 		if (p != NULL)
 			*p = '\0';
+
 		device->master_device = master_device;
-		sprintf(device->name, "%s #%d", info.FriendlyName, id);
+		sprintf(device->name, "%s", info.FriendlyName);
+		indigo_make_name_unique(device->name, "%d", id);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		svb_private_data *private_data = indigo_safe_malloc(sizeof(svb_private_data));
 		private_data->dev_id = id;
@@ -1728,7 +1742,8 @@ static void process_plug_event(indigo_device *unused) {
 			}
 			device = indigo_safe_malloc_copy(sizeof(indigo_device), &guider_template);
 			device->master_device = master_device;
-			sprintf(device->name, "%s Guider #%d", info.FriendlyName, id);
+			sprintf(device->name, "%s (guider)", info.FriendlyName);
+			indigo_make_name_unique(device->name, "%d", id);
 			INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 			//if (strstr("SV305", info.FriendlyName)) private_data->is_sv305 = true;
 			device->private_data = private_data;
@@ -1866,23 +1881,3 @@ indigo_result indigo_ccd_svb(indigo_driver_action action, indigo_driver_info *in
 
 	return INDIGO_OK;
 }
-
-
-#else
-
-indigo_result indigo_ccd_svb(indigo_driver_action action, indigo_driver_info *info) {
-	static indigo_driver_action last_action = INDIGO_DRIVER_SHUTDOWN;
-
-	SET_DRIVER_INFO(info, "SVBONY Camera", __FUNCTION__, DRIVER_VERSION, true, last_action);
-
-	switch(action) {
-		case INDIGO_DRIVER_INIT:
-		case INDIGO_DRIVER_SHUTDOWN:
-			return INDIGO_UNSUPPORTED_ARCH;
-		case INDIGO_DRIVER_INFO:
-			break;
-	}
-	return INDIGO_OK;
-}
-
-#endif
