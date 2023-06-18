@@ -220,7 +220,7 @@ char *ptp_property_nikon_code_name(uint16_t code) {
 		case ptp_property_nikon_CameraInclination: return "ADV_CameraInclination";
 		case ptp_property_nikon_ExposureIndexHi: return "ADV_ExposureIndexHi";
 	}
-	return ptp_property_nikon_code_label(code);
+	return ptp_property_code_name(code);
 }
 
 char *ptp_property_nikon_code_label(uint16_t code) {
@@ -718,7 +718,9 @@ static void ptp_check_event(indigo_device *device) {
 			buffer = NULL;
 		}
 	}
-	indigo_reschedule_timer(device, 1, &PRIVATE_DATA->event_checker);
+	if (IS_CONNECTED) {
+		indigo_reschedule_timer(device, 1, &PRIVATE_DATA->event_checker);
+	}
 }
 
 bool ptp_nikon_initialise(indigo_device *device) {
