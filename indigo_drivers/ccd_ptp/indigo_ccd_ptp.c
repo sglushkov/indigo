@@ -203,6 +203,14 @@ static void handle_connection(indigo_device *device) {
 		}
 		pthread_mutex_unlock(&PRIVATE_DATA->message_mutex);
 	} else {
+		PRIVATE_DATA->abort_capture = true;
+		while (true) {
+			if (pthread_mutex_trylock(&PRIVATE_DATA->message_mutex) == 0) {
+				pthread_mutex_unlock(&PRIVATE_DATA->message_mutex);
+				break;
+			}
+			indigo_usleep(10000);
+		}
     indigo_cancel_timer_sync(device, &PRIVATE_DATA->event_checker);
 		indigo_detach_device(PRIVATE_DATA->focuser);
 #ifndef USE_ICA_TRANSPORT
@@ -584,7 +592,7 @@ static indigo_device *attach_device(int vendor, int product, const char *usb_pat
 				private_data->lock = NULL;
 				private_data->af = ptp_sony_af;
 				private_data->zoom = NULL;
-				private_data->focus = NULL;
+				private_data->focus = ptp_sony_focus;
 				private_data->set_host_time = NULL;
 				private_data->check_dual_compression = ptp_sony_check_dual_compression;
 			} else if (vendor == FUJI_VID) {
