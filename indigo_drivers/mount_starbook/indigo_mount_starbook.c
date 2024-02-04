@@ -85,32 +85,32 @@ typedef struct {
 
 // -------------------------------------------------------------------------------- Ethernet support
 
-static bool get_host_ip(char *hostname , unsigned long *ip) {
-	struct addrinfo hints, *servinfo, *p;
-	int rv;
-
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_INET; // use AF_INET6 to force IPv6
-	hints.ai_socktype = SOCK_STREAM;
-
-	if ((rv = getaddrinfo(hostname, NULL, &hints, &servinfo)) != 0) {
-		INDIGO_DRIVER_ERROR(DRIVER_NAME, "getaddrinfo(): %s\n", gai_strerror(rv));
-		return false;
-	}
-
-	for(p = servinfo; p != NULL; p = p->ai_next) {
-		if(p->ai_family == AF_INET) {
-			*ip = ((struct sockaddr_in *)(p->ai_addr))->sin_addr.s_addr;
-			/* ip should be litle endian */
-			*ip = (*ip >> 24) | ((*ip << 8) & 0x00ff0000) | ((*ip >> 8) & 0x0000ff00) | (*ip << 24);
-			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "IP: 0x%X\n", *ip);
-			freeaddrinfo(servinfo);
-			return true;
-		}
-	}
-	freeaddrinfo(servinfo);
-	return false;
-}
+//static bool get_host_ip(char *hostname , unsigned long *ip) {
+//	struct addrinfo hints, *servinfo, *p;
+//	int rv;
+//
+//	memset(&hints, 0, sizeof hints);
+//	hints.ai_family = AF_INET; // use AF_INET6 to force IPv6
+//	hints.ai_socktype = SOCK_STREAM;
+//
+//	if ((rv = getaddrinfo(hostname, NULL, &hints, &servinfo)) != 0) {
+//		INDIGO_DRIVER_ERROR(DRIVER_NAME, "getaddrinfo(): %s\n", gai_strerror(rv));
+//		return false;
+//	}
+//
+//	for(p = servinfo; p != NULL; p = p->ai_next) {
+//		if(p->ai_family == AF_INET) {
+//			*ip = ((struct sockaddr_in *)(p->ai_addr))->sin_addr.s_addr;
+//			/* ip should be litle endian */
+//			*ip = (*ip >> 24) | ((*ip << 8) & 0x00ff0000) | ((*ip >> 8) & 0x0000ff00) | (*ip << 24);
+//			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "IP: 0x%X\n", *ip);
+//			freeaddrinfo(servinfo);
+//			return true;
+//		}
+//	}
+//	freeaddrinfo(servinfo);
+//	return false;
+//}
 
 
 static int connect_with_timeout(int sock, const struct sockaddr *name, int namelen, struct timeval timeout) {
@@ -236,13 +236,13 @@ static bool starbook_http_get(indigo_device *device, const char *path, char *res
 	//   GET /path HTTP/1.0\r\n
 	//   Host: example.com\r\n
 	//   \r\n
-	const int port_len = (strcmp(port, "80") == 0) ? 0 : (1 + strlen(port));
+	const int port_len = (strcmp(port, "80") == 0) ? 0 : (1 + (int)strlen(port));
 	int message_length = (
 		4     // "GET "
-		+ strlen(path)  // /path
+		+ (int)strlen(path)  // /path
 		+ 11  // " HTTP/1.0\r\n"
 		+ 6   // "Host: "
-		+ strlen(host) + port_len
+		+ (int)strlen(host) + port_len
 		+ 4   // "\r\n\r\n"
 	);
 	char *message = (char *)malloc(message_length + 1);
@@ -264,7 +264,7 @@ static bool starbook_http_get(indigo_device *device, const char *path, char *res
 
 	int read_size = 0;
 	while (true) {
-		int size = read(sock, &result[read_size], length - read_size);
+		int size = (int)read(sock, &result[read_size], length - read_size);
 		if (size == 0) {
 			break;
 		} else if (size < 0) {
@@ -312,13 +312,13 @@ static bool starbook_get(indigo_device *device, const char *path, char *buffer, 
 		return false;
 	}
 	// find comment part
-	char *beg = strcasestr(temp, "<!--");
-	char *end = strcasestr(temp, "-->");
+	char *beg = strstr(temp, "<!--");
+	char *end = strstr(temp, "-->");
 	int beg_tag_len = 4;
 	if (beg == NULL || end == NULL) {
 		// new API?
-		beg = strcasestr(temp, "</HEAD>");
-		end = strcasestr(temp, "</html>");
+		beg = strstr(temp, "</HEAD>");
+		end = strstr(temp, "</html>");
 		beg_tag_len = 7;
 		if (beg == NULL || end == NULL) {
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "Error: Unknown response: %s", temp);
@@ -326,7 +326,7 @@ static bool starbook_get(indigo_device *device, const char *path, char *buffer, 
 		}
 	}
 	// check size of response
-	const int response_size = end - (beg + beg_tag_len);
+	const int response_size = (int)(end - (beg + beg_tag_len));
 	if (response_size >= length) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "Error: not enough memory");
 		return false;
@@ -379,7 +379,6 @@ static const char *starbook_error_text(int code) {
 
 
 static bool starbook_set(indigo_device *device, const char *path, int *error) {
-	const char *host = DEVICE_PORT_ITEM->text.value;
 	if (error) {
 		*error = STARBOOK_NO_ERROR;
 	}
@@ -414,7 +413,7 @@ static bool starbook_set(indigo_device *device, const char *path, int *error) {
 
 static bool starbook_parse_query_value(const char *query, const char *key, char *value, int size) {
 	// search query key
-	const char *beg = strcasestr(query, key);
+	const char *beg = strstr(query, key);
 	if (beg == NULL) {
 		// not found
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "Error: key \"%s\" was not found: %s", key, query);
@@ -427,13 +426,13 @@ static bool starbook_parse_query_value(const char *query, const char *key, char 
 	// search query delimiter
 	int len = 0;
 	const char *end = strstr(beg, "&");
-	const int offset = beg - query + strlen(key);
+	const int offset = (int)(beg - query + strlen(key));
 	if (end == NULL) {
 		// last query
-		len = strlen(query) - offset;
+		len = (int)(strlen(query) - offset);
 	} else {
 		// found delimiter
-		len = end - beg - strlen(key);
+		len = (int)(end - beg - strlen(key));
 	}
 	// check memory size
 	if (len >= size) {
@@ -485,7 +484,6 @@ static bool starbook_parse_query_degree_minute(const char *query, const char *ke
 		*sign = s;
 	}
 	const char *beg = (s < 0) ? &temp[1] : temp;
-	int len = 0;
 	const char *sep = strstr(beg, "+");
 	if (sep == NULL) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "Error: Delimiter was not found: %s", temp);
@@ -621,7 +619,7 @@ static bool starbook_get_place(indigo_device *device, double *lng, double *lat, 
 		if (pos == NULL || pos - temp <= 0) {
 			return false;
 		}
-		int len = pos - temp;
+		int len = (int)(pos - temp);
 		char temp2[128];
 		if (len >= sizeof(temp2)) {
 			return false;
@@ -631,7 +629,7 @@ static bool starbook_get_place(indigo_device *device, double *lng, double *lat, 
 		temp2[len-1] = 0;
 		*lng = atoi(temp2);
 		// get minute part; "00"
-		int len2 = strlen(temp) - len - 1;  // -1 means skip the "+"
+		int len2 = (int)strlen(temp) - len - 1;  // -1 means skip the "+"
 		memcpy(temp2, &temp[len+1], len2+1);  // len2+1 means include NULL letter
 		*lng += atof(temp2) / 60.0;
 		// apply sign
@@ -655,7 +653,7 @@ static bool starbook_get_place(indigo_device *device, double *lng, double *lat, 
 		if (pos == NULL || pos - temp <= 0) {
 			return false;
 		}
-		int len = pos - temp;
+		int len = (int)(pos - temp);
 		char temp2[128];
 		if (len >= sizeof(temp2)) {
 			return false;
@@ -665,7 +663,7 @@ static bool starbook_get_place(indigo_device *device, double *lng, double *lat, 
 		temp2[len-1] = 0;
 		*lat = atoi(temp2);
 		// get minute part; "00"
-		int len2 = strlen(temp) - len - 1;  // -1 means skip the "+"
+		int len2 = (int)strlen(temp) - len - 1;  // -1 means skip the "+"
 		memcpy(temp2, &temp[len+1], len2+1);  // len2+1 means include NULL letter
 		*lat += atof(temp2) / 60.0;
 		// apply sign
@@ -831,7 +829,6 @@ static bool starbook_get_track_status(indigo_device *device, int *state) {
 		return false;
 	}
 	if (state) {
-		char temp[128] = {};
 		if (!starbook_parse_query_int(buffer, "TRACK=", state)) {
 			return false;
 		}
@@ -1335,7 +1332,6 @@ static indigo_result mount_change_property(indigo_device *device, indigo_client 
 	} else if (indigo_property_match_changeable(MOUNT_EQUATORIAL_COORDINATES_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- MOUNT_EQUATORIAL_COORDINATES
 		indigo_property_copy_values(MOUNT_EQUATORIAL_COORDINATES_PROPERTY, property, false);
-		char buffer[128];
 		double ra = MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value;
 		double dec = MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.value;
 		int error = STARBOOK_NO_ERROR;
@@ -1480,9 +1476,6 @@ static indigo_result guider_attach(indigo_device *device) {
 	assert(device != NULL);
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_guider_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
-		DEVICE_PORT_PROPERTY->hidden = false;
-		strcpy(DEVICE_PORT_ITEM->text.value, STARBOOK_DEFAULT_IP_ADDR);
-
 		pthread_mutex_init(&PRIVATE_DATA->port_mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_guider_enumerate_properties(device, NULL, NULL);
@@ -1495,7 +1488,7 @@ static void guider_connect_callback(indigo_device *device) {
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		bool result = true;
 		if (PRIVATE_DATA->device_count++ == 0) {
-			result = starbook_open(device);
+			result = starbook_open(device->master_device);
 		}
 		if (result) {
 			CONNECTION_PROPERTY->state = INDIGO_OK_STATE;

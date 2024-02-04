@@ -154,20 +154,28 @@ static bool ieq_open(indigo_device *device) {
 	char response[128] = "";
 	char *name = DEVICE_PORT_ITEM->text.value;
 	if (!indigo_is_device_url(name, "ieq")) {
-		PRIVATE_DATA->handle = indigo_open_serial_with_speed(name, 9600);
-		if (PRIVATE_DATA->handle > 0) {
-			bool reopenAt115200 = true;
-			if (ieq_command(device, ":V#", response, sizeof(response)) && *response == 'V') {
-				reopenAt115200 = false;
-			} else if (ieq_command(device, ":MountInfo#", response, sizeof(response)) && strlen(response) >= 4) {
-				reopenAt115200 = false;
-			}
-			if (reopenAt115200) {
+		if (DEVICE_BAUDRATE_ITEM->text.value[0] != '\0') {
+			PRIVATE_DATA->handle = indigo_open_serial_with_config(name, DEVICE_BAUDRATE_ITEM->text.value);
+			if (!ieq_command(device, ":MountInfo#", response, sizeof(response)) || strlen(response) < 4) {
 				close(PRIVATE_DATA->handle);
-				PRIVATE_DATA->handle = indigo_open_serial_with_speed(name, 115200);
-				if (!ieq_command(device, ":MountInfo#", response, sizeof(response)) || strlen(response) < 4) {
+				PRIVATE_DATA->handle = -1;
+			}
+		} else {
+			PRIVATE_DATA->handle = indigo_open_serial_with_speed(name, 9600);
+			if (PRIVATE_DATA->handle > 0) {
+				bool reopenAt115200 = true;
+				if (ieq_command(device, ":V#", response, sizeof(response)) && *response == 'V') {
+					reopenAt115200 = false;
+				} else if (ieq_command(device, ":MountInfo#", response, sizeof(response)) && strlen(response) >= 4) {
+					reopenAt115200 = false;
+				}
+				if (reopenAt115200) {
 					close(PRIVATE_DATA->handle);
-					PRIVATE_DATA->handle = -1;
+					PRIVATE_DATA->handle = indigo_open_serial_with_speed(name, 115200);
+					if (!ieq_command(device, ":MountInfo#", response, sizeof(response)) || strlen(response) < 4) {
+						close(PRIVATE_DATA->handle);
+						PRIVATE_DATA->handle = -1;
+					}
 				}
 			}
 		}
@@ -748,7 +756,7 @@ static void position_timer_callback(indigo_device *device) {
 }
 
 static void mount_connect_callback(indigo_device *device) {
-	char command[128] = "", response[128] = "";
+	char response[128] = "";
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		bool result = true;
@@ -1850,6 +1858,8 @@ static indigo_result mount_attach(indigo_device *device) {
 		MOUNT_SET_HOST_TIME_PROPERTY->hidden = false;
 		MOUNT_UTC_TIME_PROPERTY->hidden = false;
 		MOUNT_TRACK_RATE_PROPERTY->count = 5;
+		DEVICE_BAUDRATE_PROPERTY->hidden = false;
+		*DEVICE_BAUDRATE_ITEM->text.value = 0;
 		// -------------------------------------------------------------------------------- MOUNT_HOME
 		MOUNT_HOME_PROPERTY = indigo_resize_property(MOUNT_HOME_PROPERTY, 2);
 		if (MOUNT_HOME_PROPERTY == NULL)

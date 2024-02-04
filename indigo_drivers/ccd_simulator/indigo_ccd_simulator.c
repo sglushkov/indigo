@@ -23,7 +23,7 @@
  \file indigo_ccd_simulator.c
  */
 
-#define DRIVER_VERSION 0x0013
+#define DRIVER_VERSION 0x0015
 #define DRIVER_NAME	"indigo_ccd_simulator"
 //#define ENABLE_BACKLASH_PROPERTY
 
@@ -49,8 +49,6 @@
 #define IMAGER_HEIGHT       		1200
 #define DSLR_WIDTH        			1600
 #define DSLR_HEIGHT       			1200
-#define GUIDER_WIDTH        		1600
-#define GUIDER_HEIGHT       		1200
 
 // can be changed
 #define GUIDER_MAX_MAG					8
@@ -106,6 +104,9 @@
 #define FILE_NAME_PROPERTY					PRIVATE_DATA->file_name_property
 #define FILE_NAME_ITEM							(FILE_NAME_PROPERTY->items + 0)
 
+#define BAYERPAT_PROPERTY						PRIVATE_DATA->bayerpat_property
+#define BAYERPAT_ITEM								(BAYERPAT_PROPERTY->items + 0)
+
 #define FOCUSER_SETTINGS_PROPERTY		PRIVATE_DATA->focuser_settings_property
 #define FOCUSER_SETTINGS_FOCUS_ITEM	(FOCUSER_SETTINGS_PROPERTY->items + 0)
 #define FOCUSER_SETTINGS_BL_ITEM		(FOCUSER_SETTINGS_PROPERTY->items + 1)
@@ -128,14 +129,15 @@ typedef struct {
 	indigo_property *guider_mode_property;
 	indigo_property *guider_settings_property;
 	indigo_property *file_name_property;
+	indigo_property *bayerpat_property;
 	indigo_property *focuser_settings_property;
 	double ra, dec;
 	double lat, lon;
 	double ew_error, ns_error;
 	double lst;
 	int star_count, star_x[GUIDER_MAX_STARS], star_y[GUIDER_MAX_STARS], star_a[GUIDER_MAX_STARS], hotpixel_x[GUIDER_MAX_HOTPIXELS + 1], hotpixel_y[GUIDER_MAX_HOTPIXELS + 1];
-	char imager_image[FITS_HEADER_SIZE + 3 * IMAGER_WIDTH * IMAGER_HEIGHT + 2880];
-	char guider_image[FITS_HEADER_SIZE + 3 * GUIDER_WIDTH * GUIDER_HEIGHT + 2880];
+	char imager_image[FITS_HEADER_SIZE + 2 * IMAGER_WIDTH * IMAGER_HEIGHT + 2880];
+	char *guider_image;
 	char dslr_image[FITS_HEADER_SIZE + 3 * DSLR_WIDTH * DSLR_HEIGHT + 2880];
 	char *file_image, *raw_file_image;
 	indigo_raw_header file_image_header;
@@ -306,7 +308,7 @@ static void create_frame(indigo_device *device) {
 		}
 		void *data_out;
 		unsigned long size_out;
-		indigo_raw_to_jpeg(device, PRIVATE_DATA->dslr_image, DSLR_WIDTH, DSLR_HEIGHT, 24, true, true, &data_out, &size_out, NULL, NULL);
+		indigo_raw_to_jpeg(device, PRIVATE_DATA->dslr_image + FITS_HEADER_SIZE, DSLR_WIDTH, DSLR_HEIGHT, 24, NULL, &data_out, &size_out, NULL, NULL, 0, 0);
 		if (CCD_PREVIEW_ENABLED_ITEM->sw.value)
 			indigo_process_dslr_preview_image(device, data_out, (int)size_out);
 		indigo_process_dslr_image(device, data_out, (int)size_out, ".jpeg", CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE);
@@ -328,7 +330,7 @@ static void create_frame(indigo_device *device) {
 				break;
 		}
 		int size = PRIVATE_DATA->file_image_header.width * PRIVATE_DATA->file_image_header.height * bpp / 8;
-#if 1 // move image
+#if 0 // move image
 		static int frame_counter = 0;
 		static int x_offset = 0;
 		static int y_offset = 0;
@@ -344,7 +346,12 @@ static void create_frame(indigo_device *device) {
 #else
 		memcpy(PRIVATE_DATA->file_image, PRIVATE_DATA->raw_file_image, size + FITS_HEADER_SIZE);
 #endif
-		indigo_process_image(device, PRIVATE_DATA->file_image, PRIVATE_DATA->file_image_header.width, PRIVATE_DATA->file_image_header.height, bpp, true, true, NULL, CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE);
+		indigo_fits_keyword keywords[] = {
+			{ INDIGO_FITS_STRING, "BAYERPAT", .string = BAYERPAT_ITEM->text.value, "Bayer color pattern" },
+			{ 0 }
+		};
+
+		indigo_process_image(device, PRIVATE_DATA->file_image, PRIVATE_DATA->file_image_header.width, PRIVATE_DATA->file_image_header.height, bpp, true, true, strlen(BAYERPAT_ITEM->text.value) == 4 ? keywords : NULL, CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE);
 	} else {
 		uint16_t *raw = (uint16_t *)((device == PRIVATE_DATA->guider ? PRIVATE_DATA->guider_image : PRIVATE_DATA->imager_image) + FITS_HEADER_SIZE);
 		int horizontal_bin = (int)CCD_BIN_HORIZONTAL_ITEM->number.value;
@@ -665,6 +672,8 @@ static indigo_result ccd_attach(indigo_device *device) {
 		} else if (device == PRIVATE_DATA->file) {
 			FILE_NAME_PROPERTY = indigo_init_text_property(NULL, device->name, "FILE_NAME", MAIN_GROUP, "File name", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
 			indigo_init_text_item(FILE_NAME_ITEM, "PATH", "Path", "");
+			BAYERPAT_PROPERTY = indigo_init_text_property(NULL, device->name, "BAYERPAT", MAIN_GROUP, "BAYERPAT header", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
+			indigo_init_text_item(BAYERPAT_ITEM, "BAYERPAT", "BAYERPAT", "");
 			CCD_BIN_PROPERTY->hidden = true;
 			CCD_INFO_PROPERTY->hidden = true;
 			CCD_FRAME_PROPERTY->perm = INDIGO_RO_PERM;
@@ -704,6 +713,7 @@ static indigo_result ccd_attach(indigo_device *device) {
 				CCD_INFO_WIDTH_ITEM->number.value = CCD_FRAME_WIDTH_ITEM->number.max = CCD_FRAME_LEFT_ITEM->number.max = CCD_FRAME_WIDTH_ITEM->number.value = GUIDER_IMAGE_WIDTH_ITEM->number.target;
 				CCD_INFO_HEIGHT_ITEM->number.value = CCD_FRAME_HEIGHT_ITEM->number.max = CCD_FRAME_TOP_ITEM->number.max = CCD_FRAME_HEIGHT_ITEM->number.value = GUIDER_IMAGE_HEIGHT_ITEM->number.target;
 				PRIVATE_DATA->ra = PRIVATE_DATA->dec = -1000;
+				PRIVATE_DATA->guider_image = indigo_safe_malloc(FITS_HEADER_SIZE + 2 * GUIDER_IMAGE_WIDTH_ITEM->number.value * GUIDER_IMAGE_HEIGHT_ITEM->number.value + 2880);
 			} else {
 				CCD_INFO_WIDTH_ITEM->number.value = CCD_FRAME_WIDTH_ITEM->number.max = CCD_FRAME_LEFT_ITEM->number.max = CCD_FRAME_WIDTH_ITEM->number.value = IMAGER_WIDTH;
 				CCD_INFO_HEIGHT_ITEM->number.value = CCD_FRAME_HEIGHT_ITEM->number.max = CCD_FRAME_TOP_ITEM->number.max = CCD_FRAME_HEIGHT_ITEM->number.value = IMAGER_HEIGHT;
@@ -791,6 +801,8 @@ static indigo_result ccd_enumerate_properties(indigo_device *device, indigo_clie
 		if (device == PRIVATE_DATA->file) {
 			if (indigo_property_match(FILE_NAME_PROPERTY, property))
 				indigo_define_property(device, FILE_NAME_PROPERTY, NULL);
+			if (indigo_property_match(BAYERPAT_PROPERTY, property))
+				indigo_define_property(device, BAYERPAT_PROPERTY, NULL);
 		}
 		if (device == PRIVATE_DATA->guider) {
 			if (indigo_property_match(GUIDER_MODE_PROPERTY, property))
@@ -905,6 +917,12 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		indigo_property_copy_values(FILE_NAME_PROPERTY, property, false);
 		FILE_NAME_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_update_property(device, FILE_NAME_PROPERTY, NULL);
+		return INDIGO_OK;
+	} else if (indigo_property_match_changeable(BAYERPAT_PROPERTY, property)) {
+		// -------------------------------------------------------------------------------- BAYERPAT
+		indigo_property_copy_values(BAYERPAT_PROPERTY, property, false);
+		BAYERPAT_PROPERTY->state = INDIGO_OK_STATE;
+		indigo_update_property(device, BAYERPAT_PROPERTY, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match_changeable(CONNECTION_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CONNECTION
@@ -1053,6 +1071,7 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 			indigo_define_property(device, CCD_MODE_PROPERTY, NULL);
 		}
 		PRIVATE_DATA->lst = 0;
+		PRIVATE_DATA->guider_image = indigo_safe_realloc(PRIVATE_DATA->guider_image, FITS_HEADER_SIZE + 2 * GUIDER_IMAGE_WIDTH_ITEM->number.value * GUIDER_IMAGE_HEIGHT_ITEM->number.value + 2880);
 		GUIDER_SETTINGS_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_update_property(device, GUIDER_SETTINGS_PROPERTY, NULL);
 		return INDIGO_OK;
@@ -1088,6 +1107,7 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 				indigo_save_property(device, NULL, GUIDER_SETTINGS_PROPERTY);
 			} else if (device == PRIVATE_DATA->file) {
 				indigo_save_property(device, NULL, FILE_NAME_PROPERTY);
+				indigo_save_property(device, NULL, BAYERPAT_PROPERTY);
 			}
 		}
 	}
@@ -1110,7 +1130,9 @@ static indigo_result ccd_detach(indigo_device *device) {
 		indigo_release_property(DSLR_BATTERY_LEVEL_PROPERTY);
 	} else if (device == PRIVATE_DATA->file) {
 		indigo_release_property(FILE_NAME_PROPERTY);
+		indigo_release_property(BAYERPAT_PROPERTY);
 	} else if (device == PRIVATE_DATA->guider) {
+		indigo_safe_free(PRIVATE_DATA->guider_image);
 		indigo_release_property(GUIDER_MODE_PROPERTY);
 		indigo_release_property(GUIDER_SETTINGS_PROPERTY);
 	}

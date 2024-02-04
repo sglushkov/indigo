@@ -21,7 +21,7 @@
 #---------------------------------------------------------------------
 
 INDIGO_VERSION = 2.0
-INDIGO_BUILD = 242
+INDIGO_BUILD = 271
 
 # Keep the suffix empty for official releases
 INDIGO_BUILD_SUFFIX =
@@ -47,7 +47,7 @@ INSTALL_SHARE = $(INSTALL_ROOT)/usr/local/share
 INSTALL_RULES = $(INSTALL_ROOT)/lib/udev/rules.d
 INSTALL_FIRMWARE = $(INSTALL_ROOT)/lib/firmware
 
-STABLE_DRIVERS = agent_alignment agent_auxiliary agent_guider agent_imager agent_lx200_server agent_mount agent_snoop ao_sx aux_cloudwatcher aux_dragonfly aux_dsusb aux_fbc aux_flatmaster aux_flipflat aux_joystick aux_mgbox aux_ppb aux_sqm aux_upb aux_usbdp ccd_altair ccd_apogee ccd_asi ccd_atik ccd_dsi ccd_fli ccd_iidc ccd_mi ccd_ptp ccd_qsi ccd_sbig ccd_simulator ccd_ssag ccd_sx ccd_touptek ccd_uvc dome_dragonfly dome_nexdome3 dome_simulator focuser_asi focuser_dmfc focuser_dsd focuser_efa focuser_fcusb focuser_fli focuser_focusdreampro focuser_lunatico focuser_moonlite focuser_steeldrive2 focuser_usbv3 focuser_wemacro gps_gpsd gps_nmea gps_simulator guider_asi guider_cgusbst4 guider_gpusb mount_asi mount_ioptron mount_lx200 mount_nexstar mount_nexstaraux mount_pmc8 mount_simulator mount_synscan mount_temma rotator_lunatico rotator_simulator system_ascol wheel_asi wheel_atik wheel_fli wheel_manual wheel_qhy wheel_sx aux_rpio ccd_ica focuser_wemacro_bt guider_eqmac focuser_mypro2 agent_astrometry mount_rainbow agent_scripting focuser_mjkzz focuser_mjkzz_bt dome_talon6ror aux_geoptikflat ccd_svb agent_astap ccd_playerone agent_config ccd_omegonpro ccd_ssg ccd_rising ccd_mallin wheel_playerone ccd_ogma aux_uch
+STABLE_DRIVERS = agent_alignment agent_auxiliary agent_guider agent_imager agent_lx200_server agent_mount agent_snoop ao_sx aux_cloudwatcher aux_dragonfly aux_dsusb aux_fbc aux_flatmaster aux_flipflat aux_joystick aux_mgbox aux_ppb aux_sqm aux_upb aux_usbdp ccd_altair ccd_apogee ccd_asi ccd_atik ccd_dsi ccd_fli ccd_iidc ccd_mi ccd_ptp ccd_qsi ccd_sbig ccd_simulator ccd_ssag ccd_sx ccd_touptek ccd_uvc dome_dragonfly dome_nexdome3 dome_simulator focuser_asi focuser_dmfc focuser_dsd focuser_efa focuser_fcusb focuser_fli focuser_focusdreampro focuser_lunatico focuser_moonlite focuser_steeldrive2 focuser_usbv3 focuser_wemacro gps_gpsd gps_nmea gps_simulator guider_asi guider_cgusbst4 guider_gpusb mount_asi mount_ioptron mount_lx200 mount_nexstar mount_nexstaraux mount_pmc8 mount_simulator mount_synscan mount_temma rotator_lunatico rotator_simulator system_ascol wheel_asi wheel_atik wheel_fli wheel_manual wheel_qhy wheel_sx aux_rpio ccd_ica focuser_wemacro_bt guider_eqmac focuser_mypro2 agent_astrometry mount_rainbow agent_scripting focuser_mjkzz focuser_mjkzz_bt dome_talon6ror aux_geoptikflat ccd_svb agent_astap ccd_playerone agent_config ccd_omegonpro ccd_ssg ccd_rising ccd_mallin wheel_playerone ccd_ogma aux_uch aux_wcv4ec aux_wbprov3 aux_wbplusv3
 UNSTABLE_DRIVERS = ccd_qhy ccd_qhy2
 UNTESTED_DRIVERS = aux_arteskyflat aux_rts dome_baader dome_nexdome focuser_lakeside focuser_nfocus focuser_nstep focuser_optec focuser_robofocus wheel_optec wheel_quantum wheel_trutek wheel_xagyl dome_skyroof aux_skyalert agent_alpaca dome_beaver focuser_astromechanics aux_astromechanics rotator_optec mount_starbook focuser_prodigy wheel_indigo rotator_falcon focuser_primaluce
 DEVELOPED_DRIVERS =
@@ -78,7 +78,7 @@ else
 			MAC_ARCH = -arch x86_64
 		endif
 		CFLAGS = $(DEBUG_BUILD) $(MAC_ARCH) -mmacosx-version-min=10.10 -fPIC -O3 -isystem$(INDIGO_ROOT)/indigo_libs -I$(INDIGO_ROOT)/indigo_drivers -I$(INDIGO_ROOT)/indigo_mac_drivers -I$(BUILD_INCLUDE) -std=gnu11 -DINDIGO_MACOS -Duint=unsigned
-		CXXFLAGS = $(DEBUG_BUILD) $(MAC_ARCH) -mmacosx-version-min=10.10 -fPIC -O3 -isystem$(INDIGO_ROOT)/indigo_libs -I$(INDIGO_ROOT)/indigo_drivers -I$(INDIGO_ROOT)/indigo_mac_drivers -I$(BUILD_INCLUDE) -DINDIGO_MACOS
+		CXXFLAGS = $(DEBUG_BUILD) $(MAC_ARCH) -mmacosx-version-min=10.10 -fPIC -O3 -isystem$(INDIGO_ROOT)/indigo_libs -I$(INDIGO_ROOT)/indigo_drivers -I$(INDIGO_ROOT)/indigo_mac_drivers -I$(BUILD_INCLUDE) -std=gnu++11 -DINDIGO_MACOS
 		MFLAGS = $(DEBUG_BUILD) $(MAC_ARCH) -mmacosx-version-min=10.10 -fPIC -fno-common -O3 -fobjc-arc -isystem$(INDIGO_ROOT)/indigo_libs -I$(INDIGO_ROOT)/indigo_drivers -I$(INDIGO_ROOT)/indigo_mac_drivers -I$(BUILD_INCLUDE) -std=gnu11 -DINDIGO_MACOS -Wobjc-property-no-attribute
 		LDFLAGS = $(DEBUG_BUILD) $(MAC_ARCH) -headerpad_max_install_names -framework Cocoa -mmacosx-version-min=10.10 -framework CoreFoundation -framework IOKit -framework ImageCaptureCore -framework IOBluetooth -lobjc  -L$(BUILD_LIB)
 		ARFLAGS = -static -o
@@ -246,6 +246,7 @@ package: reconfigure init all
 ifeq ($(ARCH_DETECTED),$(filter $(ARCH_DETECTED),arm arm64))
 	install -d $(INSTALL_ROOT)/usr/bin
 	install -m 0755 tools/rpi_ctrl.sh $(INSTALL_ROOT)/usr/bin
+	install -m 0755 tools/rpi_ctrl_v2.sh $(INSTALL_ROOT)/usr/bin
 	install -m 0755 tools/wifi_channel_selector.pl $(INSTALL_ROOT)/usr/bin
 endif
 	install -d $(INSTALL_ROOT)/usr/sbin

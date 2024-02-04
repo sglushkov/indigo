@@ -603,7 +603,7 @@ static void sync_installed_indexes(indigo_device *device, char *dir, indigo_prop
 					char signature[7]={0};
 					FILE *fp=fopen(path,"rb");
 					if (fp) {
-						size_t read = fread(signature, 6, 1, fp);
+						fread(signature, 6, 1, fp);
 						fclose(fp);
 						if (strncmp(signature, "SIMPLE", 6)) {
 							failed = true;
@@ -813,13 +813,13 @@ static void kill_children() {
 	indigo_device *device = agent_device;
 	if (device && device->private_data) {
 		if (ASTROMETRY_DEVICE_PRIVATE_DATA->pid)
-			kill(-ASTROMETRY_DEVICE_PRIVATE_DATA->pid, SIGTERM);
+			kill(-ASTROMETRY_DEVICE_PRIVATE_DATA->pid, SIGKILL);
 		indigo_device **additional_devices = DEVICE_CONTEXT->additional_device_instances;
 		if (additional_devices) {
 			for (int i = 0; i < MAX_ADDITIONAL_INSTANCES; i++) {
 				device = additional_devices[i];
 				if (device && device->private_data && ASTROMETRY_DEVICE_PRIVATE_DATA->pid)
-					kill(-ASTROMETRY_DEVICE_PRIVATE_DATA->pid, SIGTERM);
+					kill(-ASTROMETRY_DEVICE_PRIVATE_DATA->pid, SIGKILL);
 			}
 		}
 	}

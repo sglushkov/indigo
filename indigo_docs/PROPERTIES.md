@@ -421,12 +421,20 @@ To be used by auxiliary devices like powerboxes, weather stations, etc.
 | FILTER_CCD_LIST | switch | no | yes | ... | yes | Select CCD |
 | FILTER_WHEEL_LIST | switch | no | yes | ... | yes | Select wheel |
 | FILTER_FOCUSER_LIST | switch | no | yes | ... | yes | Select focuser |
+| FILTER_ROTATOR_LIST | switch | no | yes | ... | yes | Select rotator |
+| FILTER_RELATED_AGENT_LIST | switch | no | yes | ... | yes | Select related agents |
+| FILTER_FORCE_SYMMETRIC_RELATIONS | switch | no | yes | ENABLED | yes | Set symmetric relation |
+|  |  |  |  | DISABLED | yes | |
 | AGENT_START_PROCESS | switch | no | yes | EXPOSURE | yes | Start exposure |
 |  |  |  |  | STREAMING | yes | Start streaming |
+| AGENT_PAUSE_PROCESS | switch | no | yes | PAUSE | yes | Pause batch immediately (abort running capture) or resume |
+|  |  |  |  | PAUSE_WAIT | yes | Pause batch after running capture or resume |
+|  |  |  |  | PAUSE_AFTER_TRANSIT | yes | Resume batch paused at configured transit time (e.g. after meridian flip) |
 | AGENT_ABORT_PROCESS | switch | no | yes | ABORT | yes | Abort running process |
 | AGENT_IMAGER_BATCH | number | no | yes | COUNT | yes | Frame count |
 |  |  |  |  | EXPOSURE | yes | Exposure duration (in seconds) |
 |  |  |  |  | DELAY | yes | Delay between exposures duration (in seconds) |
+|  |  |  |  | PAUSE_AFTER_TRANSIT | yes | Pause batch when transit time reached; e.g. before meridian flip; use 24:00:00 to turn it off  |
 | AGENT_IMAGER_DOWNLOADFILE | text | no | yes | FILE | yes | Files to load into AGENT_IMAGER_DOWNLOAD_IMAGE property and remove on the host |
 | AGENT_IMAGER_DOWNLOADFILES | switch | no | yes | REFRESH | yes | Refresh the list of available files |
 |  |  |  |  | file name | yes | Set the file to AGENT_IMAGER_DOWNLOADFILE |
@@ -442,6 +450,9 @@ To be used by auxiliary devices like powerboxes, weather stations, etc.
 | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
 | FILTER_CCD_LIST | switch | no | yes | ... | yes | Select CCD |
 | FILTER_GUIDER_LIST | switch | no | yes | ... | yes | Select guider |
+| FILTER_RELATED_AGENT_LIST | switch | no | yes | ... | yes | Select related agents |
+| FILTER_FORCE_SYMMETRIC_RELATIONS | switch | no | yes | ENABLED | yes | Set symmetric relation |
+|  |  |  |  | DISABLED | yes | |
 | AGENT_IMAGER_BATCH | switch | no | yes | PREVIEW | yes | Start preview |
 |  |  |  |  | CALIBRATION | yes | Start calibration |
 |  |  |  |  | GUIDING | yes | Start guiding |
@@ -489,6 +500,9 @@ To be used by auxiliary devices like powerboxes, weather stations, etc.
 | FILTER_DOME_LIST | switch | no | yes | ... | yes | Select dome |
 | FILTER_MOUNT_LIST | switch | no | yes | ... | yes | Select mount |
 | FILTER_GPS_LIST | switch | no | yes | ... | yes | Select GPS |
+| FILTER_RELATED_AGENT_LIST | switch | no | yes | ... | yes | Select related agents |
+| FILTER_FORCE_SYMMETRIC_RELATIONS | switch | no | yes | ENABLED | yes | Set symmetric relation |
+|  |  |  |  | DISABLED | yes | |
 | GEOGRAPHIC_COORDINATES | number | no | yes | LATITUDE | yes | Observatory coordinates |
 |  |  |  |  | LONGITUDE | yes | |
 |  |  |  |  | ELEVATION | yes | |

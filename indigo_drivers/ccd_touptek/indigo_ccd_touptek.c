@@ -23,7 +23,7 @@
  \file indigo_ccd_touptek.c
  */
 
-#define DRIVER_VERSION 0x001F
+#define DRIVER_VERSION 0x0020
 
 #include <stdlib.h>
 #include <string.h>
@@ -323,8 +323,6 @@ static void pull_callback(unsigned event, void* callbackCtx) {
 
 	indigo_fits_keyword keywords[] = {
 		{ INDIGO_FITS_STRING, "BAYERPAT", .string = PRIVATE_DATA->bayer_pattern, "Bayer color pattern" },
-		{ INDIGO_FITS_NUMBER, "XBAYROFF", .number = 0, "X offset of Bayer array" },
-		{ INDIGO_FITS_NUMBER, "YBAYROFF", .number = 0, "Y offset of Bayer array" },
 		{ 0 }
 	};
 	indigo_fits_keyword *fits_keywords = NULL;
@@ -772,7 +770,7 @@ static void ccd_connect_callback(indigo_device *device) {
 				}
 			}
 			PRIVATE_DATA->mode = PRIVATE_DATA->left = PRIVATE_DATA->top = PRIVATE_DATA->width = PRIVATE_DATA->height = -1;
-			unsigned binning = 1;
+			int binning = 1;
 			result = SDK_CALL(get_Option)(PRIVATE_DATA->handle, SDK_DEF(OPTION_BINNING), &binning);
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "get_Option(OPTION_BINNING, ->%d) -> %08x", binning, result);
 			CCD_BIN_HORIZONTAL_ITEM->number.value =
@@ -1022,7 +1020,7 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		PRIVATE_DATA->aborting = false;
 		result = SDK_CALL(Trigger)(PRIVATE_DATA->handle, 1);
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Trigger(1) -> %08x", result);
-		double whatchdog_timeout = (CCD_EXPOSURE_ITEM->number.target > 20) ? 1.5 * CCD_EXPOSURE_ITEM->number.target : CCD_EXPOSURE_ITEM->number.target + 10;
+		double whatchdog_timeout = (CCD_EXPOSURE_ITEM->number.target > 50) ? 1.5 * CCD_EXPOSURE_ITEM->number.target : CCD_EXPOSURE_ITEM->number.target + 25;
 		indigo_set_timer(device, whatchdog_timeout, exposure_watchdog_callback, &PRIVATE_DATA->exposure_watchdog_timer);
 		pthread_mutex_unlock(&PRIVATE_DATA->mutex);
 	} else if (indigo_property_match_changeable(CCD_STREAMING_PROPERTY, property)) {
@@ -1454,12 +1452,10 @@ struct oem_2_toupcam {
 
 int OEMCamEnum(ToupcamDeviceV2 *cams, int max_count) {
 	int oem_count = 0;
-	int usb_count;
 	libusb_device **list;
-	usb_count = libusb_get_device_list(NULL, &list);
+	int usb_count = (int)libusb_get_device_list(NULL, &list);
 	for (int i = 0; (i < usb_count) && (oem_count < max_count); i++) {
 		libusb_device *dev = list[i];
-		const struct oem_camera *cam;
 		struct libusb_device_descriptor desc;
 		libusb_get_device_descriptor(dev, &desc);
 		for (int j = 0; oem_2_toupcam[j].name != NULL; j++) {

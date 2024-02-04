@@ -24,7 +24,7 @@
  \file indigo_mount_nexstar.c
  */
 
-#define DRIVER_VERSION 0x0018
+#define DRIVER_VERSION 0x0019
 #define DRIVER_NAME	"indigo_mount_nexstar"
 
 #include <stdlib.h>
@@ -100,13 +100,11 @@ static indigo_result gps_change_property(indigo_device *device, indigo_client *c
 static indigo_result gps_detach(indigo_device *device);
 
 static bool mount_open(indigo_device *device) {
-	if (device->is_connected)
-		return false;
 	if (PRIVATE_DATA->count_open++ == 0) {
 		int dev_id = open_telescope(DEVICE_PORT_ITEM->text.value);
 		if (dev_id == -1) {
-			pthread_mutex_unlock(&PRIVATE_DATA->serial_mutex);
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "open_telescope(%s) = %d (%s)", DEVICE_PORT_ITEM->text.value, dev_id, strerror(errno));
+			pthread_mutex_unlock(&PRIVATE_DATA->serial_mutex);
 			PRIVATE_DATA->count_open--;
 			return false;
 		} else {
@@ -123,8 +121,6 @@ static bool mount_open(indigo_device *device) {
 }
 
 static void mount_close(indigo_device *device) {
-	if (!device->is_connected)
-		return;
 	if (--PRIVATE_DATA->count_open == 0) {
 		close_telescope(PRIVATE_DATA->dev_id);
 		PRIVATE_DATA->dev_id = -1;
@@ -344,6 +340,10 @@ static void mount_handle_connect(indigo_device *device) {
 				}
 				TRACKING_MODE_PROPERTY->state = INDIGO_OK_STATE;
 				int mode = tc_get_tracking_mode(dev_id);
+				if (mode < 0) { /* hack: sometimes "t" returns garbage at connect if so we repeat it */
+					indigo_usleep(ONE_SECOND_DELAY*0.1);
+					mode = tc_get_tracking_mode(dev_id);
+				}
 				if (mode < 0) {
 					INDIGO_DRIVER_ERROR(DRIVER_NAME, "tc_get_tracking_mode(%d) = %d (%s)", dev_id, mode, strerror(errno));
 					MOUNT_TRACKING_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -1099,7 +1099,7 @@ static void guider_handle_connect(indigo_device *device) {
 	pthread_mutex_lock(&PRIVATE_DATA->serial_mutex);
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		if (!device->is_connected) {
-			if (mount_open(device)) {
+			if (mount_open(device->master_device)) {
 				device->is_connected = true;
 				indigo_define_property(device, COMMAND_GUIDE_RATE_PROPERTY, NULL);
 				PRIVATE_DATA->guider_timer_ra = NULL;
@@ -1138,10 +1138,6 @@ static indigo_result guider_attach(indigo_device *device) {
 	assert(device != NULL);
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_guider_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
-		// -------------------------------------------------------------------------------- DEVICE_PORT
-		DEVICE_PORT_PROPERTY->hidden = false;
-		// -------------------------------------------------------------------------------- DEVICE_PORTS
-		DEVICE_PORTS_PROPERTY->hidden = false;
 		// --------------------------------------------------------------------------------
 		PRIVATE_DATA->guide_rate = 1; /* 1 -> 0.5 siderial rate , 2 -> siderial rate */
 		COMMAND_GUIDE_RATE_PROPERTY = indigo_init_switch_property(NULL, device->name, COMMAND_GUIDE_RATE_PROPERTY_NAME, GUIDER_MAIN_GROUP, "Guide rate", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 2);
@@ -1315,7 +1311,7 @@ indigo_result indigo_mount_nexstar(indigo_driver_action action, indigo_driver_in
 	if (action == last_action)
 		return INDIGO_OK;
 
-	//INDIGO_DEBUG(tc_debug = indigo_debug);
+	INDIGO_DEBUG(tc_debug = indigo_debug);
 
 	switch (action) {
 	case INDIGO_DRIVER_INIT:

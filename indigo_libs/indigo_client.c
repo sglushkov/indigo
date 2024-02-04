@@ -381,7 +381,11 @@ static void *server_thread(indigo_server_entry *server) {
 			inet_ntop(AF_INET, &((struct sockaddr_in *)address->ai_addr)->sin_addr, text, sizeof(text));
 #endif
 			if (result < 0) {
+#if defined(INDIGO_WINDOWS)
+				closesocket(server->socket);
+#else
 				close(server->socket);
+#endif
 				server->socket = -1;
 				INDIGO_LOG(indigo_log("Can't connect to socket %s:%d (%s)", text, ntohs(((struct sockaddr_in *)address->ai_addr)->sin_port), strerror(errno)));
 				strncpy(server->last_error, strerror(errno), sizeof(server->last_error));
@@ -549,7 +553,7 @@ indigo_result indigo_format_number(char *buffer, int buffer_size, char *format, 
 	} else if (!strcmp(format + format_length - 2, "5m")) {
 		snprintf(buffer, buffer_size, "%d:%04.1f", (int)value, m);
 		return INDIGO_OK;
-	} else if (!strcmp(format + format_length - 2, "4m")) {
+	} else if (!strcmp(format + format_length - 2, "3m")) {
 		snprintf(buffer, buffer_size, "%d:%02d", (int)value, (int)m);
 		return INDIGO_OK;
 	} else if (!strcmp(format + format_length - 1, "m")) {

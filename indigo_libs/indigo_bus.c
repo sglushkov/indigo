@@ -363,7 +363,7 @@ void indigo_trace_property(const char *message, indigo_client *client, indigo_pr
 					break;
 				case INDIGO_NUMBER_VECTOR:
 					if (defs)
-						indigo_trace_bus("B <+   '%s' = %g (%g, %g, %g) // %s", item->name, item->number.value, item->number.min, item->number.max, item->number.step, item->label);
+						indigo_trace_bus("B <+   '%s' = %g (%g, %g, %g, '%s') // %s", item->name, item->number.value, item->number.min, item->number.max, item->number.step, item->number.format, item->label);
 					else
 						indigo_trace_bus("B <+   '%s' = %g ",item->name, item->number.value);
 					break;
@@ -806,11 +806,12 @@ indigo_property *indigo_init_text_property(indigo_property *property, const char
 	assert(device != NULL);
 	assert(name != NULL);
 	int size = sizeof(indigo_property)+count*(sizeof(indigo_item));
+	int allocated_count = count;
 	if (property == NULL) {
 		property = indigo_safe_malloc(size);
-		property->allocated_count = count;
 	} else {
 		property = indigo_resize_property(property, count);
+		allocated_count = property->allocated_count;
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -822,6 +823,7 @@ indigo_property *indigo_init_text_property(indigo_property *property, const char
 	property->perm = perm;
 	property->version = INDIGO_VERSION_CURRENT;
 	property->count = count;
+	property->allocated_count = allocated_count;
 	return property;
 }
 
@@ -829,11 +831,12 @@ indigo_property *indigo_init_number_property(indigo_property *property, const ch
 	assert(device != NULL);
 	assert(name != NULL);
 	int size = sizeof(indigo_property) + count * sizeof(indigo_item);
+	int allocated_count = count;
 	if (property == NULL) {
 		property = indigo_safe_malloc(size);
-		property->allocated_count = count;
 	} else {
 		property = indigo_resize_property(property, count);
+		allocated_count = property->allocated_count;
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -845,6 +848,7 @@ indigo_property *indigo_init_number_property(indigo_property *property, const ch
 	property->perm = perm;
 	property->version = INDIGO_VERSION_CURRENT;
 	property->count = count;
+	property->allocated_count = allocated_count;
 	return property;
 }
 
@@ -852,11 +856,12 @@ indigo_property *indigo_init_switch_property(indigo_property *property, const ch
 	assert(device != NULL);
 	assert(name != NULL);
 	int size = sizeof(indigo_property) + count * sizeof(indigo_item);
+	int allocated_count = count;
 	if (property == NULL) {
 		property = indigo_safe_malloc(size);
-		property->allocated_count = count;
 	} else {
 		property = indigo_resize_property(property, count);
+		allocated_count = property->allocated_count;
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -869,6 +874,7 @@ indigo_property *indigo_init_switch_property(indigo_property *property, const ch
 	property->rule = rule;
 	property->version = INDIGO_VERSION_CURRENT;
 	property->count = count;
+	property->allocated_count = allocated_count;
 	return property;
 }
 
@@ -876,11 +882,12 @@ indigo_property *indigo_init_light_property(indigo_property *property, const cha
 	assert(device != NULL);
 	assert(name != NULL);
 	int size = sizeof(indigo_property) + count * sizeof(indigo_item);
+	int allocated_count = count;
 	if (property == NULL) {
 		property = indigo_safe_malloc(size);
-		property->allocated_count = count;
 	} else {
 		property = indigo_resize_property(property, count);
+		allocated_count = property->allocated_count;
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -892,6 +899,7 @@ indigo_property *indigo_init_light_property(indigo_property *property, const cha
 	property->state = state;
 	property->version = INDIGO_VERSION_CURRENT;
 	property->count = count;
+	property->allocated_count = allocated_count;
 	return property;
 }
 
@@ -902,13 +910,16 @@ indigo_property *indigo_init_blob_property(indigo_property *property, const char
 indigo_property *indigo_init_blob_property_p(indigo_property *property, const char *device, const char *name, const char *group, const char *label, indigo_property_state state, indigo_property_perm perm, int count) {
 	assert(device != NULL);
 	assert(name != NULL);
-	assert(perm == INDIGO_RO_PERM || perm == INDIGO_WO_PERM);
+	if (perm == INDIGO_RW_PERM) {
+		perm = INDIGO_RO_PERM;
+	}
 	int size = sizeof(indigo_property) + count * sizeof(indigo_item);
+	int allocated_count = count;
 	if (property == NULL) {
 		property = indigo_safe_malloc(size);
-		property->allocated_count = count;
 	} else {
 		property = indigo_resize_property(property, count);
+		allocated_count = property->allocated_count;
 	}
 	memset(property, 0, size);
 	indigo_copy_name(property->device, device);
@@ -920,6 +931,7 @@ indigo_property *indigo_init_blob_property_p(indigo_property *property, const ch
 	property->state = state;
 	property->version = INDIGO_VERSION_CURRENT;
 	property->count = count;
+	property->allocated_count = allocated_count;
 	return property;
 }
 
@@ -1062,6 +1074,7 @@ void indigo_init_blob_item(indigo_item *item, const char *name, const char *labe
 }
 
 void *indigo_alloc_blob_buffer(long size) {
+	size += 2880;
 	int mod2880 = size % 2880;
 	if (mod2880) {
 		return indigo_safe_malloc(size + 2880 - mod2880);
@@ -1807,22 +1820,63 @@ char* indigo_dtos(double value, char *format) { // circular use of 4 static buff
 	double m = 60.0 * (d - floor(d));
 	double s = 60.0 * (m - floor(m));
 
-	static char string_1[128], string_2[128], string_3[128], string_4[128], buf[128];
+	if (format == NULL) {
+		format = "%d:%02d:%05.2f";
+	}
+
+	char buf[127];
+	static char string_1[128], string_2[128], string_3[128], string_4[128];
 	static char *string = string_4;
-	if (string == string_1)
+	if (string == string_1) {
 		string = string_2;
-	else if (string == string_2)
+	} else if (string == string_2) {
 		string = string_3;
-	else if (string == string_3)
+	} else if (string == string_3) {
 		string = string_4;
-	else if (string == string_4)
+	} else if (string == string_4) {
 		string = string_1;
-	if (format == NULL)
-		snprintf(buf, 128, "%d:%02d:%05.2f", (int)d, (int)m, (int)(s*100.0)/100.0);
-	else if (format[strlen(format) - 1] == 'd')
-		snprintf(buf, 128, format, (int)d, (int)m, (int)s);
-	else
-		snprintf(buf, 128, format, (int)d, (int)m, s);
+	}
+
+	int format_len = strlen(format);
+	if (format[format_len - 1] == 'd') {
+		s = round(s);
+		if (s >= 60) {
+			s = 0;
+			m++;
+		}
+		if (m >= 60) {
+			m = 0;
+			d++;
+		}
+		snprintf(buf, sizeof(buf), format, (int)d, (int)m, (int)s);
+	} else if (format[format_len - 1] == 'f') {
+		if (format[format_len - 3] == '.') {
+			if (format[format_len - 2] == '0') {
+				s = round(s);
+			} else if (format[format_len - 2] == '1') {
+				s = (round(s*10.0))/10.0;
+			} else if (format[format_len - 2] == '2') {
+				s = (round(s*100.0))/100.0;
+			} else if (format[format_len - 2] == '3') {
+				s = (round(s*1000.0))/1000.0;
+			}
+		} else {
+			s = (round(s*10000.0))/10000.0;
+		}
+
+		if (s >= 60) {
+			s = 0;
+			m++;
+		}
+		if (m >= 60) {
+			m = 0;
+			d++;
+		}
+		snprintf(buf, sizeof(buf), format, (int)d, (int)m, s);
+	} else {
+		snprintf(buf, sizeof(buf), format, (int)d, (int)m, s);
+	}
+
 	if (value < 0) {
 		if (buf[0] == '+') {
 			buf[0] = '-';

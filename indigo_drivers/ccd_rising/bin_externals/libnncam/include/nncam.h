@@ -1,7 +1,7 @@
 #ifndef __nncam_h__
 #define __nncam_h__
 
-/* Version: 54.22993.20230723 */
+/* Version: 55.24390.20240108 */
 /*
    Platform & Architecture:
        (1) Win32:
@@ -167,6 +167,10 @@ typedef struct Nncam_t { int unused; } *HNncam;
 #define NNCAM_FLAG_LIGHT_SOURCE        0x0004000000000000  /* stand alone light source */
 #define NNCAM_FLAG_CAMERALINK          0x0008000000000000  /* camera link */
 #define NNCAM_FLAG_CXP                 0x0010000000000000  /* CXP: CoaXPress */
+#define NNCAM_FLAG_RAW12PACK           0x0020000000000000  /* pixel format, RAW 12bits packed */
+#define NNCAM_FLAG_SELFTRIGGER         0x0040000000000000  /* self trigger */
+#define NNCAM_FLAG_RAW11               0x0080000000000000  /* pixel format, RAW 11bits */
+#define NNCAM_FLAG_GHOPTO              0x0100000000000000  /* ghopto sensor */
 
 #define NNCAM_EXPOGAIN_DEF             100     /* exposure gain, default value */
 #define NNCAM_EXPOGAIN_MIN             100     /* exposure gain, minimum value */
@@ -198,11 +202,12 @@ typedef struct Nncam_t { int unused; } *HNncam;
 #define NNCAM_WBGAIN_MIN               (-127)  /* white balance gain */
 #define NNCAM_WBGAIN_MAX               127     /* white balance gain */
 #define NNCAM_BLACKLEVEL_MIN           0       /* minimum black level */
-#define NNCAM_BLACKLEVEL8_MAX          31              /* maximum black level for bit depth = 8 */
-#define NNCAM_BLACKLEVEL10_MAX         (31 * 4)        /* maximum black level for bit depth = 10 */
-#define NNCAM_BLACKLEVEL12_MAX         (31 * 16)       /* maximum black level for bit depth = 12 */
-#define NNCAM_BLACKLEVEL14_MAX         (31 * 64)       /* maximum black level for bit depth = 14 */
-#define NNCAM_BLACKLEVEL16_MAX         (31 * 256)      /* maximum black level for bit depth = 16 */
+#define NNCAM_BLACKLEVEL8_MAX          31              /* maximum black level for bitdepth = 8 */
+#define NNCAM_BLACKLEVEL10_MAX         (31 * 4)        /* maximum black level for bitdepth = 10 */
+#define NNCAM_BLACKLEVEL11_MAX         (31 * 8)        /* maximum black level for bitdepth = 11 */
+#define NNCAM_BLACKLEVEL12_MAX         (31 * 16)       /* maximum black level for bitdepth = 12 */
+#define NNCAM_BLACKLEVEL14_MAX         (31 * 64)       /* maximum black level for bitdepth = 14 */
+#define NNCAM_BLACKLEVEL16_MAX         (31 * 256)      /* maximum black level for bitdepth = 16 */
 #define NNCAM_SHARPENING_STRENGTH_DEF  0       /* sharpening strength */
 #define NNCAM_SHARPENING_STRENGTH_MIN  0       /* sharpening strength */
 #define NNCAM_SHARPENING_STRENGTH_MAX  500     /* sharpening strength */
@@ -215,6 +220,9 @@ typedef struct Nncam_t { int unused; } *HNncam;
 #define NNCAM_AUTOEXPO_THRESHOLD_DEF   5       /* auto exposure threshold */
 #define NNCAM_AUTOEXPO_THRESHOLD_MIN   2       /* auto exposure threshold */
 #define NNCAM_AUTOEXPO_THRESHOLD_MAX   15      /* auto exposure threshold */
+#define NNCAM_AUTOEXPO_STEP_DEF        1000    /* auto exposure step: thousandths */
+#define NNCAM_AUTOEXPO_STEP_MIN        1       /* auto exposure step: thousandths */
+#define NNCAM_AUTOEXPO_STEP_MAX        1000    /* auto exposure step: thousandths */
 #define NNCAM_BANDWIDTH_DEF            100     /* bandwidth */
 #define NNCAM_BANDWIDTH_MIN            1       /* bandwidth */
 #define NNCAM_BANDWIDTH_MAX            100     /* bandwidth */
@@ -222,20 +230,20 @@ typedef struct Nncam_t { int unused; } *HNncam;
 #define NNCAM_DENOISE_MIN              0       /* denoise */
 #define NNCAM_DENOISE_MAX              100     /* denoise */
 #define NNCAM_TEC_TARGET_MIN           (-500)  /* TEC target: -50.0 degrees Celsius */
-#define NNCAM_TEC_TARGET_DEF           100     /* 0.0 degrees Celsius */
+#define NNCAM_TEC_TARGET_DEF           100     /* 10.0 degrees Celsius */
 #define NNCAM_TEC_TARGET_MAX           400     /* TEC target: 40.0 degrees Celsius */
 #define NNCAM_HEARTBEAT_MIN            100     /* millisecond */
 #define NNCAM_HEARTBEAT_MAX            10000   /* millisecond */
-#define NNCAM_AE_PERCENT_MIN           0       /* auto exposure percent, 0 => full roi average */
+#define NNCAM_AE_PERCENT_MIN           0       /* auto exposure percent; 0 or 100 => full roi average, means "disabled" */
 #define NNCAM_AE_PERCENT_MAX           100
-#define NNCAM_AE_PERCENT_DEF           10
+#define NNCAM_AE_PERCENT_DEF           10      /* auto exposure percent: enabled, percentage = 10% */
 #define NNCAM_NOPACKET_TIMEOUT_MIN     500     /* no packet timeout minimum: 500ms */
 #define NNCAM_NOFRAME_TIMEOUT_MIN      500     /* no frame timeout minimum: 500ms */
-#define NNCAM_DYNAMIC_DEFECT_T1_MIN    10      /* dynamic defect pixel correction */
-#define NNCAM_DYNAMIC_DEFECT_T1_MAX    100
-#define NNCAM_DYNAMIC_DEFECT_T1_DEF    13
-#define NNCAM_DYNAMIC_DEFECT_T2_MIN    0
-#define NNCAM_DYNAMIC_DEFECT_T2_MAX    100
+#define NNCAM_DYNAMIC_DEFECT_T1_MIN    10      /* dynamic defect pixel correction, threshold, means: 1.0 */
+#define NNCAM_DYNAMIC_DEFECT_T1_MAX    100     /* means: 10.0 */
+#define NNCAM_DYNAMIC_DEFECT_T1_DEF    13      /* means: 1.3 */
+#define NNCAM_DYNAMIC_DEFECT_T2_MIN    0       /* dynamic defect pixel correction, value, means: 0.00 */
+#define NNCAM_DYNAMIC_DEFECT_T2_MAX    100     /* means: 1.00 */
 #define NNCAM_DYNAMIC_DEFECT_T2_DEF    100
 #define NNCAM_HDR_K_MIN                1       /* HDR synthesize */
 #define NNCAM_HDR_K_MAX                25500
@@ -264,8 +272,8 @@ typedef struct {
     unsigned            still;       /* number of still resolution, same as Nncam_get_StillResolutionNumber() */
     unsigned            maxfanspeed; /* maximum fan speed, fan speed range = [0, max], closed interval */
     unsigned            ioctrol;     /* number of input/output control */
-    float               xpixsz;      /* physical pixel size */
-    float               ypixsz;      /* physical pixel size */
+    float               xpixsz;      /* physical pixel size in micrometer */
+    float               ypixsz;      /* physical pixel size in micrometer */
     NncamResolution   res[16];
 } NncamModelV2; /* camera model v2 */
 
@@ -281,7 +289,7 @@ typedef struct {
 } NncamDeviceV2; /* camera instance for enumerating */
 
 /*
-    get the version of this dll/so/dylib, which is: 54.22993.20230723
+    get the version of this dll/so/dylib, which is: 55.24390.20240108
 */
 #if defined(_WIN32)
 NNCAM_API(const wchar_t*)   Nncam_Version();
@@ -336,10 +344,10 @@ NNCAM_API(void)     Nncam_Close(HNncam h);
 #define NNCAM_EVENT_LEVELRANGE        0x000c    /* level range changed */
 #define NNCAM_EVENT_AUTOEXPO_CONV     0x000d    /* auto exposure convergence */
 #define NNCAM_EVENT_AUTOEXPO_CONVFAIL 0x000e    /* auto exposure once mode convergence failed */
+#define NNCAM_EVENT_FPNC              0x000f    /* fix pattern noise correction status changed */
 #define NNCAM_EVENT_ERROR             0x0080    /* generic error */
 #define NNCAM_EVENT_DISCONNECTED      0x0081    /* camera disconnected */
 #define NNCAM_EVENT_NOFRAMETIMEOUT    0x0082    /* no frame timeout error */
-#define NNCAM_EVENT_AFFEEDBACK        0x0083    /* auto focus feedback information */
 #define NNCAM_EVENT_FOCUSPOS          0x0084    /* focus positon */
 #define NNCAM_EVENT_NOPACKETTIMEOUT   0x0085    /* no packet timeout */
 #define NNCAM_EVENT_EXPO_START        0x4000    /* hardware event: exposure start */
@@ -358,13 +366,13 @@ NNCAM_API(HRESULT)  Nncam_StartPullModeWithWndMsg(HNncam h, HWND hWnd, UINT nMsg
 typedef void (__stdcall* PNNCAM_EVENT_CALLBACK)(unsigned nEvent, void* ctxEvent);
 NNCAM_API(HRESULT)  Nncam_StartPullModeWithCallback(HNncam h, PNNCAM_EVENT_CALLBACK funEvent, void* ctxEvent);
 
-#define NNCAM_FRAMEINFO_FLAG_SEQ          0x0001 /* frame sequence number */
-#define NNCAM_FRAMEINFO_FLAG_TIMESTAMP    0x0002 /* timestamp */
-#define NNCAM_FRAMEINFO_FLAG_EXPOTIME     0x0004 /* exposure time */
-#define NNCAM_FRAMEINFO_FLAG_EXPOGAIN     0x0008 /* exposure gain */
-#define NNCAM_FRAMEINFO_FLAG_BLACKLEVEL   0x0010 /* black level */
-#define NNCAM_FRAMEINFO_FLAG_SHUTTERSEQ   0x0020 /* sequence shutter counter */
-#define NNCAM_FRAMEINFO_FLAG_STILL        0x8000 /* still image */
+#define NNCAM_FRAMEINFO_FLAG_SEQ          0x00000001 /* frame sequence number */
+#define NNCAM_FRAMEINFO_FLAG_TIMESTAMP    0x00000002 /* timestamp */
+#define NNCAM_FRAMEINFO_FLAG_EXPOTIME     0x00000004 /* exposure time */
+#define NNCAM_FRAMEINFO_FLAG_EXPOGAIN     0x00000008 /* exposure gain */
+#define NNCAM_FRAMEINFO_FLAG_BLACKLEVEL   0x00000010 /* black level */
+#define NNCAM_FRAMEINFO_FLAG_SHUTTERSEQ   0x00000020 /* sequence shutter counter */
+#define NNCAM_FRAMEINFO_FLAG_STILL        0x00008000 /* still image */
 
 typedef struct {
     unsigned            width;
@@ -379,6 +387,8 @@ typedef struct {
 } NncamFrameInfoV3;
 
 /*
+    nWaitMS: The timeout interval, in milliseconds. If a nonzero value is specified, the function waits until the image is ok or the interval elapses.
+             If nWaitMS is zero, the function does not enter a wait state if the image is not available; it always returns immediately; this is equal to Nncam_PullImageV3.
     bStill: to pull still image, set to 1, otherwise 0
     bits: 24 (RGB24), 32 (RGB32), 48 (RGB48), 8 (Grey), 16 (Grey), 64 (RGB64).
           In RAW mode, this parameter is ignored.
@@ -399,7 +409,7 @@ typedef struct {
             | bits = 8           | Convert to 8  |       NA      | Convert to 8  |       8       |       NA      |       NA      |
             |--------------------|---------------|---------------|---------------|---------------|---------------|---------------|
             | bits = 16          |      NA       | Convert to 16 |       NA      |       NA      |       16      | Convert to 16 |
-            |--------------------|---------------|-----------|-------------------|---------------|---------------|---------------|
+            |--------------------|---------------|---------------|---------------|---------------|---------------|---------------|
             | bits = 64          |      NA       | Convert to 64 |       NA      |       NA      | Convert to 64 |       64      |
             |--------------------|---------------|---------------|---------------|---------------|---------------|---------------|
 
@@ -419,6 +429,7 @@ typedef struct {
             |-----------|------------------------|-------------------------------|-----------------------|
 */
 NNCAM_API(HRESULT)  Nncam_PullImageV3(HNncam h, void* pImageData, int bStill, int bits, int rowPitch, NncamFrameInfoV3* pInfo);
+NNCAM_API(HRESULT)  Nncam_WaitImageV3(HNncam h, unsigned nWaitMS, void* pImageData, int bStill, int bits, int rowPitch, NncamFrameInfoV3* pInfo);
 
 typedef struct {
     unsigned            width;
@@ -632,6 +643,17 @@ NNCAM_API(HRESULT)  Nncam_DfcExport(HNncam h, const char* filepath);
 NNCAM_API(HRESULT)  Nncam_DfcImport(HNncam h, const char* filepath);
 #endif
 
+/* Fix Pattern Noise Correction */
+NNCAM_API(HRESULT)  Nncam_FpncOnce(HNncam h);
+
+#if defined(_WIN32)
+NNCAM_API(HRESULT)  Nncam_FpncExport(HNncam h, const wchar_t* filepath);
+NNCAM_API(HRESULT)  Nncam_FpncImport(HNncam h, const wchar_t* filepath);
+#else
+NNCAM_API(HRESULT)  Nncam_FpncExport(HNncam h, const char* filepath);
+NNCAM_API(HRESULT)  Nncam_FpncImport(HNncam h, const char* filepath);
+#endif
+
 NNCAM_API(HRESULT)  Nncam_put_Hue(HNncam h, int Hue);
 NNCAM_API(HRESULT)  Nncam_get_Hue(HNncam h, int* Hue);
 NNCAM_API(HRESULT)  Nncam_put_Saturation(HNncam h, int Saturation);
@@ -660,7 +682,7 @@ NNCAM_API(HRESULT)  Nncam_get_MaxSpeed(HNncam h); /* get the maximum speed, see 
 
 NNCAM_API(HRESULT)  Nncam_get_FanMaxSpeed(HNncam h); /* get the maximum fan speed, the fan speed range = [0, max], closed interval */
 
-NNCAM_API(HRESULT)  Nncam_get_MaxBitDepth(HNncam h); /* get the max bit depth of this camera, such as 8, 10, 12, 14, 16 */
+NNCAM_API(HRESULT)  Nncam_get_MaxBitDepth(HNncam h); /* get the max bitdepth of this camera, such as 8, 10, 12, 14, 16 */
 
 /* power supply of lighting:
         0 => 60HZ AC
@@ -800,7 +822,7 @@ NNCAM_API(HRESULT)  Nncam_feed_Pipe(HNncam h, unsigned pipeId);
                                              
 #define NNCAM_OPTION_NOFRAME_TIMEOUT        0x01       /* no frame timeout: 0 => disable, positive value (>= NNCAM_NOFRAME_TIMEOUT_MIN) => timeout milliseconds. default: disable */
 #define NNCAM_OPTION_THREAD_PRIORITY        0x02       /* set the priority of the internal thread which grab data from the usb device.
-                                                             Win: iValue: 0 = THREAD_PRIORITY_NORMAL; 1 = THREAD_PRIORITY_ABOVE_NORMAL; 2 = THREAD_PRIORITY_HIGHEST; 3 = THREAD_PRIORITY_TIME_CRITICAL; default: 1; see: https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadpriority
+                                                             Win: iValue: 0 => THREAD_PRIORITY_NORMAL; 1 => THREAD_PRIORITY_ABOVE_NORMAL; 2 => THREAD_PRIORITY_HIGHEST; 3 => THREAD_PRIORITY_TIME_CRITICAL; default: 1; see: https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadpriority
                                                              Linux & macOS: The high 16 bits for the scheduling policy, and the low 16 bits for the priority; see: https://linux.die.net/man/3/pthread_setschedparam
                                                          */
 #define NNCAM_OPTION_PROCESSMODE            0x03       /* obsolete & useless, noop. 0 = better image quality, more cpu usage. this is the default value; 1 = lower image quality, less cpu usage */
@@ -811,7 +833,7 @@ NNCAM_API(HRESULT)  Nncam_feed_Pipe(HNncam h, unsigned pipeId);
 #define NNCAM_OPTION_TEC                    0x08       /* 0 = turn off the thermoelectric cooler, 1 = turn on the thermoelectric cooler */
 #define NNCAM_OPTION_LINEAR                 0x09       /* 0 = turn off the builtin linear tone mapping, 1 = turn on the builtin linear tone mapping, default value: 1 */
 #define NNCAM_OPTION_CURVE                  0x0a       /* 0 = turn off the builtin curve tone mapping, 1 = turn on the builtin polynomial curve tone mapping, 2 = logarithmic curve tone mapping, default value: 2 */
-#define NNCAM_OPTION_TRIGGER                0x0b       /* 0 = video mode, 1 = software or simulated trigger mode, 2 = external trigger mode, 3 = external + software trigger, default value = 0 */
+#define NNCAM_OPTION_TRIGGER                0x0b       /* 0 = video mode, 1 = software or simulated trigger mode, 2 = external trigger mode, 3 = external + software trigger, 4 = self trigger, default value = 0 */
 #define NNCAM_OPTION_RGB                    0x0c       /* 0 => RGB24; 1 => enable RGB48 format when bitdepth > 8; 2 => RGB32; 3 => 8 Bits Grey (only for mono camera); 4 => 16 Bits Grey (only for mono camera when bitdepth > 8); 5 => 64(RGB64) */
 #define NNCAM_OPTION_COLORMATIX             0x0d       /* enable or disable the builtin color matrix, default value: 1 */
 #define NNCAM_OPTION_WBGAIN                 0x0e       /* enable or disable the builtin white balance gain, default value: 1 */
@@ -832,12 +854,17 @@ NNCAM_API(HRESULT)  Nncam_feed_Pipe(HNncam h, unsigned pipeId);
 #define NNCAM_OPTION_BINNING                0x17       /* binning
                                                                 0x01: (no binning)
                                                                 n: (saturating add, n*n), 0x02(2*2), 0x03(3*3), 0x04(4*4), 0x05(5*5), 0x06(6*6), 0x07(7*7), 0x08(8*8). The Bitdepth of the data remains unchanged.
-                                                                0x40 | n: (unsaturated add in RAW mode, n*n), 0x42(2*2), 0x43(3*3), 0x44(4*4), 0x45(5*5), 0x46(6*6), 0x47(7*7), 0x48(8*8). The Bitdepth of the data is increased. For example, the original data with bitdepth of 12 will increase the bitdepth by 2 bits and become 14 after 2*2 binning.
+                                                                0x40 | n: (unsaturated add, n*n, works only in RAW mode), 0x42(2*2), 0x43(3*3), 0x44(4*4), 0x45(5*5), 0x46(6*6), 0x47(7*7), 0x48(8*8). The Bitdepth of the data is increased. For example, the original data with bitdepth of 12 will increase the bitdepth by 2 bits and become 14 after 2*2 binning.
                                                                 0x80 | n: (average, n*n), 0x82(2*2), 0x83(3*3), 0x84(4*4), 0x85(5*5), 0x86(6*6), 0x87(7*7), 0x88(8*8). The Bitdepth of the data remains unchanged.
                                                             The final image size is rounded down to an even number, such as 640/3 to get 212
                                                          */
 #define NNCAM_OPTION_ROTATE                 0x18       /* rotate clockwise: 0, 90, 180, 270 */
-#define NNCAM_OPTION_CG                     0x19       /* Conversion Gain: 0 = LCG, 1 = HCG, 2 = HDR */
+#define NNCAM_OPTION_CG                     0x19       /* Conversion Gain:
+                                                                0 = LCG
+                                                                1 = HCG
+                                                                2 = HDR (for camera with flag NNCAM_FLAG_CGHDR)
+                                                                2 = MCG (for camera with flag NNCAM_FLAG_GHOPTO)
+                                                         */
 #define NNCAM_OPTION_PIXEL_FORMAT           0x1a       /* pixel format, NNCAM_PIXELFORMAT_xxxx */
 #define NNCAM_OPTION_FFC                    0x1b       /* flat field correction
                                                              set:
@@ -883,9 +910,8 @@ NNCAM_API(HRESULT)  Nncam_feed_Pipe(HNncam h, unsigned pipeId);
                                                              default: 1 (win), 0 (linux/macos)
                                                          */
 #define NNCAM_OPTION_FOCUSPOS               0x24       /* focus positon */
-#define NNCAM_OPTION_AFMODE                 0x25       /* auto focus mode (0:manul focus; 1:auto focus; 2:once focus; 3:conjugate calibration) */
-#define NNCAM_OPTION_AFZONE                 0x26       /* auto focus zone */
-#define NNCAM_OPTION_AFFEEDBACK             0x27       /* auto focus information feedback; 0:unknown; 1:focused; 2:focusing; 3:defocus; 4:up; 5:down */
+#define NNCAM_OPTION_AFMODE                 0x25       /* auto focus mode, see NncamAFMode */
+#define NNCAM_OPTION_AFSTATUS               0x27       /* auto focus status, see NncamAFStaus */
 #define NNCAM_OPTION_TESTPATTERN            0x28       /* test pattern:
                                                             0: off
                                                             3: monochrome diagonal stripes
@@ -900,7 +926,7 @@ NNCAM_API(HRESULT)  Nncam_feed_Pipe(HNncam h, unsigned pipeId);
 #define NNCAM_OPTION_PRECISE_FRAMERATE      0x2d       /* precise frame rate current value in 0.1 fps */
 #define NNCAM_OPTION_BANDWIDTH              0x2e       /* bandwidth, [1-100]% */
 #define NNCAM_OPTION_RELOAD                 0x2f       /* reload the last frame in trigger mode */
-#define NNCAM_OPTION_CALLBACK_THREAD        0x30       /* dedicated thread for callback */
+#define NNCAM_OPTION_CALLBACK_THREAD        0x30       /* dedicated thread for callback: 0 => disable, 1 => enable, default: 0 */
 #define NNCAM_OPTION_FRONTEND_DEQUE_LENGTH  0x31       /* frontend (raw) frame buffer deque length, range: [2, 1024], default: 4
                                                             All the memory will be pre-allocated when the camera starts, so, please attention to memory usage
                                                          */
@@ -959,9 +985,9 @@ NNCAM_API(HRESULT)  Nncam_feed_Pipe(HNncam h, unsigned pipeId);
                                                          */
 #define NNCAM_OPTION_AUTOEXPOSURE_PERCENT   0x4a       /* auto exposure percent to average:
                                                                 1~99: peak percent average
-                                                                0 or 100: full roi average
+                                                                0 or 100: full roi average, means "disabled"
                                                          */
-#define NNCAM_OPTION_ANTI_SHUTTER_EFFECT    0x4b       /* anti shutter effect: 1 => disable, 0 => disable; default: 1 */
+#define NNCAM_OPTION_ANTI_SHUTTER_EFFECT    0x4b       /* anti shutter effect: 1 => disable, 0 => disable; default: 0 */
 #define NNCAM_OPTION_CHAMBER_HT             0x4c       /* get chamber humidity & temperature:
                                                                 high 16 bits: humidity, in 0.1%, such as: 325 means humidity is 32.5%
                                                                 low 16 bits: temperature, in 0.1 degrees Celsius, such as: 32 means 3.2 degrees Celsius
@@ -979,17 +1005,16 @@ NNCAM_API(HRESULT)  Nncam_feed_Pipe(HNncam h, unsigned pipeId);
                                                          */
 #define NNCAM_OPTION_HIGH_FULLWELL          0x55       /* high fullwell capacity: 0 => disable, 1 => enable */
 #define NNCAM_OPTION_DYNAMIC_DEFECT         0x56       /* dynamic defect pixel correction:
-                                                            threshold:
-                                                                 t1 (high 16 bits): [1, 100]
-                                                                 t2 (low 16 bits): [0, 100]
+                                                                threshold, t1: (high 16 bits): [10, 100], means: [1.0, 10.0]
+                                                                value, t2: (low 16 bits): [0, 100], means: [0.00, 1.00]
                                                          */
 #define NNCAM_OPTION_HDR_KB                 0x57       /* HDR synthesize
                                                                 K (high 16 bits): [1, 25500]
                                                                 B (low 16 bits): [0, 65535]
                                                                 0xffffffff => set to default
                                                          */
-#define NNCAM_OPTION_HDR_THRESHOLD          0x58       /* HDR synthesize 
-                                                                threshold: [1, 4095]
+#define NNCAM_OPTION_HDR_THRESHOLD          0x58       /* HDR synthesize
+                                                                threshold: [1, 4094]
                                                                 0xffffffff => set to default
                                                          */
 #define NNCAM_OPTION_GIGETIMEOUT            0x5a       /* For GigE cameras, the application periodically sends heartbeat signals to the camera to keep the connection to the camera alive.
@@ -1004,6 +1029,51 @@ NNCAM_API(HRESULT)  Nncam_feed_Pipe(HNncam h, unsigned pipeId);
 #define NNCAM_OPTION_OVERCLOCK_MAX          0x5c       /* get overclock range: [0, max] */
 #define NNCAM_OPTION_OVERCLOCK              0x5d       /* overclock, default: 0 */
 #define NNCAM_OPTION_RESET_SENSOR           0x5e       /* reset sensor */
+#define NNCAM_OPTION_ISP                    0x5f       /* Enable hardware ISP: 0 => auto (disable in RAW mode, otherwise enable), 1 => enable, -1 => disable; default: 0 */
+#define NNCAM_OPTION_AUTOEXP_EXPOTIME_STEP  0x60       /* Auto exposure: time step (thousandths) */
+#define NNCAM_OPTION_AUTOEXP_GAIN_STEP      0x61       /* Auto exposure: gain step (thousandths) */
+#define NNCAM_OPTION_MOTOR_NUMBER           0x62       /* range: [1, 20] */
+#define NNCAM_OPTION_MOTOR_POS              0x10000000 /* range: [1, 702] */
+#define NNCAM_OPTION_PSEUDO_COLOR_START     0x63       /* Pseudo: start color, BGR format */
+#define NNCAM_OPTION_PSEUDO_COLOR_END       0x64       /* Pseudo: end color, BGR format */
+#define NNCAM_OPTION_PSEUDO_COLOR_ENABLE    0x65       /* Pseudo: -1 => custom: use startcolor & endcolor to generate the colormap
+                                                                    0 => disable
+                                                                    1 => spot
+                                                                    2 => spring
+                                                                    3 => summer
+                                                                    4 => autumn
+                                                                    5 => winter
+                                                                    6 => bone
+                                                                    7 => jet
+                                                                    8 => rainbow
+                                                                    9 => deepgreen
+                                                                    10 => ocean
+                                                                    11 => cool
+                                                                    12 => hsv
+                                                                    13 => pink
+                                                                    14 => hot
+                                                                    15 => parula
+                                                                    16 => magma
+                                                                    17 => inferno
+                                                                    18 => plasma
+                                                                    19 => viridis
+                                                                    20 => cividis
+                                                                    21 => twilight
+                                                                    22 => twilight_shifted
+                                                                    23 => turbo
+                                                         */
+#define NNCAM_OPTION_LOW_POWERCONSUMPTION   0x66       /* Low Power Consumption: 0 => disable, 1 => enable */
+#define NNCAM_OPTION_FPNC                   0x67       /* Fix Pattern Noise Correction
+                                                             set:
+                                                                 0: disable
+                                                                 1: enable
+                                                                -1: reset
+                                                                 (0xff000000 | n): set the average number to n, [1~255]
+                                                             get:
+                                                                 (val & 0xff): 0 => disable, 1 => enable, 2 => inited
+                                                                 ((val & 0xff00) >> 8): sequence
+                                                                 ((val & 0xff0000) >> 16): average number
+                                                         */
 
 /* pixel format */
 #define NNCAM_PIXELFORMAT_RAW8              0x00
@@ -1018,6 +1088,22 @@ NNCAM_API(HRESULT)  Nncam_feed_Pipe(HNncam h, unsigned pipeId);
 #define NNCAM_PIXELFORMAT_GMCY8             0x09   /* map to RGGB 8 bits */
 #define NNCAM_PIXELFORMAT_GMCY12            0x0a   /* map to RGGB 12 bits */
 #define NNCAM_PIXELFORMAT_UYVY              0x0b
+#define NNCAM_PIXELFORMAT_RAW12PACK         0x0c
+#define NNCAM_PIXELFORMAT_RAW11             0x0d
+#define NNCAM_PIXELFORMAT_HDR8HL            0x0e   /* HDR, Bitdepth: 8, Conversion Gain: High + Low */
+#define NNCAM_PIXELFORMAT_HDR10HL           0x0f   /* HDR, Bitdepth: 10, Conversion Gain: High + Low */
+#define NNCAM_PIXELFORMAT_HDR11HL           0x10   /* HDR, Bitdepth: 11, Conversion Gain: High + Low */
+#define NNCAM_PIXELFORMAT_HDR12HL           0x11   /* HDR, Bitdepth: 12, Conversion Gain: High + Low */
+#define NNCAM_PIXELFORMAT_HDR14HL           0x12   /* HDR, Bitdepth: 14, Conversion Gain: High + Low */
+
+/*
+* cmd: input
+*   -1:         query the number
+*   0~number:   query the nth pixel format
+* piValue: output, NNCAM_PIXELFORMAT_xxxx
+*/
+NNCAM_API(HRESULT)     Nncam_get_PixelFormatSupport(HNncam h, char cmd, int* piValue);
+NNCAM_API(const char*) Nncam_get_PixelFormatName(int val);
 
 NNCAM_API(HRESULT)  Nncam_put_Option(HNncam h, unsigned iOption, int iValue);
 NNCAM_API(HRESULT)  Nncam_get_Option(HNncam h, unsigned iOption, int* piValue);
@@ -1028,32 +1114,7 @@ NNCAM_API(HRESULT)  Nncam_get_Option(HNncam h, unsigned iOption, int* piValue);
 NNCAM_API(HRESULT)  Nncam_put_Roi(HNncam h, unsigned xOffset, unsigned yOffset, unsigned xWidth, unsigned yHeight);
 NNCAM_API(HRESULT)  Nncam_get_Roi(HNncam h, unsigned* pxOffset, unsigned* pyOffset, unsigned* pxWidth, unsigned* pyHeight);
 
-/*  simulate replug:
-    return > 0, the number of device has been replug
-    return = 0, no device found
-    return E_ACCESSDENIED if without UAC Administrator privileges
-    for each device found, it will take about 3 seconds
-*/
-#if defined(_WIN32)
-NNCAM_API(HRESULT) Nncam_Replug(const wchar_t* camId);
-#else
-NNCAM_API(HRESULT) Nncam_Replug(const char* camId);
-#endif
-
-#ifndef __NNCAMAFPARAM_DEFINED__
-#define __NNCAMAFPARAM_DEFINED__
-typedef struct {
-    int imax;    /* maximum auto focus sensor board positon */
-    int imin;    /* minimum auto focus sensor board positon */
-    int idef;    /* conjugate calibration positon */
-    int imaxabs; /* maximum absolute auto focus sensor board positon, micrometer */
-    int iminabs; /* maximum absolute auto focus sensor board positon, micrometer */
-    int zoneh;   /* zone horizontal */
-    int zonev;   /* zone vertical */
-} NncamAfParam;
-#endif
-
-NNCAM_API(HRESULT)  Nncam_get_AfParam(HNncam h, NncamAfParam* pAfParam);
+NNCAM_API(HRESULT)  Nncam_put_XY(HNncam h, int x, int y);
 
 #define NNCAM_IOCONTROLTYPE_GET_SUPPORTEDMODE           0x01 /* 0x01 => Input, 0x02 => Output, (0x01 | 0x02) => support both Input and Output */
 #define NNCAM_IOCONTROLTYPE_GET_GPIODIR                 0x03 /* 0x00 => Input, 0x01 => Output */
@@ -1136,6 +1197,7 @@ NNCAM_API(HRESULT)  Nncam_get_AfParam(HNncam h, NncamAfParam* pAfParam);
 #define NNCAM_IOCONTROLTYPE_SET_EXEVT_ACTIVE_MODE       0x36
 #define NNCAM_IOCONTROLTYPE_GET_OUTPUTCOUNTERVALUE      0x37 /* Output Counter Value, range: [0 ~ 65535] */
 #define NNCAM_IOCONTROLTYPE_SET_OUTPUTCOUNTERVALUE      0x38
+#define NNCAM_IOCONTROLTYPE_SET_OUTPUT_PAUSE            0x3a /* Output pause: 1 => puase, 0 => unpause */
 
 #define NNCAM_IOCONTROL_DELAYTIME_MAX                   (5 * 1000 * 1000)
 
@@ -1147,6 +1209,20 @@ NNCAM_API(HRESULT)  Nncam_get_AfParam(HNncam h, NncamAfParam* pAfParam);
     3 => GPIO1
 */
 NNCAM_API(HRESULT)  Nncam_IoControl(HNncam h, unsigned ioLineNumber, unsigned nType, int outVal, int* inVal);
+
+#ifndef __NNCAMSELFTRIGGER_DEFINED__
+#define __NNCAMSELFTRIGGER_DEFINED__
+typedef struct {
+    unsigned sensingLeft, sensingTop, sensingWidth, sensingHeight; /* Sensing Area */
+    unsigned hThreshold, lThreshold; /* threshold High side, threshold Low side */
+    unsigned expoTime; /* Exposure Time */
+    unsigned short expoGain; /* Exposure Gain */
+    unsigned short hCount, lCount; /* Count threshold High side, Count threshold Low side, thousandths of Sensing Area */
+    unsigned short reserved;
+} NncamSelfTrigger;
+#endif
+NNCAM_API(HRESULT)  Nncam_put_SelfTrigger(HNncam h, const NncamSelfTrigger* pSt);
+NNCAM_API(HRESULT)  Nncam_get_SelfTrigger(HNncam h, NncamSelfTrigger* pSt);
 
 #define NNCAM_FLASH_SIZE      0x00    /* query total size */
 #define NNCAM_FLASH_EBLOCK    0x01    /* query erase block size */
@@ -1165,6 +1241,105 @@ NNCAM_API(HRESULT)  Nncam_rwc_Flash(HNncam h, unsigned action, unsigned addr, un
 NNCAM_API(HRESULT)  Nncam_write_UART(HNncam h, const unsigned char* pData, unsigned nDataLen);
 NNCAM_API(HRESULT)  Nncam_read_UART(HNncam h, unsigned char* pBuffer, unsigned nBufferLen);
 
+/* Initialize support for GigE cameras. If online/offline notifications are not required, the callback function can be set to NULL */
+typedef void (__stdcall* PNNCAM_HOTPLUG)(void* ctxHotPlug);
+NNCAM_API(HRESULT)  Nncam_GigeEnable(PNNCAM_HOTPLUG funHotPlug, void* ctxHotPlug);
+
+/*
+USB hotplug is only available on macOS and Linux, it's unnecessary on Windows & Android. To process the device plug in / pull out:
+  (1) On Windows, please refer to the MSDN
+       (a) Device Management, https://docs.microsoft.com/en-us/windows/win32/devio/device-management
+       (b) Detecting Media Insertion or Removal, https://docs.microsoft.com/en-us/windows/win32/devio/detecting-media-insertion-or-removal
+  (2) On Android, please refer to https://developer.android.com/guide/topics/connectivity/usb/host
+  (3) On Linux / macOS, please call this function to register the callback function.
+      When the device is inserted or pulled out, you will be notified by the callback funcion, and then call Nncam_EnumV2(...) again to enum the cameras.
+  (4) On macOS, IONotificationPortCreate series APIs can also be used as an alternative.
+Recommendation: for better rubustness, when notify of device insertion arrives, don't open handle of this device immediately, but open it after delaying a short time (e.g., 200 milliseconds).
+*/
+#if !defined(_WIN32) && !defined(__ANDROID__)
+NNCAM_API(void)   Nncam_HotPlug(PNNCAM_HOTPLUG funHotPlug, void* ctxHotPlug);
+#endif
+
+typedef struct
+{
+    unsigned short lensID;
+    unsigned char  lensType;
+    unsigned char  statusAfmf;      /* LENS_AF = 0x00,  LENS_MF = 0x80 */
+
+    unsigned short maxFocalLength;
+    unsigned short curFocalLength;
+    unsigned short minFocalLength;
+
+    short          farFM;           /* focus motor, absolute value */
+    short          curFM;           /* current focus motor */
+    short          nearFM;
+
+    unsigned short maxFocusDistance;
+    unsigned short minFocusDistance;
+
+    char           curAM;
+    unsigned char  maxAM;           /* maximum Aperture£¬mimimum F# */
+    unsigned char  minAM;           /* mimimum Aperture£¬maximum F# */
+    unsigned char  posAM;           /* used for set aperture motor to posAM, it is an index */
+    int            posFM;           /* used for set focus motor to posFM */
+
+    unsigned       sizeFN;
+    const char**   arrayFN;
+} NncamLensInfo;
+
+NNCAM_API(HRESULT)  Nncam_get_LensInfo(HNncam h, NncamLensInfo* pInfo);
+
+typedef enum
+{
+    NncamAFMode_CALIBRATE = 0x0,/* lens calibration mode */
+    NncamAFMode_MANUAL    = 0x1,/* manual focus mode */
+    NncamAFMode_ONCE      = 0x2,/* onepush focus mode */
+    NncamAFMode_AUTO      = 0x3,/* autofocus mode */
+    NncamAFMode_NONE      = 0x4,
+    NncamAFMode_IDLE      = 0x5,
+    NncamAFMode_UNUSED    = 0xffffffff /* no active selection of focus mode */
+} NncamAFMode;
+
+typedef enum
+{
+    NncamAFStatus_PEAKPOINT    = 0x1,/* Focus completed, find the focus position */
+    NncamAFStatus_DEFOCUS      = 0x2,/* End of focus, defocus */
+    NncamAFStatus_NEAR         = 0x3,/* Focusing ended, object too close */
+    NncamAFStatus_FAR          = 0x4,/* Focusing ended, object too far */
+    NncamAFStatus_ROICHANGED   = 0x5,/* Focusing ends, roi changes */
+    NncamAFStatus_SCENECHANGED = 0x6,/* Focusing ends, scene changes */
+    NncamAFStatus_MODECHANGED  = 0x7,/* The end of focusing and the change in focusing mode is usually determined by the user moderator */
+    NncamAFStatus_UNFINISH     = 0x8,
+    NncamAfStatus_UNUSED       = 0xffffffff/* The focus is not complete. At the beginning of focusing, it will be set as incomplete */
+} NncamAFStatus;/* Focus Status */
+
+typedef struct {
+    NncamAFMode    AF_Mode;
+    NncamAFStatus  AF_Status;
+    unsigned char    AF_LensAP_Update_Flag;  /* mark for whether the lens aperture is calibrated */
+    unsigned char    AF_LensManual_Flag;     /* if true, allows manual operation */
+    unsigned char    Reserved[2];
+} NncamAFState;
+
+NNCAM_API(HRESULT)  Nncam_get_AFState(HNncam h, NncamAFState* pState);
+
+NNCAM_API(HRESULT)  Nncam_put_AFMode(HNncam h, NncamAFMode mode);
+NNCAM_API(HRESULT)  Nncam_put_AFRoi(HNncam h, unsigned xOffset, unsigned yOffset, unsigned xWidth, unsigned yHeight);
+NNCAM_API(HRESULT)  Nncam_put_AFAperture(HNncam h, int iAperture);
+NNCAM_API(HRESULT)  Nncam_put_AFFMPos(HNncam h, int iFMPos);
+
+/*  simulate replug:
+    return > 0, the number of device has been replug
+    return = 0, no device found
+    return E_ACCESSDENIED if without UAC Administrator privileges
+    for each device found, it will take about 3 seconds
+*/
+#if defined(_WIN32)
+NNCAM_API(HRESULT) Nncam_Replug(const wchar_t* camId);
+#else
+NNCAM_API(HRESULT) Nncam_Replug(const char* camId);
+#endif
+
 NNCAM_API(const NncamModelV2**) Nncam_all_Model(); /* return all supported USB model array */
 NNCAM_API(const NncamModelV2*) Nncam_query_Model(HNncam h);
 NNCAM_API(const NncamModelV2*) Nncam_get_Model(unsigned short idVendor, unsigned short idProduct);
@@ -1182,8 +1357,8 @@ NNCAM_API(HRESULT)  Nncam_Update(const wchar_t* camId, const wchar_t* filePath, 
 NNCAM_API(HRESULT)  Nncam_Update(const char* camId, const char* filePath, PINNCAM_PROGRESS funProgress, void* ctxProgress);
 #endif
 
-NNCAM_API(HRESULT)  Nncam_put_Linear(HNncam h, const unsigned char* v8, const unsigned short* v16); /* v8, v16 pointer must remains valid */
-NNCAM_API(HRESULT)  Nncam_put_Curve(HNncam h, const unsigned char* v8, const unsigned short* v16); /* v8, v16 pointer must remains valid */
+NNCAM_API(HRESULT)  Nncam_put_Linear(HNncam h, const unsigned char* v8, const unsigned short* v16); /* v8, v16 pointer must remains valid while camera running */
+NNCAM_API(HRESULT)  Nncam_put_Curve(HNncam h, const unsigned char* v8, const unsigned short* v16); /* v8, v16 pointer must remains valid while camera running */
 NNCAM_API(HRESULT)  Nncam_put_ColorMatrix(HNncam h, const double v[9]); /* null => revert to model default */
 NNCAM_API(HRESULT)  Nncam_put_InitWBGain(HNncam h, const unsigned short v[3]); /* null => revert to model default */
 
@@ -1191,6 +1366,35 @@ NNCAM_API(HRESULT)  Nncam_put_InitWBGain(HNncam h, const unsigned short v[3]); /
     get the frame rate: framerate (fps) = Frame * 1000.0 / nTime
 */
 NNCAM_API(HRESULT)  Nncam_get_FrameRate(HNncam h, unsigned* nFrame, unsigned* nTime, unsigned* nTotalFrame);
+
+/* AAF: Astro Auto Focuser */
+#define NNCAM_AAF_SETPOSITION     0x01
+#define NNCAM_AAF_GETPOSITION     0x02
+#define NNCAM_AAF_SETZERO         0x03
+#define NNCAM_AAF_GETZERO         0x04
+#define NNCAM_AAF_SETDIRECTION    0x05
+#define NNCAM_AAF_GETDIRECTION    0x06
+#define NNCAM_AAF_SETMAXINCREMENT 0x07
+#define NNCAM_AAF_GETMAXINCREMENT 0x08
+#define NNCAM_AAF_SETFINE         0x09
+#define NNCAM_AAF_GETFINE         0x0a
+#define NNCAM_AAF_SETCOARSE       0x0b
+#define NNCAM_AAF_GETCOARSE       0x0c
+#define NNCAM_AAF_SETBUZZER       0x0d
+#define NNCAM_AAF_GETBUZZER       0x0e
+#define NNCAM_AAF_SETBACKLASH     0x0f
+#define NNCAM_AAF_GETBACKLASH     0x10
+#define NNCAM_AAF_GETAMBIENTTEMP  0x12
+#define NNCAM_AAF_GETTEMP         0x14  /* in 0.1 degrees Celsius, such as: 32 means 3.2 degrees Celsius */
+#define NNCAM_AAF_ISMOVING        0x16
+#define NNCAM_AAF_HALT            0x17
+#define NNCAM_AAF_SETMAXSTEP      0x1b
+#define NNCAM_AAF_GETMAXSTEP      0x1c
+#define NNCAM_AAF_GETSTEPSIZE     0x1e
+#define NNCAM_AAF_RANGEMIN        0xfd  /* Range: min value */
+#define NNCAM_AAF_RANGEMAX        0xfe  /* Range: max value */
+#define NNCAM_AAF_RANGEDEF        0xff  /* Range: default value */
+NNCAM_API(HRESULT) Nncam_AAF(HNncam h, int action, int outVal, int* inVal);
 
 /* astronomy: for ST4 guide, please see: ASCOM Platform Help ICameraV2.
     nDirect: 0 = North, 1 = South, 2 = East, 3 = West, 4 = Stop
@@ -1227,6 +1431,23 @@ NNCAM_API(double)   Nncam_calc_ClarityFactorV2(const void* pImageData, int bits,
                     64 => RGB64
 */
 NNCAM_API(void)     Nncam_deBayerV2(unsigned nFourCC, int nW, int nH, const void* input, void* output, unsigned char nBitDepth, unsigned char nBitCount);
+
+
+#ifndef __NNCAMFOCUSMOTOR_DEFINED__
+#define __NNCAMFOCUSMOTOR_DEFINED__
+typedef struct {
+    int imax;    /* maximum auto focus sensor board positon */
+    int imin;    /* minimum auto focus sensor board positon */
+    int idef;    /* conjugate calibration positon */
+    int imaxabs; /* maximum absolute auto focus sensor board positon, micrometer */
+    int iminabs; /* maximum absolute auto focus sensor board positon, micrometer */
+    int zoneh;   /* zone horizontal */
+    int zonev;   /* zone vertical */
+} NncamFocusMotor;
+#endif
+
+NNCAM_DEPRECATED
+NNCAM_API(HRESULT)  Nncam_get_FocusMotor(HNncam h, NncamFocusMotor* pFocusMotor);
 
 /*
     obsolete, please use Nncam_deBayerV2
@@ -1321,55 +1542,8 @@ NNCAM_API(HRESULT)  Nncam_AwbOnePush(HNncam h, PINNCAM_TEMPTINT_CALLBACK funTT, 
 NNCAM_DEPRECATED
 NNCAM_API(HRESULT)  Nncam_AbbOnePush(HNncam h, PINNCAM_BLACKBALANCE_CALLBACK funBB, void* ctxBB);
 
-/* Initialize support for GigE cameras. If online/offline notifications are not required, the callback function can be set to NULL */
-typedef void (__stdcall* PNNCAM_HOTPLUG)(void* ctxHotPlug);
-NNCAM_API(HRESULT)  Nncam_GigeEnable(PNNCAM_HOTPLUG funHotPlug, void* ctxHotPlug);
-
-/*
-USB hotplug is only available on macOS and Linux, it's unnecessary on Windows & Android. To process the device plug in / pull out:
-  (1) On Windows, please refer to the MSDN
-       (a) Device Management, https://docs.microsoft.com/en-us/windows/win32/devio/device-management
-       (b) Detecting Media Insertion or Removal, https://docs.microsoft.com/en-us/windows/win32/devio/detecting-media-insertion-or-removal
-  (2) On Android, please refer to https://developer.android.com/guide/topics/connectivity/usb/host
-  (3) On Linux / macOS, please call this function to register the callback function.
-      When the device is inserted or pulled out, you will be notified by the callback funcion, and then call Nncam_EnumV2(...) again to enum the cameras.
-  (4) On macOS, IONotificationPortCreate series APIs can also be used as an alternative.
-Recommendation: for better rubustness, when notify of device insertion arrives, don't open handle of this device immediately, but open it after delaying a short time (e.g., 200 milliseconds).
-*/
-#if !defined(_WIN32) && !defined(__ANDROID__)
-NNCAM_API(void)   Nncam_HotPlug(PNNCAM_HOTPLUG funHotPlug, void* ctxHotPlug);
-#endif
-
-/* AAF: Astro Auto Focuser */
-#define NNCAM_AAF_SETPOSITION     0x01
-#define NNCAM_AAF_GETPOSITION     0x02
-#define NNCAM_AAF_SETZERO         0x03
-#define NNCAM_AAF_GETZERO         0x04
-#define NNCAM_AAF_SETDIRECTION    0x05
-#define NNCAM_AAF_GETDIRECTION    0x06
-#define NNCAM_AAF_SETMAXINCREMENT 0x07
-#define NNCAM_AAF_GETMAXINCREMENT 0x08
-#define NNCAM_AAF_SETFINE         0x09
-#define NNCAM_AAF_GETFINE         0x0a
-#define NNCAM_AAF_SETCOARSE       0x0b
-#define NNCAM_AAF_GETCOARSE       0x0c
-#define NNCAM_AAF_SETBUZZER       0x0d
-#define NNCAM_AAF_GETBUZZER       0x0e
-#define NNCAM_AAF_SETBACKLASH     0x0f
-#define NNCAM_AAF_GETBACKLASH     0x10
-#define NNCAM_AAF_GETAMBIENTTEMP  0x12
-#define NNCAM_AAF_GETTEMP         0x14
-#define NNCAM_AAF_ISMOVING        0x16
-#define NNCAM_AAF_HALT            0x17
-#define NNCAM_AAF_SETMAXSTEP      0x1b
-#define NNCAM_AAF_GETMAXSTEP      0x1c
-#define NNCAM_AAF_RANGEMIN        0xfd  /* Range: min value */
-#define NNCAM_AAF_RANGEMAX        0xfe  /* Range: max value */
-#define NNCAM_AAF_RANGEDEF        0xff  /* Range: default value */
-NNCAM_API(HRESULT) Nncam_AAF(HNncam h, int action, int outVal, int* inVal);
-
 #if defined(_WIN32)
-/* Nncam_put_TempTintInit is obsolete, recommend using Nncam_AwbOnce. */
+/* Nncam_put_TempTintInit is obsolete, recommend using Nncam_AwbOnce */
 NNCAM_DEPRECATED
 NNCAM_API(HRESULT)  Nncam_put_TempTintInit(HNncam h, PINNCAM_TEMPTINT_CALLBACK funTT, void* ctxTT);
 
@@ -1433,8 +1607,7 @@ NNCAM_API(HRESULT)  Nncam_log_File(const
 #else
                                        char*
 #endif
-                                       filepath
-);
+                                       filepath);
 NNCAM_API(HRESULT)  Nncam_log_Level(unsigned level); /* 0 => none; 1 => error; 2 => debug; 3 => verbose */
 
 #if defined(_WIN32)

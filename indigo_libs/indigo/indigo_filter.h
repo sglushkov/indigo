@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 #define INDIGO_FILTER_LIST_COUNT							13
-#define INDIGO_FILTER_MAX_DEVICES							32
+#define INDIGO_FILTER_MAX_DEVICES							128
 #define INDIGO_FILTER_MAX_CACHED_PROPERTIES		256
 	
 #define INDIGO_FILTER_CCD_INDEX								0
@@ -168,6 +168,19 @@ extern "C" {
  */
 #define FILTER_RELATED_AGENT_LIST_PROPERTY		(FILTER_DEVICE_CONTEXT->filter_related_agent_list_property)
 
+/** FILTER_FORCE_SYMMETRIC_RELATIONS property pointer, property is mandatory, property change request is fully handled by indigo_filter_change_property().
+ */
+#define FILTER_FORCE_SYMMETRIC_RELATIONS_PROPERTY	(FILTER_DEVICE_CONTEXT->filter_force_SYMMETRIC_relations_property)
+
+/** FILTER_FORCE_SYMMETRIC_RELATIONS.ENABLED property item pointer.
+ */
+#define FILTER_FORCE_SYMMETRIC_RELATIONS_ENABLED_ITEM	(FILTER_FORCE_SYMMETRIC_RELATIONS_PROPERTY->items+0)
+
+/** FILTER_FORCE_SYMMETRIC_RELATIONS.DISABLED property item pointer.
+ */
+#define FILTER_FORCE_SYMMETRIC_RELATIONS_DISABLED_ITEM	(FILTER_FORCE_SYMMETRIC_RELATIONS_PROPERTY->items+1)
+
+
 /** CCD_LENS_FOV property pointer, property is mandatory, property change request is fully handled by indigo_ccd_change_property().
  */
 #define CCD_LENS_FOV_PROPERTY                (FILTER_DEVICE_CONTEXT->ccd_lens_info_property)
@@ -199,6 +212,7 @@ typedef struct {
 	indigo_property *filter_device_list_properties[INDIGO_FILTER_LIST_COUNT];
 	indigo_property *filter_related_device_list_properties[INDIGO_FILTER_LIST_COUNT];
 	indigo_property *filter_related_agent_list_property;
+	indigo_property *filter_force_SYMMETRIC_relations_property;
 	indigo_property *device_property_cache[INDIGO_FILTER_MAX_CACHED_PROPERTIES];
 	indigo_property *agent_property_cache[INDIGO_FILTER_MAX_CACHED_PROPERTIES];
 	indigo_property *connection_property_cache[INDIGO_FILTER_MAX_DEVICES];
@@ -251,6 +265,13 @@ extern bool indigo_filter_cached_property(indigo_device *device, int index, char
 /** Forward property change to a different device.
  */
 extern indigo_result indigo_filter_forward_change_property(indigo_client *client, indigo_property *property, char *device_name);
+/** Find the full name of the first related agent starting with a given base name.
+ */
+extern char *indigo_filter_first_related_agent(indigo_device *device, char *base_name_1);
+/** Find the full name of the first related agent starting with any of given base names.
+ */
+extern char *indigo_filter_first_related_agent_2(indigo_device *device, char *base_name_1, char *base_name_2);
+
 #ifdef __cplusplus
 }
 #endif

@@ -447,8 +447,6 @@ static void exposure_timer_callback(indigo_device *device) {
 
 	indigo_fits_keyword keywords[] = {
 		{ INDIGO_FITS_STRING, "BAYERPAT", .string = PRIVATE_DATA->bayer_pattern, "Bayer color pattern" },
-		{ INDIGO_FITS_NUMBER, "XBAYROFF", .number = 0, "X offset of Bayer array" },
-		{ INDIGO_FITS_NUMBER, "YBAYROFF", .number = 0, "Y offset of Bayer array" },
 		{ 0 }
 	};
 
@@ -555,13 +553,11 @@ static void streaming_timer_callback(indigo_device *device) {
 	
 	indigo_fits_keyword keywords[] = {
 		{ INDIGO_FITS_STRING, "BAYERPAT", .string = PRIVATE_DATA->bayer_pattern, "Bayer color pattern" },
-		{ INDIGO_FITS_NUMBER, "XBAYROFF", .number = 0, "X offset of Bayer array" },
-		{ INDIGO_FITS_NUMBER, "YBAYROFF", .number = 0, "Y offset of Bayer array" },
 		{ 0 }
 	};
 	
 	int id = PRIVATE_DATA->dev_id;
-	SVB_ERROR_CODE res;
+	SVB_ERROR_CODE res = SVB_SUCCESS;
 
 	while (CCD_STREAMING_COUNT_ITEM->number.value != 0 && CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
 		pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);

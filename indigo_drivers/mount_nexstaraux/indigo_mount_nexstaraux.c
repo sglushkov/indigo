@@ -198,8 +198,7 @@ static bool nexstaraux_command_24(indigo_device *device, targets src, targets ds
 	return nexstaraux_command(device, src, dst, cmd, data, 3, reply);
 }
 
-static bool nexstaraux_open(indigo_device *d) {
-	indigo_device *device = d->master_device;
+static bool nexstaraux_open(indigo_device *device) {
 	char *name = DEVICE_PORT_ITEM->text.value;
 	if (PRIVATE_DATA->count_open++ == 0) {
 		if (strncmp(name, "nexstar://", 10) == 0) {
@@ -705,7 +704,7 @@ static indigo_result guider_attach(indigo_device *device) {
 static void guider_connect_handler(indigo_device *device) {
 	indigo_lock_master_device(device);
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
-		bool result = nexstaraux_open(device);
+		bool result = nexstaraux_open(device->master_device);
 		if (result) {
 			CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 		} else {

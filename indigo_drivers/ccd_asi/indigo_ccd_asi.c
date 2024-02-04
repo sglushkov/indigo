@@ -26,7 +26,7 @@
  \file indigo_ccd_asi.c
  */
 
-#define DRIVER_VERSION 0x0027
+#define DRIVER_VERSION 0x0028
 #define DRIVER_NAME "indigo_ccd_asi"
 
 #include <stdlib.h>
@@ -540,8 +540,6 @@ static void exposure_timer_callback(indigo_device *device) {
 				   the SDK takes care the image to be in the correct bayer pattern */
 				indigo_fits_keyword keywords[] = {
 					{ INDIGO_FITS_STRING, "BAYERPAT", .string = color_string, "Bayer color pattern" },
-					{ INDIGO_FITS_NUMBER, "XBAYROFF", .number = 0, "X offset of Bayer array" },
-					{ INDIGO_FITS_NUMBER, "YBAYROFF", .number = 0, "Y offset of Bayer array" },
 					{ 0 }
 				};
 				indigo_process_image(device, PRIVATE_DATA->buffer, (int)(PRIVATE_DATA->exp_frame_width / PRIVATE_DATA->exp_bin_x), (int)(PRIVATE_DATA->exp_frame_height / PRIVATE_DATA->exp_bin_y), PRIVATE_DATA->exp_bpp, true, false, keywords, false);
@@ -566,8 +564,6 @@ static void streaming_timer_callback(indigo_device *device) {
 	char *color_string = get_bayer_string(device);
 	indigo_fits_keyword keywords[] = {
 		{ INDIGO_FITS_STRING, "BAYERPAT", .string = color_string, "Bayer color pattern" },
-		{ INDIGO_FITS_NUMBER, "XBAYROFF", .number = 0, "X offset of Bayer array" },
-		{ INDIGO_FITS_NUMBER, "YBAYROFF", .number = 0, "Y offset of Bayer array" },
 		{ 0 }
 	};
 	int id = PRIVATE_DATA->dev_id;
@@ -979,6 +975,16 @@ static indigo_result init_camera_property(indigo_device *device, ASI_CONTROL_CAP
 		pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
 		if (res) INDIGO_DRIVER_ERROR(DRIVER_NAME, "ASIGetControlValue(%d, ASI_COOLER_POWER_PERC) = %d", id, res);
 		CCD_COOLER_POWER_ITEM->number.value = CCD_COOLER_POWER_ITEM->number.target = value;
+		return INDIGO_OK;
+	}
+
+	if (ctrl_caps.ControlType == ASI_GPS_SUPPORT ||
+		ctrl_caps.ControlType == ASI_GPS_START_LINE ||
+		ctrl_caps.ControlType == ASI_GPS_END_LINE ||
+		ctrl_caps.ControlType == ASI_ROLLING_INTERVAL
+	) {
+		// trying to set these causes camera to be unable to get exposure
+		// so we ignore them (and I have no idea what they mean and do)
 		return INDIGO_OK;
 	}
 
@@ -1673,7 +1679,7 @@ static indigo_result guider_detach(indigo_device *device) {
 
 static pthread_mutex_t device_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-#define MAX_DEVICES                   12
+#define MAX_DEVICES                   24
 #define NO_DEVICE                 (-1000)
 
 
