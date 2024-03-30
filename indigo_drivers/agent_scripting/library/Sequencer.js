@@ -4,13 +4,16 @@ function Sequence() {
 }
 
 Sequence.prototype.repeat = function(count, block) {
-	var step = this.step++;
+	var loop = this.step++;
 	var i = 0;
+	this.sequence.push({ execute: 'enter_loop()', step: loop });
 	while (i < count) {
-		this.step = step + 1;
+		this.step = loop + 1;
 		block();
 		i++;
+		this.sequence.push({ execute: 'increment_loop(' + i + ')', step: loop });
 	}
+	this.sequence.push({ execute: 'exit_loop()', step: loop });
 	this.step++;
 };
 
@@ -88,6 +91,10 @@ Sequence.prototype.select_guider = function(guider) {
 
 Sequence.prototype.select_frame_type = function(name) {
 	this.sequence.push({ execute: 'select_frame_type("' + name + '")', step: this.step++ });
+};
+
+Sequence.prototype.select_image_format = function(name) {
+	this.sequence.push({ execute: 'select_image_format("' + name + '")', step: this.step++ });
 };
 
 Sequence.prototype.select_camera_mode = function(name) {
@@ -174,7 +181,7 @@ Sequence.prototype.capture_stream = function(name_template, count, exposure) {
 };
 
 Sequence.prototype.focus = function(exposure) {
-	this.sequence.push({ execute: 'save_batch()', step: this.step++ });
+	this.sequence.push({ execute: 'save_batch()', step: this.step });
 	this.sequence.push({ execute: 'set_batch(1,' + exposure + ', 0)', step: this.step });
 	this.sequence.push({ execute: 'focus()', step: this.step });
 	this.sequence.push({ execute: 'restore_batch()', step: this.step++ });
@@ -182,6 +189,10 @@ Sequence.prototype.focus = function(exposure) {
 
 Sequence.prototype.park = function() {
 	this.sequence.push({ execute: 'park()', step: this.step++ });
+};
+
+Sequence.prototype.home = function() {
+	this.sequence.push({ execute: 'home()', step: this.step++ });
 };
 
 Sequence.prototype.unpark = function() {
@@ -336,6 +347,7 @@ var indigo_sequencer = {
 	state: "Ok",
 	step: -1,
 	index: -1,
+	loop_level: -1,
 	sequence: null,
 	wait_for_device: null,
 	wait_for_name: null,
@@ -395,6 +407,9 @@ var indigo_sequencer = {
 				if (property.items.RESET) {
 					this.step = -1;
 					indigo_update_number_property(this.devices[0], "SEQUENCE_STATE", { STEP: this.step }, this.state);
+					while (this.loop_level >= 0) {
+						indigo_delete_property(this.devices[0], "LOOP_" + this.loop_level--);
+					}
 					indigo_update_switch_property(this.devices[0], "SEQUENCE_RESET", { RESET: false }, "Ok");
 				}
 			}
@@ -420,6 +435,9 @@ var indigo_sequencer = {
 			indigo_send_message("Other sequence is executed");
 		} else {
 			this.index = -1;
+			while (this.loop_level >= 0) {
+				indigo_delete_property(this.devices[0], "LOOP_" + this.loop_level--);
+			}
 			this.sequence = sequence;
 			indigo_send_message("Sequence started");
 			indigo_set_timer(indigo_sequencer_next_handler, 0);
@@ -440,6 +458,22 @@ var indigo_sequencer = {
 			indigo_send_message("Sequence finished");
 		}
 		indigo_update_number_property(this.devices[0], "SEQUENCE_STATE", { STEP: this.step }, this.state);
+	},
+	
+	enter_loop: function() {
+		this.loop_level++;
+		indigo_define_number_property(this.devices[0], "LOOP_" + this.loop_level, "Sequencer", "Loop " + this.loop_level, { STEP: this.step, COUNT: 0 }, { STEP: { label: "Loop at", format: "%g", min: 0, max: 10000, step: 1 }, COUNT: { label: "Count passed", format: "%g", min: 0, max: 10000, step: 1 }}, "Ok", "RO");
+		indigo_set_timer(indigo_sequencer_next_handler, 0);
+	},
+	
+	increment_loop: function(i) {
+		indigo_update_number_property(this.devices[0], "LOOP_" + this.loop_level, { COUNT: i }, "Ok");
+		indigo_set_timer(indigo_sequencer_next_handler, 0);
+	},
+		
+	exit_loop: function() {
+		indigo_delete_property(this.devices[0], "LOOP_" + this.loop_level--);
+		indigo_set_timer(indigo_sequencer_next_handler, 0);
 	},
 	
 	select_switch: function(device, property, item) {
@@ -764,6 +798,20 @@ var indigo_sequencer = {
 		}
 	},
 
+	select_image_format: function(name) {
+		var agent = this.devices[2];
+		var property = indigo_devices[agent].CCD_IMAGE_FORMAT;
+		if (property != null && property.items[name] != undefined) {
+			if (property.items[name]) {
+				this.warning("Image format " + name + " is already selected");
+			} else {
+				this.select_switch(agent, "CCD_IMAGE_FORMAT", name);
+			}
+		} else {
+			this.failure("Can't select image format");
+		}
+	},
+
 	select_camera_mode: function(name) {
 		var agent = this.devices[2];
 		var property = indigo_devices[agent].CCD_MODE;
@@ -907,9 +955,9 @@ var indigo_sequencer = {
 	
 	set_imager_dithering: function(skip_frames) {
 		var agent = this.devices[2];
-		var property = indigo_devices[agent].AGENT_IMAGER_DITHERING;
+		var property = indigo_devices[agent].AGENT_IMAGER_BATCH;
 		if (property != null) {
-			this.change_numbers(agent, "AGENT_IMAGER_DITHERING", { SKIP_FRAMES: skip_frames });
+			this.change_numbers(agent, "AGENT_IMAGER_BATCH", { FRAMES_TO_SKIP_BEFORE_DITHER: skip_frames });
 		} else {
 			this.failure("Can't set dithering on imager side");
 		}
@@ -1035,7 +1083,7 @@ var indigo_sequencer = {
 		}
 	},
 
-	focus: function(exposure) {
+	focus: function() {
 		var agent = this.devices[2];
 		var property = indigo_devices[agent].AGENT_START_PROCESS;
 		if (property != null) {
@@ -1085,6 +1133,16 @@ var indigo_sequencer = {
 		}
 	},
 	
+	home: function() {
+		var agent = this.devices[3];
+		var property = indigo_devices[agent].MOUNT_PARK;
+		if (property != null) {
+			this.select_switch(agent, "MOUNT_HOME", "HOME");
+		} else {
+			this.failure("Can't home the mount");
+		}
+	},
+
 	wait_for_gps: function() {
 		var agent = this.devices[3];
 		var property = indigo_devices[agent].GPS_GEOGRAPHIC_COORDINATES;
@@ -1164,6 +1222,16 @@ function indigo_sequencer_abort_handler() {
 
 indigo_delete_property("Scripting Agent", "SEQUENCE_STATE");
 indigo_delete_property("Scripting Agent", "AGENT_ABORT_PROCESS");
+indigo_delete_property("Scripting Agent", "LOOP_0");
+indigo_delete_property("Scripting Agent", "LOOP_1");
+indigo_delete_property("Scripting Agent", "LOOP_2");
+indigo_delete_property("Scripting Agent", "LOOP_3");
+indigo_delete_property("Scripting Agent", "LOOP_4");
+indigo_delete_property("Scripting Agent", "LOOP_5");
+indigo_delete_property("Scripting Agent", "LOOP_6");
+indigo_delete_property("Scripting Agent", "LOOP_7");
+indigo_delete_property("Scripting Agent", "LOOP_8");
+indigo_delete_property("Scripting Agent", "LOOP_9");
 indigo_event_handlers.indigo_sequencer = indigo_sequencer;
 indigo_enumerate_properties();
 indigo_send_message("Sequencer installed");
