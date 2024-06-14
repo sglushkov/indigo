@@ -26,10 +26,6 @@
 extern "C" {
 #endif
 
-#ifndef FITS_HEADER_SIZE
-#define FITS_HEADER_SIZE 2880
-#endif
-
 #define MAX_MULTISTAR_COUNT 24
 
 typedef struct {
@@ -37,7 +33,8 @@ typedef struct {
 	double y;             /* Star Y */
 	double nc_distance;   /* Normalized distance from center of the frame */
 	double luminance;     /* Star Brightness */
-	bool oversaturated;		/* Star is oversaturated */
+	bool oversaturated;		/* The star is oversaturated */
+	bool close_to_other;	/* The star is in close proximity to ather star or has a duplicate artefact */
 } indigo_star_detection;
 
 typedef enum {
@@ -64,6 +61,9 @@ typedef struct {
 
 extern double indigo_stddev(double set[], const int count);
 extern double indigo_rmse(double set[], const int count);
+
+extern bool indigo_is_bayered_image(indigo_raw_header *header, size_t data_length);
+extern indigo_result indigo_equalize_bayer_channels(indigo_raw_type raw_type, void *data, const int width, const int height);
 
 extern indigo_result indigo_find_stars(indigo_raw_type raw_type, const void *data, const int width, const int height, const int stars_max, indigo_star_detection star_list[], int *stars_found);
 extern indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *data, const uint16_t radius, const int width, const int height, const int stars_max, indigo_star_detection star_list[], int *stars_found);

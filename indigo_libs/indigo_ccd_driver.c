@@ -449,6 +449,32 @@ indigo_result indigo_ccd_failure_cleanup(indigo_device *device) {
 	return INDIGO_OK;
 }
 
+indigo_result indigo_ccd_abort_exposure_cleanup(indigo_device *device) {
+	indigo_ccd_failure_cleanup(device);
+	if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
+		CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
+		CCD_CONTEXT->countdown_endtime = 0;
+		CCD_EXPOSURE_ITEM->number.value = 0;
+		indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
+		CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
+	} else if (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
+		if (CCD_STREAMING_COUNT_ITEM->number.target < 0) {
+			CCD_STREAMING_PROPERTY->state = INDIGO_OK_STATE;
+		} else {
+			CCD_STREAMING_PROPERTY->state = INDIGO_ALERT_STATE;
+		}
+		CCD_STREAMING_COUNT_ITEM->number.value = 0;
+		CCD_STREAMING_EXPOSURE_ITEM->number.value = 0;
+		indigo_update_property(device, CCD_STREAMING_PROPERTY, NULL);
+		CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
+	} else {
+		CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
+	}
+	CCD_ABORT_EXPOSURE_ITEM->sw.value = false;
+	indigo_update_property(device, CCD_ABORT_EXPOSURE_PROPERTY, NULL);
+	return INDIGO_OK;
+}
+
 indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *client, indigo_property *property) {
 	assert(device != NULL);
 	assert(DEVICE_CONTEXT != NULL);
@@ -456,6 +482,8 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 	if (indigo_property_match_changeable(CONNECTION_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CONNECTION
 		if (IS_CONNECTED) {
+			CCD_ABORT_EXPOSURE_ITEM->sw.value = false;
+			CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
 			indigo_define_property(device, CCD_INFO_PROPERTY, NULL);
 			indigo_define_property(device, CCD_LENS_PROPERTY, NULL);
 			indigo_define_property(device, CCD_UPLOAD_MODE_PROPERTY, NULL);
@@ -591,23 +619,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 		return INDIGO_OK;
 	} else if (indigo_property_match_changeable(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_ABORT_EXPOSURE
-		indigo_ccd_failure_cleanup(device);
-		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
-			CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
-			CCD_CONTEXT->countdown_endtime = 0;
-			CCD_EXPOSURE_ITEM->number.value = 0;
-			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
-			CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
-		} else if (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
-			CCD_STREAMING_PROPERTY->state = INDIGO_ALERT_STATE;
-			CCD_STREAMING_COUNT_ITEM->number.value = 0;
-			indigo_update_property(device, CCD_STREAMING_PROPERTY, NULL);
-			CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
-		} else {
-			CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
-		}
-		CCD_ABORT_EXPOSURE_ITEM->sw.value = false;
-		indigo_update_property(device, CCD_ABORT_EXPOSURE_PROPERTY, NULL);
+		indigo_ccd_abort_exposure_cleanup(device);
 		return INDIGO_OK;
 	} else if (indigo_property_match_changeable(CCD_FRAME_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- CCD_FRAME
@@ -1452,30 +1464,33 @@ static bool create_file_name(indigo_device *device, void *blob_value, long blob_
 	return true;
 }
 
-int mkpath(const char *dir) {
-	struct stat sb;
+int mkpath(const char *path) {
+	struct stat st = {0};
 	const mode_t mode=0774;
 
-    if (stat(dir, &sb) == 0) {
-		if (S_ISDIR(sb.st_mode)) {
-			return 0; /* path exists and is dir */
-		} else {
-			return -1; /* path exists but is not dir */
+	if (stat(path, &st) == -1) {
+		char *dir_path = strdup(path);
+		char *p = strchr(dir_path + 1, '/');
+
+		while (p != NULL) {
+			*p = '\0';
+			if (mkdir(dir_path, mode) == -1 && errno != EEXIST) {
+				free(dir_path);
+				return -1;
+			}
+			*p = '/';
+			p = strchr(p + 1, '/');
 		}
-	} else {
-		char tmp[PATH_MAX];
-		size_t len = strnlen(dir, PATH_MAX);
-		memcpy(tmp, dir, len);
-		if (tmp[len-1]=='/') {
-			tmp[len-1]='\0';
+
+		if (mkdir(dir_path, mode) == -1 && errno != EEXIST) {
+			free(dir_path);
+			return -1;
 		}
-		char *p = strrchr(tmp, '/');
-		*p='\0';
-		int ret = mkpath(tmp);
-		if (ret == 0) {
-			return mkdir(dir, mode);
-		}
+		free(dir_path);
+	} else if (!S_ISDIR(st.st_mode)) {
+		return -1; /* path exists but is not dir */
 	}
+
 	return 0;
 }
 

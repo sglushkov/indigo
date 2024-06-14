@@ -24,7 +24,7 @@
  \file indigo_mount_nexstar.c
  */
 
-#define DRIVER_VERSION 0x0019
+#define DRIVER_VERSION 0x001B
 #define DRIVER_NAME	"indigo_mount_nexstar"
 
 #include <stdlib.h>
@@ -380,9 +380,11 @@ static void mount_handle_connect(indigo_device *device) {
 					} else {
 						if (side_of_pier == 'W') {
 							MOUNT_SIDE_OF_PIER_PROPERTY->hidden = false;
+							MOUNT_SIDE_OF_PIER_PROPERTY->perm = INDIGO_RO_PERM;
 							indigo_set_switch(MOUNT_SIDE_OF_PIER_PROPERTY, MOUNT_SIDE_OF_PIER_WEST_ITEM, true);
 						} else if (side_of_pier == 'E') {
 							MOUNT_SIDE_OF_PIER_PROPERTY->hidden = false;
+							MOUNT_SIDE_OF_PIER_PROPERTY->perm = INDIGO_RO_PERM;
 							indigo_set_switch(MOUNT_SIDE_OF_PIER_PROPERTY, MOUNT_SIDE_OF_PIER_EAST_ITEM, true);
 						}
 					}
@@ -436,10 +438,11 @@ static void mount_handle_park(indigo_device *device) {
 		PRIVATE_DATA->parked = true;  /* a bit premature but need to cancel other movements from now on until unparked */
 		PRIVATE_DATA->park_in_progress = true;
 		/* Celestron and SkyWatcher do not go to real ALT and AZ on EQ mounts,
-			 they infact go to HA and DEC. So we can use tc_goto_azalt_p() directly
+		   they infact go to HA and DEC (However dec should be > 0 like ALT).
+		   So we can use tc_goto_azalt_p() directly although it is not perfect.
 		*/
-		double dec = MOUNT_PARK_POSITION_DEC_ITEM->number.value;
-		double ha =  MOUNT_PARK_POSITION_HA_ITEM->number.value * 15;
+		double dec = fabs(MOUNT_PARK_POSITION_DEC_ITEM->number.value);
+		double ha = (MOUNT_PARK_POSITION_HA_ITEM->number.value+12) * 15;
 		if (ha < 0)
 			ha += 360.0;
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Going to park position: HA = %.5f Dec = %.5f", ha, dec);
@@ -666,14 +669,11 @@ static void mount_handle_slew_rate(indigo_device *device) {
 }
 
 static void mount_handle_motion_ns(indigo_device *device) {
-	indigo_log("mount_handle_motion_ns 0"); //-----------
 	int dev_id = PRIVATE_DATA->dev_id;
 	int res = RC_OK;
 	if (PRIVATE_DATA->slew_rate == 0)
 		mount_handle_slew_rate(device);
-	indigo_log("mount_handle_motion_ns 1"); //-----------
 	pthread_mutex_lock(&PRIVATE_DATA->serial_mutex);
-	indigo_log("mount_handle_motion_ns 2"); //-----------
 	if (MOUNT_MOTION_NORTH_ITEM->sw.value) {
 		res = tc_slew_fixed(dev_id, TC_AXIS_DE, TC_DIR_POSITIVE, PRIVATE_DATA->slew_rate);
 		MOUNT_MOTION_DEC_PROPERTY->state = INDIGO_BUSY_STATE;
@@ -684,7 +684,6 @@ static void mount_handle_motion_ns(indigo_device *device) {
 		res = tc_slew_fixed(dev_id, TC_AXIS_DE, TC_DIR_POSITIVE, 0); // STOP move
 		MOUNT_MOTION_DEC_PROPERTY->state = INDIGO_OK_STATE;
 	}
-	indigo_log("mount_handle_motion_ns 3"); //-----------
 	pthread_mutex_unlock(&PRIVATE_DATA->serial_mutex);
 	if (res != RC_OK) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "tc_slew_fixed(%d) = %d (%s)", dev_id, res, strerror(errno));
@@ -839,6 +838,15 @@ static indigo_result mount_change_property(indigo_device *device, indigo_client 
 		indigo_update_property(device, MOUNT_PARK_PROPERTY, NULL);
 		indigo_set_timer(device, 0, mount_handle_park, NULL);
 		return INDIGO_OK;
+	} else if (indigo_property_match_changeable(MOUNT_PARK_POSITION_PROPERTY, property)) {
+		// -------------------------------------------------------------------------------- MOUNT_PARK_POSITION
+		if (PRIVATE_DATA->park_in_progress) {
+			indigo_update_property(device, MOUNT_PARK_POSITION_PROPERTY, WARN_PARKING_PROGRESS_MSG);
+			return INDIGO_OK;
+		}
+		indigo_set_switch(MOUNT_PARK_PROPERTY, MOUNT_PARK_UNPARKED_ITEM, true);
+		indigo_update_property(device, MOUNT_PARK_PROPERTY, NULL);
+		/* Handle MOUNT_PARK_POSITION in the base class */
 	} else if (indigo_property_match_changeable(MOUNT_GEOGRAPHIC_COORDINATES_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- MOUNT_GEOGRAPTHIC_COORDINATES
 		indigo_property_copy_values(MOUNT_GEOGRAPHIC_COORDINATES_PROPERTY, property, false);
@@ -926,7 +934,6 @@ static indigo_result mount_change_property(indigo_device *device, indigo_client 
 		indigo_property_copy_values(MOUNT_MOTION_DEC_PROPERTY, property, false);
 		MOUNT_MOTION_DEC_PROPERTY->state = INDIGO_BUSY_STATE;
 		indigo_update_property(device, MOUNT_MOTION_DEC_PROPERTY, NULL);
-		indigo_log("MOUNT_MOTION_NS %d %d", MOUNT_MOTION_NORTH_ITEM->sw.value, MOUNT_MOTION_SOUTH_ITEM->sw.value); //-----------
 		indigo_set_timer(device, 0, mount_handle_motion_ns, NULL);
 		return INDIGO_OK;
 	} else if (indigo_property_match_changeable(MOUNT_MOTION_RA_PROPERTY, property)) {
@@ -1146,7 +1153,7 @@ static indigo_result guider_attach(indigo_device *device) {
 		indigo_init_switch_item(GUIDE_50_ITEM, GUIDE_50_ITEM_NAME, "50% sidereal", true);
 		indigo_init_switch_item(GUIDE_100_ITEM, GUIDE_100_ITEM_NAME, "100% sidereal", false);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
-		return indigo_guider_enumerate_properties(device, NULL, NULL);
+		return nexstar_guider_enumerate_properties(device, NULL, NULL);
 	}
 	return INDIGO_FAILED;
 }

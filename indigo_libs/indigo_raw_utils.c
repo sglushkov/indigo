@@ -27,7 +27,7 @@
 #define IM (1)
 #define PI_2 (6.2831853071795864769252867665590057683943L)
 
-static int median(int a, int b, int c) {
+static int median3(int a, int b, int c) {
 	if (a > b) {
 		if (b > c) return b;
 		else if (a > c) return c;
@@ -37,6 +37,124 @@ static int median(int a, int b, int c) {
 		else if (b > c) return c;
 		else return b;
 	}
+}
+
+#define SAMPLES 50000
+
+bool indigo_is_bayered_image(indigo_raw_header *header, size_t data_length) {
+	if (header->signature == INDIGO_RAW_MONO8 || header->signature == INDIGO_RAW_MONO16) {
+		size_t expected_length = sizeof(indigo_raw_header) + header->width * header->height * ((header->signature == INDIGO_RAW_MONO8) ? 1 : 2);
+		int extension_length = data_length - expected_length;
+		if (extension_length > 0) {
+			char *extension = (char *)header + expected_length;;
+			extension[extension_length - 1] = '\0'; /* Make sure it is null terminated */
+			if (strstr(extension, "BAYERPAT")) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+indigo_result indigo_equalize_bayer_channels(indigo_raw_type raw_type, void *data, const int width, const int height) {
+	long long ch1_sum = 0, ch2_sum = 0, ch3_sum = 0, ch4_sum = 0;
+	int ch1_count = 0, ch2_count = 0, ch3_count = 0, ch4_count = 0;
+
+	if (raw_type != INDIGO_RAW_MONO8 && raw_type != INDIGO_RAW_MONO16) {
+		return INDIGO_FAILED;
+	}
+
+	int x_step = (int)(width / sqrt(SAMPLES)) & ~1;  // Ensure it's even
+	int y_step = (int)(height / sqrt(SAMPLES)) & ~1; // Ensure it's even
+
+	if (raw_type == INDIGO_RAW_MONO16) {
+		uint16_t* data16 = (uint16_t*)data;
+		for (int y = 0; y < height - 1; y += y_step) {
+			for (int x = 0; x < width - 1; x += x_step) {
+				// Calculate averages using pixels at (x, y), (x+1, y), (x, y+1), and (x+1, y+1)
+				int index = y * width + x;
+				int index_right = index + 1;
+				int index_down = (y + 1) * width + x;
+				int index_diag = index_down + 1;
+
+				ch1_sum += data16[index];
+				ch1_count++;
+
+				ch3_sum += data16[index_right];
+				ch3_count++;
+
+				ch2_sum += data16[index_down];
+				ch2_count++;
+
+				ch4_sum += data16[index_diag];
+				ch4_count++;
+			}
+		}
+	} else if (raw_type == INDIGO_RAW_MONO8) {
+		uint8_t* data8 = (uint8_t*)data;
+		for (int y = 0; y < height - 1; y += y_step) {
+			for (int x = 0; x < width - 1; x += x_step) {
+				// Calculate averages using pixels at (x, y), (x+1, y), (x, y+1), and (x+1, y+1)
+				int index = y * width + x;
+				int index_right = index + 1;
+				int index_down = (y + 1) * width + x;
+				int index_diag = index_down + 1;
+
+				ch1_sum += data8[index];
+				ch1_count++;
+
+				ch3_sum += data8[index_right];
+				ch3_count++;
+
+				ch2_sum += data8[index_down];
+				ch2_count++;
+
+				ch4_sum += data8[index_diag];
+				ch4_count++;
+			}
+		}
+	}
+
+	double overall_average = (ch1_sum + ch2_sum + ch3_sum + ch4_sum) / (double)(ch1_count + ch2_count + ch3_count + ch4_count);
+	double ch1_scale_factor = overall_average / (ch1_sum / (double)ch1_count);
+	double ch2_scale_factor = overall_average / (ch2_sum / (double)ch2_count);
+	double ch3_scale_factor = overall_average /(ch3_sum / (double)ch3_count);
+	double ch4_scale_factor = overall_average / (ch4_sum / (double)ch4_count);
+
+	if (raw_type == INDIGO_RAW_MONO16) {
+		uint16_t* data16 = (uint16_t*)data;
+		for (int y = 0; y < height - 1; y += 2) {
+			for (int x = 0; x < width - 1; x += 2) {
+				// Scale pixels at (x, y), (x+1, y), (x, y+1), and (x+1, y+1)
+				int index = y * width + x;
+				int index_right = index + 1;
+				int index_down = (y + 1) * width + x;
+				int index_diag = index_down + 1;
+
+				data16[index] = (uint16_t)(data16[index] * ch1_scale_factor);
+				data16[index_right] = (uint16_t)(data16[index_right] * ch3_scale_factor);
+				data16[index_down] = (uint16_t)(data16[index_down] * ch2_scale_factor);
+				data16[index_diag] = (uint16_t)(data16[index_diag] * ch4_scale_factor);
+			}
+		}
+	} else if (raw_type == INDIGO_RAW_MONO8) {
+		uint8_t* data8 = (uint8_t*)data;
+		for (int y = 0; y < height - 1; y += 2) {
+			for (int x = 0; x < width - 1; x += 2) {
+				// Scale pixels at (x, y), (x+1, y), (x, y+1), and (x+1, y+1)
+				int index = y * width + x;
+				int index_right = index + 1;
+				int index_down = (y + 1) * width + x;
+				int index_diag = index_down + 1;
+
+				data8[index] = (data8[index] * ch1_scale_factor);
+				data8[index_right] = (data8[index_right] * ch3_scale_factor);
+				data8[index_down] = (data8[index_down] * ch2_scale_factor);
+				data8[index_diag] = (data8[index_diag] * ch4_scale_factor);
+			}
+		}
+	}
+	return INDIGO_OK;
 }
 
 double indigo_rmse(double set[], const int count) {
@@ -1153,17 +1271,17 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 		}
 		default: {
 			/* Remove hot from the digest */
-			fcol_x[0][RE] = median(0, col_x[0][RE], col_x[1][RE]);
+			fcol_x[0][RE] = median3(0, col_x[0][RE], col_x[1][RE]);
 			for (int i = 1; i < sub_width-1; i++) {
-				fcol_x[i][RE] = median(col_x[i - 1][RE], col_x[i][RE], col_x[i + 1][RE]);
+				fcol_x[i][RE] = median3(col_x[i - 1][RE], col_x[i][RE], col_x[i + 1][RE]);
 			}
-			fcol_x[sub_width - 1][RE] = median(col_x[sub_width - 2][RE], col_x[sub_width - 1][RE], 0);
+			fcol_x[sub_width - 1][RE] = median3(col_x[sub_width - 2][RE], col_x[sub_width - 1][RE], 0);
 
-			fcol_y[0][RE] = median(0, col_y[0][RE], col_y[1][RE]);
+			fcol_y[0][RE] = median3(0, col_y[0][RE], col_y[1][RE]);
 			for (int i = 1; i < sub_height-1; i++) {
-				fcol_y[i][RE] = median(col_y[i - 1][RE], col_y[i][RE], col_y[i + 1][RE]);
+				fcol_y[i][RE] = median3(col_y[i - 1][RE], col_y[i][RE], col_y[i + 1][RE]);
 			}
-			fcol_y[sub_height - 1][RE] = median(col_y[sub_height - 2][RE], col_y[sub_height - 1][RE], 0);
+			fcol_y[sub_height - 1][RE] = median3(col_y[sub_height - 2][RE], col_y[sub_height - 1][RE], 0);
 
 			digest->snr = (calibrate_re(fcol_x, sub_width) + calibrate_re(fcol_y, sub_height)) / 2;
 
@@ -1265,7 +1383,7 @@ indigo_result indigo_update_saturation_mask(indigo_raw_type raw_type, const void
 					if (
 						data8[off] > max_luminance &&
 						/* also check median of the neighbouring pixels to avoid hot pixels and lines */
-						median(data8[off - 1], data8[off], data8[off + 1]) > threshold
+						median3(data8[off - 1], data8[off], data8[off + 1]) > threshold
 					) {
 						int min_i = MAX(0, x - mask_size);
 						int max_i = MIN(width - 1, x + mask_size);
@@ -1289,7 +1407,7 @@ indigo_result indigo_update_saturation_mask(indigo_raw_type raw_type, const void
 					if (
 						data16[off] > max_luminance &&
 						/* also check median of the neighbouring pixels to avoid hot pixels and lines */
-						median(data16[off - 1], data16[off], data16[off + 1]) > threshold
+						median3(data16[off - 1], data16[off], data16[off + 1]) > threshold
 					) {
 						int min_i = MAX(0, x - mask_size);
 						int max_i = MIN(width - 1, x + mask_size);
@@ -1314,9 +1432,9 @@ indigo_result indigo_update_saturation_mask(indigo_raw_type raw_type, const void
 						data8[off] > max_luminance &&
 						/* also check median of the neighbouring pixels to avoid hot pixels and lines */
 						(
-							median(data8[off - 3], data8[off], data8[off + 3]) > threshold ||       /* Red Saturated? */
-							median(data8[off - 2], data8[off + 1], data8[off + 4]) > threshold ||   /* Green Saturated? */
-							median(data8[off - 1], data8[off + 2], data8[off + 5]) > threshold      /* Blue Saturated? */
+							median3(data8[off - 3], data8[off], data8[off + 3]) > threshold ||       /* Red Saturated? */
+							median3(data8[off - 2], data8[off + 1], data8[off + 4]) > threshold ||   /* Green Saturated? */
+							median3(data8[off - 1], data8[off + 2], data8[off + 5]) > threshold      /* Blue Saturated? */
 						)
 					) {
 						int min_i = MAX(0, x - mask_size);
@@ -1342,9 +1460,9 @@ indigo_result indigo_update_saturation_mask(indigo_raw_type raw_type, const void
 						data16[off] > max_luminance &&
 						/* also check median of the neighbouring pixels to avoid hot pixels and lines */
 						(
-							median(data16[off - 3], data16[off], data16[off + 3]) > threshold ||       /* Red Saturated? */
-							median(data16[off - 2], data16[off + 1], data16[off + 4]) > threshold ||   /* Green Saturated? */
-							median(data16[off - 1], data16[off + 2], data16[off + 5]) > threshold      /* Blue Saturated? */
+							median3(data16[off - 3], data16[off], data16[off + 3]) > threshold ||       /* Red Saturated? */
+							median3(data16[off - 2], data16[off + 1], data16[off + 4]) > threshold ||   /* Green Saturated? */
+							median3(data16[off - 1], data16[off + 2], data16[off + 5]) > threshold      /* Blue Saturated? */
 						)
 					) {
 						int min_i = MAX(0, x - mask_size);
@@ -1411,9 +1529,9 @@ static double indigo_stddev_8(uint8_t set[], const int width, const int height, 
 		for (int x = 1; x < end_x; x++) {
 			int i = y * width + x;
 			/* Check if saturated feature or hotpixel, hotpixels do not break the estimation */
-			if (set[i] > SATURATION_8 && median(set[i - 1], set[i], set[i + 1]) > threshold) {
+			if (set[i] > SATURATION_8 && median3(set[i - 1], set[i], set[i + 1]) > threshold) {
 				if (saturated) {
-					if (!(*saturated)) INDIGO_DEBUG(indigo_debug("Saturation detected: threshold = %.2f, median = %d, mean = %.2f", threshold, median(set[i - 1], set[i], set[i + 1]), m));
+					if (!(*saturated)) INDIGO_DEBUG(indigo_debug("Saturation detected: threshold = %.2f, median = %d, mean = %.2f", threshold, median3(set[i - 1], set[i], set[i + 1]), m));
 					*saturated = true;
 				}
 			}
@@ -1455,9 +1573,9 @@ static double indigo_stddev_masked_8(uint8_t set[], const uint8_t mask[], const 
 			int i = y * width + x;
 			if (mask[i]) {
 				/* Check if saturated feature or hotpixel, hotpixels do not break the estimation */
-				if (set[i] > SATURATION_8 && median(set[i - 1], set[i], set[i + 1]) > threshold) {
+				if (set[i] > SATURATION_8 && median3(set[i - 1], set[i], set[i + 1]) > threshold) {
 					if (saturated) {
-						if (!(*saturated)) INDIGO_DEBUG(indigo_debug("Saturation detected: threshold = %.2f, median = %d, mean = %.2f", threshold, median(set[i - 1], set[i], set[i + 1]), m));
+						if (!(*saturated)) INDIGO_DEBUG(indigo_debug("Saturation detected: threshold = %.2f, median = %d, mean = %.2f", threshold, median3(set[i - 1], set[i], set[i + 1]), m));
 						*saturated = true;
 					}
 				}
@@ -1511,9 +1629,9 @@ static double indigo_stddev_masked_rgb24(uint8_t set[], const uint8_t mask[], co
 						set[i + 1] > SATURATION_8 ||
 						set[i + 2] > SATURATION_8
 					) && (
-						median(set[i - 3], set[i], set[i + 3]) > threshold ||
-						median(set[i - 2], set[i + 1], set[i + 4]) > threshold ||
-						median(set[i - 1], set[i + 2], set[i + 5]) > threshold
+						median3(set[i - 3], set[i], set[i + 3]) > threshold ||
+						median3(set[i - 2], set[i + 1], set[i + 4]) > threshold ||
+						median3(set[i - 1], set[i + 2], set[i + 5]) > threshold
 					)
 				) {
 					if (saturated) {
@@ -1571,9 +1689,9 @@ static double indigo_stddev_rgb24(uint8_t set[], const int width, const int heig
 					set[i + 1] > SATURATION_8 ||
 					set[i + 2] > SATURATION_8
 				) && (
-					median(set[i - 3], set[i], set[i + 3]) > threshold ||
-					median(set[i - 2], set[i + 1], set[i + 4]) > threshold ||
-					median(set[i - 1], set[i + 2], set[i + 5]) > threshold
+					median3(set[i - 3], set[i], set[i + 3]) > threshold ||
+					median3(set[i - 2], set[i + 1], set[i + 4]) > threshold ||
+					median3(set[i - 1], set[i + 2], set[i + 5]) > threshold
 				)
 			) {
 				if (saturated) {
@@ -1620,9 +1738,9 @@ static double indigo_stddev_16(uint16_t set[], const int width, const int height
 		for (int x = 1; x < end_x; x++) {
 			int i = y * width + x;
 			/* Check if saturated feature or hotpixel, hotpixels do not break the estimation */
-			if (set[i] > SATURATION_16 && median(set[i - 1], set[i], set[i + 1]) > threshold) {
+			if (set[i] > SATURATION_16 && median3(set[i - 1], set[i], set[i + 1]) > threshold) {
 				if (saturated) {
-					if (!(*saturated)) INDIGO_DEBUG(indigo_debug("Saturation detected: threshold = %.2f, median = %d, mean = %.2f", threshold, median(set[i - 1], set[i], set[i + 1]), m));
+					if (!(*saturated)) INDIGO_DEBUG(indigo_debug("Saturation detected: threshold = %.2f, median = %d, mean = %.2f", threshold, median3(set[i - 1], set[i], set[i + 1]), m));
 					*saturated = true;
 				}
 			}
@@ -1664,9 +1782,9 @@ static double indigo_stddev_masked_16(uint16_t set[], const uint8_t mask[], cons
 			int i = y * width + x;
 			if (mask[i]) {
 				/* Check if saturated feature or hotpixel, hotpixels do not break the estimation */
-				if (set[i] > SATURATION_16 && median(set[i - 1], set[i], set[i + 1]) > threshold) {
+				if (set[i] > SATURATION_16 && median3(set[i - 1], set[i], set[i + 1]) > threshold) {
 					if (saturated) {
-						if (!(*saturated)) INDIGO_DEBUG(indigo_debug("Saturation detected: threshold = %.2f, median = %d, mean = %.2f", threshold, median(set[i - 1], set[i], set[i + 1]), m));
+						if (!(*saturated)) INDIGO_DEBUG(indigo_debug("Saturation detected: threshold = %.2f, median = %d, mean = %.2f", threshold, median3(set[i - 1], set[i], set[i + 1]), m));
 						*saturated = true;
 					}
 				}
@@ -1720,9 +1838,9 @@ static double indigo_stddev_masked_rgb48(uint16_t set[], const uint8_t mask[], c
 						set[i + 1] > SATURATION_16 ||
 						set[i + 2] > SATURATION_16
 					) && (
-						median(set[i - 3], set[i], set[i + 3]) > threshold ||
-						median(set[i - 2], set[i + 1], set[i + 4]) > threshold ||
-						median(set[i - 1], set[i + 2], set[i + 5]) > threshold
+						median3(set[i - 3], set[i], set[i + 3]) > threshold ||
+						median3(set[i - 2], set[i + 1], set[i + 4]) > threshold ||
+						median3(set[i - 1], set[i + 2], set[i + 5]) > threshold
 					)
 				) {
 					if (saturated) {
@@ -1780,9 +1898,9 @@ static double indigo_stddev_rgb48(uint16_t set[], const int width, const int hei
 					set[i + 1] > SATURATION_16 ||
 					set[i + 2] > SATURATION_16
 				) && (
-					median(set[i - 3], set[i], set[i + 3]) > threshold ||
-					median(set[i - 2], set[i + 1], set[i + 4]) > threshold ||
-					median(set[i - 1], set[i + 2], set[i + 5]) > threshold
+					median3(set[i - 3], set[i], set[i + 3]) > threshold ||
+					median3(set[i - 2], set[i + 1], set[i + 4]) > threshold ||
+					median3(set[i - 1], set[i + 2], set[i + 5]) > threshold
 				)
 			) {
 				if (saturated) {
@@ -2047,6 +2165,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 	uint8_t *data8 = (uint8_t *)data;
 	uint16_t *data16 = (uint16_t *)data;
 	double sum = 0;
+	double sum_sq = 0;
 
 	switch (raw_type) {
 		case INDIGO_RAW_MONO8: {
@@ -2054,6 +2173,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			for (int i = 0; i < size; i++) {
 				buf[i] = data8[i];
 				sum += buf[i];
+				sum_sq += buf[i] * buf[i];
 			}
 			break;
 		}
@@ -2062,6 +2182,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			for (int i = 0; i < size; i++) {
 				buf[i] = data16[i];
 				sum += buf[i];
+				sum_sq += buf[i] * buf[i];
 			}
 			break;
 		}
@@ -2070,6 +2191,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			for (int i = 0, j = 0; i < 3 * size; i++, j++) {
 				buf[j] = (data8[i] + data8[i + 1] + data8[i + 2]) / 3;
 				sum += buf[j];
+				sum_sq += buf[j] * buf[j];
 				i += 2;
 			}
 			break;
@@ -2079,6 +2201,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			for (int i = 0, j = 0; i < 4 * size; i++, j++) {
 				buf[j] = (data8[i] + data8[i + 1] + data8[i + 2]) / 3;
 				sum += buf[j];
+				sum_sq += buf[j] * buf[j];
 				i += 3;
 			}
 			break;
@@ -2088,6 +2211,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			for (int i = 0, j = 0; i < 4 * size; i++, j++) {
 				buf[j] = (data8[i + 1] + data8[i + 2] + data8[i + 3]) / 3;
 				sum += buf[j];
+				sum_sq += buf[j] * buf[j];
 				i += 3;
 			}
 			break;
@@ -2097,15 +2221,27 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			for (int i = 0, j = 0; i < 3 * size; i++, j++) {
 				buf[j] = (data16[i] + data16[i + 1] + data16[i + 2]) / 3;
 				sum += buf[j];
+				sum_sq += buf[j] * buf[j];
 				i += 2;
 			}
 			break;
 		}
 	}
 
-	double stddev = indigo_stddev_16(buf, width, height, NULL);
-	/* add 4.5 stddev threshold for stars */
-	uint32_t threshold = 4.5 * stddev + sum / size;
+	// Calculate mean
+	double mean = sum / size;
+
+	/* Calculate standard deviation - simplified, approximate estimate,
+	   with a nice property that it is less affected by outliers. This proeprty
+	   fixes the issue with finding guide stars in the presence of saturated stars,
+	   as it effectively filters out the outliers.
+	*/
+	double stddev = sqrt(fabs(sum_sq / size - mean * mean));
+
+	/* Calculate threshold - add 4.5 stddev threshold for stars */
+	uint32_t threshold = 4.5 * stddev + mean;
+	indigo_debug("%s(): image mean = %.2f, simplified stddev = %.2f, star detection threshold = %d", __FUNCTION__, mean, stddev, threshold);
+
 	int threshold_hist = threshold * 0.9;
 
 	int found = 0;
@@ -2129,10 +2265,10 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 				if (
 				    buf[off] > lmax &&
 				    /* also check median of the neighbouring pixels to avoid hot pixels and lines */
-				    median(buf[off - 1], buf[off], buf[off + 1]) > threshold &&
-				    median(buf[off - width], buf[off], buf[off + width]) > threshold &&
-				    median(buf[off - width - 1], buf[off], buf[off + width + 1]) > threshold &&
-				    median(buf[off - width + 1], buf[off], buf[off + width - 1]) > threshold
+				    median3(buf[off - 1], buf[off], buf[off + 1]) > threshold &&
+				    median3(buf[off - width], buf[off], buf[off + width]) > threshold &&
+				    median3(buf[off - width - 1], buf[off], buf[off + width + 1]) > threshold &&
+				    median3(buf[off - width + 1], buf[off], buf[off + width - 1]) > threshold
 				) {
 					lmax = buf[off];
 					star.x = i;
@@ -2207,8 +2343,35 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 				res = indigo_selection_frame_digest_iterative(raw_type, data, &star.x, &star.y, radius, width, height, &center, 2);
 				star.x = center.centroid_x;
 				star.y = center.centroid_y;
+				star.close_to_other = false;
 				if(res == INDIGO_OK) {
 					indigo_delete_frame_digest(&center);
+				}
+			}
+
+			/* Check if the star is a duplicate (probably artifact) or is in close proximity to another one.
+			   In both cses these stars should not be used */
+			if (res == INDIGO_OK || radius < 3) {
+				for (int i = 0; i < found; i++) {
+					double dx = fabs(star_list[i].x - star.x);
+					double dy = fabs(star_list[i].y - star.y);
+					if (dx < 1 && dy < 1) {
+						/* The star (probably artifact) is a duplicate of another star.
+						   We mark the other star as being close to another one, so it
+						   won't be used automatically, and we skip the duplicate. */
+						indigo_debug("indigo_find_stars(): star (%lf, %lf) skipped, duplicate of #%u = (%lf, %lf)", star.x, star.y, i + 1, star_list[i].x, star_list[i].y);
+						star_list[i].close_to_other = true;
+						res = INDIGO_FAILED;
+						break;
+					} else if (dx < radius && dy < radius) {
+						/* The star is too close to another star.
+						   We mark both star as being close to another one, so they
+						   won't be used automatically but we keep both stars in the list. */
+						indigo_debug("indigo_find_stars(): star (%lf, %lf), too close to #%u = (%lf, %lf)", star.x, star.y, i + 1, star_list[i].x, star_list[i].y);
+						star.close_to_other = true;
+						star_list[i].close_to_other = true;
+						break;
+					}
 				}
 			}
 
@@ -2230,7 +2393,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 
 	INDIGO_DEBUG(
 		for (size_t i = 0;i < found; i++) {
-			indigo_debug("indigo_find_stars: star #%u: x = %lf, y = %lf, ncdist = %lf, lum = %lf", i+1, star_list[i].x, star_list[i].y, star_list[i].nc_distance, star_list[i].luminance);
+			indigo_debug("indigo_find_stars: star #%u = (%lf, %lf), ncdist = %lf, lum = %lf, close_to_other = %d", i+1, star_list[i].x, star_list[i].y, star_list[i].nc_distance, star_list[i].luminance, star_list[i].close_to_other);
 		}
 	)
 

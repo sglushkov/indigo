@@ -224,6 +224,12 @@ Sequence.prototype.sync_center = function(exposure) {
 	this.sequence.push({ execute: 'sync_center()', step: this.step++ });
 };
 
+Sequence.prototype.precise_goto = function(exposure, ra, dec) {
+	this.sequence.push({ execute: 'set_solver_exposure(' + exposure + ')', step: this.step });
+	this.sequence.push({ execute: 'set_solver_target(' + ra + ', ' + dec + ')', step: this.step });
+	this.sequence.push({ execute: 'precise_goto()', step: this.step++ });
+};
+
 Sequence.prototype.start = function(imager_agent, mount_agent, guider_agent) {
 	indigo_sequencer.devices[2] = imager_agent == undefined ? "Imager Agent" : imager_agent;
 	indigo_sequencer.devices[3] = mount_agent == undefined ? "Mount Agent" : mount_agent;
@@ -1200,6 +1206,26 @@ var indigo_sequencer = {
 		}
 	},
 
+	set_solver_target: function(ra, dec) {
+		var agent = this.devices[5];
+		var property = indigo_devices[agent].AGENT_PLATESOLVER_GOTO_SETTINGS;
+		if (property != null) {
+			this.change_numbers(agent, "AGENT_PLATESOLVER_GOTO_SETTINGS", { RA: ra, DEC: dec });
+		} else {
+			this.failure("Can't set solver target");
+		}
+	},
+
+	precise_goto: function() {
+		var agent = this.devices[5];
+		var property = indigo_devices[agent].AGENT_START_PROCESS;
+		if (property != null) {
+			this.select_switch(agent, "AGENT_START_PROCESS", "PRECISE_GOTO");
+		} else {
+			this.failure("Can't initiate precise goto");
+		}
+	},
+
 	sync_center: function() {
 		var agent = this.devices[5];
 		var property = indigo_devices[agent].AGENT_START_PROCESS;
@@ -1220,8 +1246,9 @@ function indigo_sequencer_abort_handler() {
 	indigo_sequencer.abort();
 }
 
-indigo_delete_property("Scripting Agent", "SEQUENCE_STATE");
-indigo_delete_property("Scripting Agent", "AGENT_ABORT_PROCESS");
+if (indigo_event_handlers.indigo_sequencer == null) {
+	indigo_send_message("Sequencer installed");
+}
 indigo_delete_property("Scripting Agent", "LOOP_0");
 indigo_delete_property("Scripting Agent", "LOOP_1");
 indigo_delete_property("Scripting Agent", "LOOP_2");
@@ -1234,4 +1261,3 @@ indigo_delete_property("Scripting Agent", "LOOP_8");
 indigo_delete_property("Scripting Agent", "LOOP_9");
 indigo_event_handlers.indigo_sequencer = indigo_sequencer;
 indigo_enumerate_properties();
-indigo_send_message("Sequencer installed");

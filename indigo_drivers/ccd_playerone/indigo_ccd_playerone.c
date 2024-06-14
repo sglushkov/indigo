@@ -24,7 +24,7 @@
  \file indigo_ccd_playerone.c
  */
 
-#define DRIVER_VERSION 0x0009
+#define DRIVER_VERSION 0x000B
 #define DRIVER_NAME "indigo_ccd_playerone"
 
 /* POA_SAFE_READOUT enables workaround for a bug in POAGetImageData().
@@ -441,8 +441,10 @@ static void exposure_timer_callback(indigo_device *device) {
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "POAStartExposure(%d, true)", id);
 			CCD_EXPOSURE_ITEM->number.value = CCD_EXPOSURE_ITEM->number.target;
 			while (CCD_EXPOSURE_ITEM->number.value >= 1) {
-				if (POAGetCameraState(id, &state) == POA_OK && state != STATE_EXPOSING) {
-					INDIGO_DRIVER_ERROR(DRIVER_NAME, "State != EXPOSING");
+				if ((POAGetCameraState(id, &state) == POA_OK && state != STATE_EXPOSING) || CCD_ABORT_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
+					if (state != STATE_EXPOSING) {
+						INDIGO_DRIVER_ERROR(DRIVER_NAME, "State != EXPOSING");
+					}
 					CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
 					exposure_failed = true;
 					break;
@@ -516,23 +518,29 @@ static void exposure_timer_callback(indigo_device *device) {
 		res = POA_ERROR_EXPOSURE_FAILED;
 		exposure_failed = true;
 	}
+
 	PRIVATE_DATA->can_check_temperature = true;
-	if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
-		if (res) {
-			CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
+
+	if (CCD_ABORT_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
+		CCD_EXPOSURE_PROPERTY->state = INDIGO_BUSY_STATE;
+		indigo_ccd_abort_exposure_cleanup(device);
+	} else {
+		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
+			if (res) {
+				CCD_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
+			} else {
+				CCD_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
+			}
+		}
+		if (CCD_EXPOSURE_PROPERTY->state == INDIGO_ALERT_STATE) {
+			indigo_ccd_failure_cleanup(device);
+		}
+		if (exposure_failed) {
+			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, "Exposure failed!");
 		} else {
-			CCD_EXPOSURE_PROPERTY->state = INDIGO_OK_STATE;
+			indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
 		}
 	}
-	if (CCD_EXPOSURE_PROPERTY->state == INDIGO_ALERT_STATE) {
-		indigo_ccd_failure_cleanup(device);
-	}
-	if (exposure_failed) {
-		indigo_update_property(device, CCD_EXPOSURE_PROPERTY, "Exposure failed!");
-	} else {
-		indigo_update_property(device, CCD_EXPOSURE_PROPERTY, NULL);
-	}
-	PRIVATE_DATA->can_check_temperature = true;
 }
 
 static void streaming_timer_callback(indigo_device *device) {
@@ -557,18 +565,30 @@ static void streaming_timer_callback(indigo_device *device) {
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "POAStartExposure(%d, false) > %d", id, res);
 			while (CCD_STREAMING_COUNT_ITEM->number.value != 0) {
 				CCD_STREAMING_EXPOSURE_ITEM->number.value = CCD_STREAMING_EXPOSURE_ITEM->number.target;
+				if (CCD_ABORT_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
+					CCD_STREAMING_PROPERTY->state = INDIGO_ALERT_STATE;
+					CCD_STREAMING_COUNT_ITEM->number.value = 0;
+					CCD_STREAMING_EXPOSURE_ITEM->number.value = 0;
+					exposure_failed = true;
+					break;
+				}
 				while (CCD_STREAMING_EXPOSURE_ITEM->number.value >= 1) {
 					pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 					res = POAGetCameraState(id, &state);
 					pthread_mutex_unlock(&PRIVATE_DATA->usb_mutex);
-					if (res == POA_OK && state != STATE_EXPOSING) {
+					if ((res == POA_OK && state != STATE_EXPOSING) || CCD_ABORT_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 						CCD_STREAMING_PROPERTY->state = INDIGO_ALERT_STATE;
+						CCD_STREAMING_COUNT_ITEM->number.value = 0;
+						CCD_STREAMING_EXPOSURE_ITEM->number.value = 0;
 						exposure_failed = true;
 						break;
 					}
 					PRIVATE_DATA->can_check_temperature = true;
 					indigo_usleep(ONE_SECOND_DELAY);
 					CCD_STREAMING_EXPOSURE_ITEM->number.value--;
+					if (CCD_STREAMING_EXPOSURE_ITEM->number.value < 0) {
+						CCD_STREAMING_EXPOSURE_ITEM->number.value = 0;
+					}
 					indigo_update_property(device, CCD_STREAMING_PROPERTY, NULL);
 					PRIVATE_DATA->can_check_temperature = false;
 				}
@@ -631,24 +651,32 @@ static void streaming_timer_callback(indigo_device *device) {
 		res = POA_ERROR_EXPOSURE_FAILED;
 		exposure_failed = true;
 	}
+
 	PRIVATE_DATA->can_check_temperature = true;
+	CCD_STREAMING_EXPOSURE_ITEM->number.value = 0;
 	indigo_finalize_video_stream(device);
-	if (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
-		if (res) {
-			CCD_STREAMING_PROPERTY->state = INDIGO_ALERT_STATE;
-		} else {
-			CCD_STREAMING_PROPERTY->state = INDIGO_OK_STATE;
-		}
-	}
-	if (CCD_STREAMING_PROPERTY->state == INDIGO_ALERT_STATE) {
-		indigo_ccd_failure_cleanup(device);
-	}
-	if (exposure_failed) {
-		indigo_update_property(device, CCD_STREAMING_PROPERTY, "Exposure failed!");
+
+	if(CCD_ABORT_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
+		CCD_STREAMING_PROPERTY->state = INDIGO_BUSY_STATE;
+		indigo_ccd_abort_exposure_cleanup(device);
 	} else {
-		/* when canceled other drivers set INDIGO_OK_STATE */
-		CCD_STREAMING_PROPERTY->state = INDIGO_OK_STATE;
-		indigo_update_property(device, CCD_STREAMING_PROPERTY, NULL);
+		if (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE) {
+			if (res) {
+				CCD_STREAMING_PROPERTY->state = INDIGO_ALERT_STATE;
+			} else {
+				CCD_STREAMING_PROPERTY->state = INDIGO_OK_STATE;
+			}
+		}
+		if (CCD_STREAMING_PROPERTY->state == INDIGO_ALERT_STATE) {
+			indigo_ccd_failure_cleanup(device);
+		}
+		if (exposure_failed) {
+			indigo_update_property(device, CCD_STREAMING_PROPERTY, "Exposure failed!");
+		} else {
+			/* when canceled other drivers set INDIGO_OK_STATE */
+			CCD_STREAMING_PROPERTY->state = INDIGO_OK_STATE;
+			indigo_update_property(device, CCD_STREAMING_PROPERTY, NULL);
+		}
 	}
 }
 
@@ -861,7 +889,7 @@ static indigo_result ccd_attach(indigo_device *device) {
 				PRIVATE_DATA->bayer_pattern = NULL;
 				break;
 		}
-		return indigo_ccd_enumerate_properties(device, NULL, NULL);
+		return playerone_enumerate_properties(device, NULL, NULL);
 	}
 	return INDIGO_FAILED;
 }
@@ -1196,6 +1224,7 @@ static void handle_ccd_connect_property(indigo_device *device) {
 				indigo_define_property(device, POA_CUSTOM_SUFFIX_PROPERTY, NULL);
 
 				device->is_connected = true;
+				PRIVATE_DATA->can_check_temperature = true;
 				CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 				if (PRIVATE_DATA->has_temperature_sensor) {
 					indigo_set_timer(device, 0, ccd_temperature_callback, &PRIVATE_DATA->temperature_timer);
@@ -1208,12 +1237,11 @@ static void handle_ccd_connect_property(indigo_device *device) {
 	} else {
 		if (device->is_connected) {
 			PRIVATE_DATA->can_check_temperature = false;
+			CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_BUSY_STATE;
 			indigo_cancel_timer_sync(device, &PRIVATE_DATA->temperature_timer);
 			if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
-				CCD_ABORT_EXPOSURE_ITEM->sw.value = true;
 				indigo_cancel_timer_sync(device, &PRIVATE_DATA->exposure_timer);
 			} else if (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE && CCD_STREAMING_COUNT_ITEM->number.value != 0) {
-				CCD_STREAMING_COUNT_ITEM->number.value = 0;
 				indigo_cancel_timer_sync(device, &PRIVATE_DATA->exposure_timer);
 			}
 			indigo_delete_property(device, PIXEL_FORMAT_PROPERTY, NULL);
@@ -1281,14 +1309,16 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		return INDIGO_OK;
 		// -------------------------------------------------------------------------------- CCD_ABORT_EXPOSURE
 	} else if (indigo_property_match_changeable(CCD_ABORT_EXPOSURE_PROPERTY, property)) {
+		indigo_property_copy_values(CCD_ABORT_EXPOSURE_PROPERTY, property, false);
 		if (CCD_ABORT_EXPOSURE_ITEM->sw.value && (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE || CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE)) {
 			CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_BUSY_STATE;
-			if (CCD_STREAMING_PROPERTY->state == INDIGO_BUSY_STATE && CCD_STREAMING_COUNT_ITEM->number.value != 0) {
-				CCD_STREAMING_COUNT_ITEM->number.value = 0;
-			}
-			PRIVATE_DATA->can_check_temperature = true;
+			indigo_update_property(device, CCD_ABORT_EXPOSURE_PROPERTY, NULL);
+		} else {
+			CCD_ABORT_EXPOSURE_PROPERTY->state = INDIGO_ALERT_STATE;
 		}
-		indigo_property_copy_values(CCD_ABORT_EXPOSURE_PROPERTY, property, false);
+		CCD_ABORT_EXPOSURE_ITEM->sw.value = false;
+		indigo_update_property(device, CCD_ABORT_EXPOSURE_PROPERTY, NULL);
+		return INDIGO_OK;
 		// -------------------------------------------------------------------------------- CCD_COOLER
 	} else if (indigo_property_match_changeable(CCD_COOLER_PROPERTY, property)) {
 		indigo_property_copy_values(CCD_COOLER_PROPERTY, property, false);

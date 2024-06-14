@@ -2,6 +2,227 @@
 
 All notable changes to INDIGO framework will be documented in this file.
 
+# [2.0-286] - 06 Jun Thu 2024
+### Driver Fixes:
+- indigo_agent_guider:
+	- fix AGENT_GUIDER_FLIP_REVERSES_DEC proeprty initialization
+
+- indigo_agent_scripting:
+	- Sequencer.js: function precise_goto(exposure, ra, dec) added
+
+- indigo_mount_nexstar:
+	- better park but still not perfect
+	- libnexstar - fix mount capabilities CAN_GET_SIDE_OF_PIER & CAN_ALIGN for SkyWatcher
+
+- indigo_ccd_playerone:
+	- fix streaming abort for exposures < 1s
+
+- indigo_gps_nmea:
+	- move message that is not really error from ERROR to DEBUG
+
+# [2.0-284] - 31 May Fri 2024
+## Overall:
+- indigo_stretch:
+	- fix crash with GRBG CFA
+
+- indigo_filter:
+	- batch capture with DSLRs fixed
+
+- indigo_ccd_driver:
+	- fix crash in mkpath()
+	- simpler, non-racursive and more robust implementation of mkpath()
+
+- indigo_tools:
+	- add fits_to_raw.c usefull for debugging, it will not be compiled by default as it requires cfitsio
+
+- indigo_libs:
+	- add sky bortle class
+
+- insigo_aux_driver:
+	- move SKY_BRIGHTNESS and SKY_TEMPERATURE to WEATHER
+	- add SKY_BORTLE_CLASS to WEATHER
+
+- indigo_raw_utils:
+	- indigo_find_stars_precise() discards stars that are in close proximity and can be included in the same slection
+	- better star detection - the oversaturated stars will not affect the detection of the good stars
+
+### Driver Fixes:
+- indigo_agent_guider:
+	- fix star duplication in selection if there are no enough stars
+
+- indigo_agent_scripting:
+	- redundant message removed
+
+- indigo_ccd_touptek & OEM:
+	- updated SDK to version 55.25633.20240519
+
+- indigo_ccd_playerone:
+	- updated SDK to version 3.6.2
+
+- indigo_ccd_ptp:
+	- add missing mandatory CCD_FRAME property
+
+- indigo_ccd_svb:
+	- fixed abort streaming
+
+- indigo_aux_cloudwatcher:
+	- support fw 5.89
+	- add support for sky quality
+	- add sky bortle scale estimate
+	- C! command optimization
+	- use indigo_aux_dewpoint()
+	- fix read error with the new dark sensor in dark conditions
+	- remove forgotten message
+	- add warning regarding the initial reading
+
+- indigo_aux_sqm:
+	- add sky bortle scale estimate
+
+- indigo_ccd_asi:
+	- updted SDK to version 1.35
+
+- indigo_mount_simulator:
+	- DEC for parked mount on southern hemisphere fixed
+
+- indigo_mount_nexstar:
+	- fix park for southern hemisphere
+
+- indigo_ccd_mi:
+	- updated SDK to version 0.11.0 / 0.10.0
+		- sdd new camera PIDs
+		- fix macOS exposure issue
+
+# [2.0-282] - 02 May Thu 2024
+## Overall:
+- indigo_raw_utils:
+	- add indigo_is_bayered_image() and use it in agents
+
+- indigo_ccd_driver:
+	- move abort exposure code to indigo_ccd_abort_exposure_cleanup()
+	- proeprly initialize CCD_ABORT_EXPOSURE
+
+### Driver Fixes:
+- indigo_agent_astrometry:
+	- FITS conversion bug fixed
+
+- indigo_agent_imager:
+	- find precise star positions
+	- change AGENT_IMAGER_SELECTION_RADIUS max and default values
+	- equalize RGB channels for bayered images - fixes isse with finding stars on the image and measuring HFD and FWHM
+
+- indigo_ccd_touptek & OEM:
+	- ABORT_EXPOSURE behaviour fixed
+
+- indigo_ccd_svb:
+	- update SDK to v.1.12.6
+	- set WB to reasonable values for color cameras as the defaults are not ok
+	- ABORT_EXPOSURE behaviour fixed
+
+- indigo_ccd_iidc:
+	- ABORT_EXPOSURE behaviour fixed
+
+- indigo_ccd_uvc:
+	- ABORT_EXPOSURE behaviour fixed
+
+- indigo_ccd_asi:
+	- ABORT_EXPOSURE behaviour fixed
+
+- indigo_ccd_playerone:
+	- ABORT_EXPOSURE behaviour fixed
+
+- indigo_ccd_simulator:
+	- DSLR simulator now produces FITS and XISF
+
+# [2.0-280] - 12 Apr Fri 2024
+## Overall:
+- mount_drivers: MOUNT_SIDE_OF_PIER permission fixed
+- cltools.sh: build fixed for recent macOS
+- initial property enumeration fixed for several drivers
+- indigo_client: INDIGO_MAX_DRIVERS increased to 256
+
+### New Drivers:
+- indigo_focuser_ioptron:
+	- driver for iOptron focuser (untested)
+
+- indigo_focuser_qhy:
+	- driver for QHY Q-Focuser added
+
+### Driver Fixes:
+- indigo_agent_imager:
+	- batch is paused on meridian ONLY if it was started BEFORE reaching meridian
+	- more optimal U-Curve AF approach
+	- U-Curve focusing is default now
+	- better AF logging
+	- fixed initial and final steps - can not be 0
+
+- indigo_ccd_simulator:
+	- fix crash in gausian blur
+
+- indigo_mount_simulator:
+	- SIDE_OF_PIER simulation implemented
+
+- indigo_focuser_asi:
+	- temperature focus compensation uses FOCUSER_COMPENSATION.THRESHOLD
+
+- indigo_focuser_dsd:
+	- temperature focus compensation uses FOCUSER_COMPENSATION.THRESHOLD
+
+- indigo_focuser_mypro2:
+	- temperature focus compensation uses FOCUSER_COMPENSATION.THRESHOLD
+
+- indigo_ccd_touptek & OEMs:
+	- sdk updated to 55.25159.20240404
+	- fix CCD_MODE_PROPERTY initialization at connect
+	- camera LEDs can be turrned on and off (if supported by the hardware) useful for telescopes like RASA
+
+# [2.0-278] - 31 Mar Sun 2024
+## Overall:
+- build system fixes
+
+- indigo_rotator_driver:
+	- add relative move property
+	- added callibration proeprty
+
+- indigo_polynomial_fit:
+	- added polynomial fit functions
+
+- Sequencer.js:
+	- home() operation added
+	- added dynamic properties for active loops
+
+- indigo_docs:
+	- IMAGING_AF_TUNING.md - updated to describe U-Curve
+
+### Driver Fixes:
+- indigo_agent_imager:
+	- fix FOCUSER_MODE_PROPERTY, CCD_UPLOAD_MODE_PROPERTY and CCD_IMAGE_FORMAT_PROPERTY restoration in focus process
+	- Add U-Curve focus estimator
+
+- indigo_agent_mount:
+	- add parallactic angle and derotation rate to AGENT_MOUNT_DISPLAY_COORDINATES
+	- add field detotation suppoer for Alt/Az mounts
+
+- ondigo_agent_config:
+	- AGENT_CONFIG_LAST_CONFIG_PROPERTY becomes IDLE if saved or loaded configuration changes
+
+- indigo_aux_joystick:
+	- BlueTooth connection fixed
+
+- indigo_ccd_asi:
+	- SDK updated to v.1.34
+
+- indigo_ccd_ptp:
+
+- indigo_focuser_efa:
+	- celestron focuser USB rules added
+
+- indigo_mount_starbook:
+	- fix hangup issue of starbook driver
+
+### New Drivers:
+- indigo_rotator_wa:
+	- driver for Wanderer Astro field rotators
+
 # [2.0-276] - 6 Mar Wed 2024
 ## Overall:
 - filter agents:
@@ -14,7 +235,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - add indigo_copy_property()
 - target added to indigo_trace_property() output for number properties
 
-### Driver Fixes
+### Driver Fixes:
 - indigio_ccd_mi:
 	- Fix hotplug handling
 	- Update MI library to 0.10.0/0.9.0
