@@ -102,11 +102,18 @@ OPT_WIFI_AP_RESET=0
 OPT_VERBOSE=0
 
 # Valid WIFI channels
-WIFI_CHANNELS=('0' '1' '2' '3' '4' '5' '6' '7' '8' '9' '10' '11' '12' '13' '36' '40' '44' '48' '56' '60' '64' '100' '104' '108' '112' '116')
+# 5Ghz Standard channels 36-48 (NO DFS radar detection) 52-112 (DFS CAC radar detection 1 min). Above 112 DFS CAC 10 minutes and very high frequency so not practical to use 
+WIFI_CHANNELS=('0' '1' '2' '3' '4' '5' '6' '7' '8' '9' '10' '11' '12' '13' '36' '40' '44' '48' '52' '56' '60' '64' '100' '104' '108' '112')
+WIFI5G_CHANNELS_20MHZ=('40' '48' '56' '64' '104' '112')
+
 HT_CAPAB=0
 REQUIRE_HT=1
 
-HT_CAPAB_HT40='[HT40-][SHORT-GI-20][SHORT-GI-40]'
+HT_CAPAB_HT40UP='[HT40+][SHORT-GI-20][SHORT-GI-40]'
+HT_CAPAB_HT40DOWN='[HT40+][SHORT-GI-20][SHORT-GI-40]'
+HT_CAPAB_HT20='[HT20]'
+VHT_OPER_CHWIDTH_ENABLED=1
+VHT_OPER_CHWIDTH_DISABLED=0
 
 # Required config files.
 CONF_HOSTAPD="/etc/hostapd/hostapd.conf"
@@ -328,6 +335,7 @@ ssid=${WIFI_AP_SSID}
 hw_mode=${WIFI_HW_MODE}
 channel=${WIFI_AP_CH}
 country_code=UK
+ieee80211h=1
 ieee80211d=1
 ieee80211n=1
 ieee80211ac=1
