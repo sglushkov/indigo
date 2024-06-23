@@ -448,6 +448,8 @@ __set-wifi-channel() {
     __set "hw_mode" ${WIFI_HW_MODE} ${CONF_HOSTAPD} >/dev/null 2>&1
     __set "require_ht" ${REQUIRE_HT} ${CONF_HOSTAPD} >/dev/null 2>&1
     __set "ht_capab" ${HT_CAPAB} ${CONF_HOSTAPD} >/dev/null 2>&1
+		__set "vht_capab" ${VHT_CAPAB} ${CONF_HOSTAPD} >/dev/null 2>&1
+		__set "vht_oper_chwidth" ${VHT_OPER_CHWIDTH} ${CONF_HOSTAPD} >/dev/null 2>&1
     echo 1 2>/dev/null >${PROC_FORWARD}
     [[ $? -ne 0 ]] && { __ALERT "cannot change WiFi channel"; }
 
