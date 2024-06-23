@@ -323,7 +323,7 @@ __set-wifi-server() {
 
     if [[ ${WIFI_AP_CH} -gt 30 ]]; then
         WIFI_HW_MODE="a"
-        HT_CAPAB=${HT_CAPAB_HT40}
+				HT_CAPAB=${HT_CAPAB_HT40}
 				VHT_CAPAB=${VHT_CAPAB_HT80}
 				VHT_OPER_CHWIDTH=1
     fi
@@ -435,6 +435,8 @@ __set-wifi-channel() {
     if [[ ${WIFI_AP_CH} -gt 30 ]]; then
         WIFI_HW_MODE="a"
         HT_CAPAB=${HT_CAPAB_HT40}
+				VHT_CAPAB=${VHT_CAPAB_HT80}
+				VHT_OPER_CHWIDTH=1
     fi
 
     if [[ ${WIFI_AP_CH} -eq 0 ]]; then
