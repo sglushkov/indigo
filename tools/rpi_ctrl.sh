@@ -387,7 +387,7 @@ EOL
 			    __ALERT "cannot append lines to ${CONF_DHCPCD}"; }
     fi
 
-    { echo "OK"; sleep 1; ${SYSTEMCTL_EXE} enable hostapd; sleep 1; ${REBOOT_EXE}; }
+    { echo "OK"; sleep 1; ${SYSTEMCTL_EXE} enable hostapd; sleep 1; ${SYSTEMCTL_EXE} disable wpa_supplicant; sleep 1; ${REBOOT_EXE}; }
 }
 
 ###############################################
@@ -521,7 +521,7 @@ EOL
 			    __ALERT "cannot remove 'nohook wpa_supplicant' in ${CONF_DHCPCD}"; }
     fi
 
-    { echo "OK"; sleep 1; ${SYSTEMCTL_EXE} disable hostapd; sleep 1; ${REBOOT_EXE}; }
+    { echo "OK"; sleep 1; ${SYSTEMCTL_EXE} disable hostapd; sleep 1; ${SYSTEMCTL_EXE} enable wpa_supplicant; sleep 1; ${REBOOT_EXE}; }
 }
 
 ###############################################
