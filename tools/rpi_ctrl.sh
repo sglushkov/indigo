@@ -336,8 +336,8 @@ __set-wifi-server() {
             VHT_CAPAB=0
 						VHT_OPER_CHWIDTH=0
         fi
-
-	  if 
+		done
+	
 
     [[ ${WIFI_AP_CH} -eq 0 ]] && __ALERT "Auto Channel Selection is not available"
 
@@ -456,6 +456,7 @@ __set-wifi-channel() {
            VHT_CAPAB=0
 					 VHT_OPER_CHWIDTH=0
        fi
+		done
 
     if [[ ${WIFI_AP_CH} -eq 0 ]]; then
         WIFI_AP_CH=$($WIFI_CH_SELECT_EXE);
