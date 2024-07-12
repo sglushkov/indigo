@@ -102,11 +102,26 @@ OPT_WIFI_AP_RESET=0
 OPT_VERBOSE=0
 
 # Valid WIFI channels
-WIFI_CHANNELS=('0' '1' '2' '3' '4' '5' '6' '7' '8' '9' '10' '11' '12' '13' '36' '40' '44' '48' '56' '60' '64' '100' '104' '108' '112' '116')
-HT_CAPAB=0
-REQUIRE_HT=1
+# 5Ghz Standard channels 36-48 (NO DFS radar detection) 52-100 (DFS CAC radar detection 1 min). 
+# Above channel 112 DFS CAC delay for check is 10 minutes and very high frequency so not practical to use.
+# In 5Ghz range only base channels 36, 52, 100 are provided with assumtion that no one will have intentions 
+# to use 20 Mhz channel but their 80Mhz range 36-48, 52-64, 100-112 so connection will be @433Mhz. 
+# It will be probably better to use 2.4 channel for 20 Mhz that will provide similar speed.
+WIFI_CHANNELS=('0' '1' '2' '3' '4' '5' '6' '7' '8' '9' '10' '11' '12' '13' '36' '52' '100' '40' '48' '56' '64' '104' '112' )
+WIFI_CHANNELS_5G_40MHZ=('40' '48' '56' '64' '104' '112' ) 
 
-HT_CAPAB_HT40='[HT40-][SHORT-GI-20][SHORT-GI-40]'
+# Wi-Fi Channels of 5Ghz network that can be used only with 20 Mhz bandwidth if not set [HT40-] in ht_capab=
+# WIFI5G_CHANNELS_20MHZ=('40' '48' '56' '64' '104' '112')
+
+HT_CAPAB=0
+VHT_CAPAB=0
+VHT_OPER_CHWIDTH=0
+REQUIRE_HT=1
+REQUIRE_VHT=1
+
+HT_CAPAB_HT40M='[HT40-][SHORT-GI-20][SHORT-GI-40]'
+HT_CAPAB_HT40P='[HT40+][SHORT-GI-20][SHORT-GI-40]'
+VHT_CAPAB_VHT80='[SHORT-GI-80]'
 
 # Required config files.
 CONF_HOSTAPD="/etc/hostapd/hostapd.conf"
@@ -310,8 +325,19 @@ __set-wifi-server() {
 
     if [[ ${WIFI_AP_CH} -gt 30 ]]; then
         WIFI_HW_MODE="a"
-        HT_CAPAB=${HT_CAPAB_HT40}
+				HT_CAPAB=${HT_CAPAB_HT40P}
+				VHT_CAPAB=${VHT_CAPAB_HT80}
+				VHT_OPER_CHWIDTH=1
     fi
+
+		for channel in "${WIFI_CHANNELS_5G_40MHZ[@]}"; do
+        if [[ "${WIFI_AP_CH}" -eq "${channel}" ]]; then
+            HT_CAPAB=${HT_CAPAB_HT40M}
+            VHT_CAPAB=0
+						VHT_OPER_CHWIDTH=0
+        fi
+
+	  if 
 
     [[ ${WIFI_AP_CH} -eq 0 ]] && __ALERT "Auto Channel Selection is not available"
 
@@ -328,13 +354,16 @@ ssid=${WIFI_AP_SSID}
 hw_mode=${WIFI_HW_MODE}
 channel=${WIFI_AP_CH}
 country_code=UK
+ieee80211h=1
 ieee80211d=1
 ieee80211n=1
 ieee80211ac=1
 wmm_enabled=1
 require_ht=${REQUIRE_HT}
-require_vht=${REQUIRE_HT}
+require_vht=${REQUIRE_VHT}
 ht_capab=${HT_CAPAB}
+vht_capab=${VHT_CAPAB}
+vht_oper_chwidth=${VHT_OPER_CHWIDTH}
 macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=0
@@ -417,7 +446,16 @@ __set-wifi-channel() {
     if [[ ${WIFI_AP_CH} -gt 30 ]]; then
         WIFI_HW_MODE="a"
         HT_CAPAB=${HT_CAPAB_HT40}
+				VHT_CAPAB=${VHT_CAPAB_HT80}
+				VHT_OPER_CHWIDTH=1
     fi
+
+		for channel in "${WIFI_CHANNELS_5G_40MHZ[@]}"; do
+       if [[ "${WIFI_AP_CH}" -eq "${channel}" ]]; then
+           HT_CAPAB=${HT_CAPAB_HT40M}
+           VHT_CAPAB=0
+					 VHT_OPER_CHWIDTH=0
+       fi
 
     if [[ ${WIFI_AP_CH} -eq 0 ]]; then
         WIFI_AP_CH=$($WIFI_CH_SELECT_EXE);
@@ -428,6 +466,8 @@ __set-wifi-channel() {
     __set "hw_mode" ${WIFI_HW_MODE} ${CONF_HOSTAPD} >/dev/null 2>&1
     __set "require_ht" ${REQUIRE_HT} ${CONF_HOSTAPD} >/dev/null 2>&1
     __set "ht_capab" ${HT_CAPAB} ${CONF_HOSTAPD} >/dev/null 2>&1
+		__set "vht_capab" ${VHT_CAPAB} ${CONF_HOSTAPD} >/dev/null 2>&1
+		__set "vht_oper_chwidth" ${VHT_OPER_CHWIDTH} ${CONF_HOSTAPD} >/dev/null 2>&1
     echo 1 2>/dev/null >${PROC_FORWARD}
     [[ $? -ne 0 ]] && { __ALERT "cannot change WiFi channel"; }
 
