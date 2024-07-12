@@ -450,6 +450,13 @@ __set-wifi-channel() {
 				VHT_OPER_CHWIDTH=1
     fi
 
+		for channel in "${WIFI_CHANNELS_5G_40MHZ[@]}"; do
+       if [[ "${WIFI_AP_CH}" -eq "${channel}" ]]; then
+           HT_CAPAB=${HT_CAPAB_HT40M}
+           VHT_CAPAB=0
+					 VHT_OPER_CHWIDTH=0
+       fi
+
     if [[ ${WIFI_AP_CH} -eq 0 ]]; then
         WIFI_AP_CH=$($WIFI_CH_SELECT_EXE);
         [[ $? -ne 0 ]] && { __ALERT "cannot auto select WiFi channel"; }
