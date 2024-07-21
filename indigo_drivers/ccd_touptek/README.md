@@ -1,10 +1,10 @@
-# ToupTek CCD & filetr wheel driver
+# ToupTek CCD camera, fileter wheel and focuser driver
 
 http://www.touptek.com
 
 ## Supported devices
 
-ToupTek USB 2.0 and USB 3.0 devices supported by vendor SDK
+ToupTek USB 2.0 and USB 3.0 devices (cameras, fileter wheels and focusers) supported by the vendor SDK
 
 Untested support for Meade DSI IV, LPI-G and Meade LPI-G Advanced
 
@@ -27,7 +27,10 @@ indigo_server indigo_ccd_touptek
 Tested with:
 * GP-1200KMB
 * GPCMOS02000KMA
+* GP3M678C
+* GPM462M
 * Touptek FILTERWHEEL
+* Touptek AAF
 
 ## Comments
 

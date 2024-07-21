@@ -139,7 +139,8 @@ This is the list of requirements taken into the consideration:
 109. Wanderer Astro WandererBox Pro V3
 110. Wanderer Astro WandererCover V4-EC
 111. iOptron iEAF focuser driver
-
+112. Optec FocusLynx focuser driver
+113. PegasusAstro FocusCube3 driver
 
 ## This is under development
 1. a-Box Adaptive optics driver
