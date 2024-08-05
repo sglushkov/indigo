@@ -2,6 +2,98 @@
 
 All notable changes to INDIGO framework will be documented in this file.
 
+# [2.0-292] - 01 Aug Thu 2024
+## Overall:
+- indigo_make_psf_map() added to raw utils
+- tools/metainfo.sh replaced by indigo_driver_metadata
+- pseudo-tty simulators updated to use curses
+
+- indigo_ccd_driver:
+	- CCD_EGAIN prroperty added
+	- save EGAIN in FITS/TIFF file
+	- SWCREATE added to FITS/TIFF headers;
+
+## Driver Fixes:
+- indigo_agent_imager:
+	- FOCUSPOS FITS keyword added correctly
+
+- indigo_agent_guider:
+	- SNR is item populated for all detection algorithms
+
+- indigo_ccd_asi:
+	- populate CCD_EGAIN property
+
+- indigo_ccd_mi:
+	- fix pixel size rounding
+	- populate CCD_EGAIN property
+
+- indigo_ccd_playerone:
+	- populate CCD_EGAIN property
+
+- indigo_ccd_atik:
+	- SDK updated to v.2024.06.29.1893
+
+- indigo_mount_lx200:
+	- TeenAstro support added
+
+- indigo_focuser_astroasis:
+	- added support for Intel and Arm MacOS
+
+- indigo_wheel_fli:
+	- fix race in the configuration loading
+
+- indigo_aux_ppb:
+	- persistent configuration fixed
+	- add basic Saddle PowerBox support
+	- P# response is included in the error message to help identify new device models
+
+- indigo_aux_upb:
+	- P# response is included in the error message to help identify new device models
+
+- ccd_qhy2:
+	- SDK updated to v.2024.07.29
+
+
+# [2.0-290] - 22 Jul Mon 2024
+## Overall:
+- name and device attributes added to getProperty command in JSON protocol
+
+## Driver Fixes:
+- indigo_focuser_primaluce:
+	- calibration routine enabled for Esatto2 focusers
+
+- indigo_rotator_falcon:
+	- support for v2 added
+	
+- indigo_ccd_playerone
+	- SDK updated to v3.6.3
+	
+- indigo_ccd_touptek & OEMs
+	- SDK updated to v56.25996.20240707
+	- focuser support added
+	
+- indigo_aux_wcv4ec
+	- support for firmware 20240618
+	
+- indigo_mount_starbook
+	- responsiveness issues fixed
+	
+- indigo_agent_mount
+	- broken LX200 server fixed 
+
+- indigo_aux_upb:
+	- issues with powerlines persistence fixed 
+	
+## New drivers:
+- indigo_aux_upb3:
+	- driver for PegasusAstro UltimatePowebox v3 and newer 
+
+- indigo_focuser_fc3:
+	- driver for PegasusAstro FocusCube v3 and newer 
+
+- indigo_focuser_astroasis
+	- driver for Astroasis Oasis focuser
+
 # [2.0-288] - 28 Jun Fri 2024
 ## Overall:
 - indigo_examples: add remote_server_client_mount.c example

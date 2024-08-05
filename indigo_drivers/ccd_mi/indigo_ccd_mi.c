@@ -23,7 +23,7 @@
  \file indigo_ccd_mi.c
  */
 
-#define DRIVER_VERSION 0x0018
+#define DRIVER_VERSION 0x001B
 #define DRIVER_NAME "indigo_ccd_mi"
 
 #include <ctype.h>
@@ -198,10 +198,10 @@ static void ccd_connect_callback(indigo_device *device) {
 			CCD_INFO_HEIGHT_ITEM->number.value = CCD_FRAME_HEIGHT_ITEM->number.value = CCD_FRAME_HEIGHT_ITEM->number.max = CCD_FRAME_TOP_ITEM->number.max = int_value;
 			gxccd_get_integer_parameter(PRIVATE_DATA->camera, GIP_PIXEL_W, &int_value);
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "gxccd_get_integer_parameter(..., GIP_PIXEL_W, -> %d)", int_value);
-			CCD_INFO_PIXEL_SIZE_ITEM->number.value = CCD_INFO_PIXEL_WIDTH_ITEM->number.value = round(int_value / 100.0) / 10.0;
+			CCD_INFO_PIXEL_SIZE_ITEM->number.value = CCD_INFO_PIXEL_WIDTH_ITEM->number.value = round(int_value / 10.0) / 100.0;
 			gxccd_get_integer_parameter(PRIVATE_DATA->camera, GIP_PIXEL_D, &int_value);
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "gxccd_get_integer_parameter(..., GIP_PIXEL_D, -> %d)", int_value);
-			CCD_INFO_PIXEL_HEIGHT_ITEM->number.value = round(int_value / 100.0) / 10.0;
+			CCD_INFO_PIXEL_HEIGHT_ITEM->number.value = round(int_value / 10.0) / 100.0;
 			CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = 16;
 			CCD_BIN_PROPERTY->perm = INDIGO_RW_PERM;
 			gxccd_get_integer_parameter(PRIVATE_DATA->camera, GIP_MAX_BINNING_X, &int_value);
@@ -294,13 +294,11 @@ static void ccd_connect_callback(indigo_device *device) {
 					CCD_GAIN_ITEM->number.max = int_value;
 					CCD_GAIN_ITEM->number.step = 1.0;
 					CCD_GAIN_ITEM->number.value = 0.0;
-				} else if (gxccd_get_value(PRIVATE_DATA->camera, GV_ADC_GAIN, &float_value) != -1) {
+				}
+				if (gxccd_get_value(PRIVATE_DATA->camera, GV_ADC_GAIN, &float_value) != -1) {
 					INDIGO_DRIVER_DEBUG(DRIVER_NAME, "gxccd_get_value(..., GV_ADC_GAIN, -> %g)", float_value);
-					CCD_GAIN_PROPERTY->hidden = false;
-					CCD_GAIN_PROPERTY->perm = INDIGO_RO_PERM;
-					CCD_GAIN_ITEM->number.min = 0.0;
-					CCD_GAIN_ITEM->number.step = 0.1;
-					CCD_GAIN_ITEM->number.value = float_value;
+					CCD_EGAIN_PROPERTY->hidden = false;
+					CCD_EGAIN_ITEM->number.value = float_value;
 				}
 			}
 
@@ -487,8 +485,14 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		// -------------------------------------------------------------------------------- CCD_GAIN
 		indigo_property_copy_values(CCD_GAIN_PROPERTY, property, false);
 		if (IS_CONNECTED && !CCD_GAIN_PROPERTY->hidden) {
+			float float_value;
 			gxccd_set_gain(PRIVATE_DATA->camera, CCD_GAIN_ITEM->number.value);
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "gxccd_set_gain(..., %g)", CCD_GAIN_ITEM->number.value);
+			if (gxccd_get_value(PRIVATE_DATA->camera, GV_ADC_GAIN, &float_value) != -1) {
+				INDIGO_DRIVER_DEBUG(DRIVER_NAME, "gxccd_get_value(..., GV_ADC_GAIN, -> %g)", float_value);
+				CCD_EGAIN_ITEM->number.value = float_value;
+				indigo_update_property(device, CCD_EGAIN_PROPERTY, NULL);
+			}
 			indigo_update_property(device, CCD_GAIN_PROPERTY, NULL);
 		}
 		return INDIGO_OK;
