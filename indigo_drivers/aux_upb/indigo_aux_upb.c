@@ -23,7 +23,7 @@
  \file indigo_aux_upb.c
  */
 
-#define DRIVER_VERSION 0x0014
+#define DRIVER_VERSION 0x0015
 #define DRIVER_NAME "indigo_aux_upb"
 
 #include <stdlib.h>
@@ -207,15 +207,15 @@ static void upb_open(indigo_device *device) {
 					PRIVATE_DATA->version = 2;
 					break;
 				} else {
-					close(PRIVATE_DATA->handle);
-					PRIVATE_DATA->handle = 0;
+					INDIGO_DRIVER_ERROR(DRIVER_NAME, "UPB not detected, '%s' reported as device type", response);
 				}
 			}
 			if (attempt++ == 3) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "UPB not detected");
+				close(PRIVATE_DATA->handle);
+				PRIVATE_DATA->handle = 0;
 				break;
 			}
-			INDIGO_DRIVER_ERROR(DRIVER_NAME, "UPB not detected - retrying in 1 second...");
 			indigo_usleep(ONE_SECOND_DELAY);
 		}
 	}
@@ -981,16 +981,6 @@ static void aux_connection_handler(indigo_device *device) {
 		}
 	} else {
 		indigo_cancel_timer_sync(device, &PRIVATE_DATA->aux_timer);
-		char command[] = "PE:0000";
-		if (AUX_POWER_OUTLET_1_ITEM->sw.value)
-			command[3] = '1';
-		if (AUX_POWER_OUTLET_2_ITEM->sw.value)
-			command[4] = '1';
-		if (AUX_POWER_OUTLET_3_ITEM->sw.value)
-			command[5] = '1';
-		if (AUX_POWER_OUTLET_4_ITEM->sw.value)
-			command[6] = '1';
-		upb_command(device, command, response, sizeof(response));
 		indigo_delete_property(device, AUX_USB_PORT_PROPERTY, NULL);
 		indigo_delete_property(device, AUX_USB_PORT_STATE_PROPERTY, NULL);
 		indigo_delete_property(device, AUX_POWER_OUTLET_PROPERTY, NULL);

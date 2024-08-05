@@ -100,6 +100,7 @@
 #include "focuser_optec/indigo_focuser_optec.h"
 #include "aux_ppb/indigo_aux_ppb.h"
 #include "aux_upb/indigo_aux_upb.h"
+#include "aux_upb3/indigo_aux_upb3.h"
 #include "aux_rts/indigo_aux_rts.h"
 #include "aux_dsusb/indigo_aux_dsusb.h"
 #include "guider_gpusb/indigo_guider_gpusb.h"
@@ -173,6 +174,7 @@
 #include "focuser_ioptron/indigo_focuser_ioptron.h"
 #include "ccd_bresser/indigo_ccd_bresser.h"
 #include "focuser_optecfl/indigo_focuser_optecfl.h"
+#include "focuser_fc3/indigo_focuser_fc3.h"
 #ifndef __aarch64__
 #include "ccd_sbig/indigo_ccd_sbig.h"
 #endif
@@ -227,6 +229,7 @@ driver_entry_point static_drivers[] = {
 	indigo_aux_sqm,
 	indigo_aux_uch,
 	indigo_aux_upb,
+	indigo_aux_upb3,
 	indigo_aux_usbdp,
 	indigo_aux_wbplusv3,
 	indigo_aux_wbprov3,
@@ -277,6 +280,7 @@ driver_entry_point static_drivers[] = {
 	indigo_focuser_dsd,
 	indigo_focuser_efa,
 	indigo_focuser_fcusb,
+	indigo_focuser_fc3,
 	indigo_focuser_focusdreampro,
 	indigo_focuser_fli,
 	indigo_focuser_ioptron,

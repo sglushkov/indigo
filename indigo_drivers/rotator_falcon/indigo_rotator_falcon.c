@@ -23,7 +23,7 @@
  \file indigo_rotator_falcon.c
  */
 
-#define DRIVER_VERSION 0x0001
+#define DRIVER_VERSION 0x0002
 #define DRIVER_NAME	"indigo_rotator_falcon"
 
 #include <stdlib.h>
@@ -44,6 +44,7 @@ typedef struct {
 	int handle;
 	pthread_mutex_t mutex;
 	indigo_timer *position_timer;
+	int version;
 } falcon_private_data;
 
 static bool falcon_command(indigo_device *device, char *command, char *response, int max) {
@@ -51,7 +52,7 @@ static bool falcon_command(indigo_device *device, char *command, char *response,
 	indigo_write(PRIVATE_DATA->handle, command, strlen(command));
 	indigo_write(PRIVATE_DATA->handle, "\n", 1);
 	if (response != NULL) {
-		if (indigo_read_line(PRIVATE_DATA->handle, response, max) == 0) {
+		if (indigo_read_line(PRIVATE_DATA->handle, response, max) <= 0) {
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Command %s -> no response", command);
 			return false;
 		}
@@ -67,10 +68,19 @@ static void rotator_connection_handler(indigo_device *device) {
 		PRIVATE_DATA->handle = indigo_open_serial_with_speed(DEVICE_PORT_ITEM->text.value, 9600);
 		if (PRIVATE_DATA->handle > 0) {
 			if (falcon_command(device, "F#", response, sizeof(response)) && !strcmp(response, "FR_OK")) {
+				strcpy(INFO_DEVICE_MODEL_ITEM->text.value ,"Falcon Rotator");
 			} else {
-				INDIGO_DRIVER_ERROR(DRIVER_NAME, "Rotator not detected");
 				close(PRIVATE_DATA->handle);
-				PRIVATE_DATA->handle = 0;
+				PRIVATE_DATA->handle = indigo_open_serial_with_speed(DEVICE_PORT_ITEM->text.value, 115200);
+				if (PRIVATE_DATA->handle > 0) {
+					if (falcon_command(device, "F#", response, sizeof(response)) && !strncmp(response, "F2R_", 4)) {
+						strcpy(INFO_DEVICE_MODEL_ITEM->text.value, "Falcon Rotator v2");
+					} else {
+						INDIGO_DRIVER_ERROR(DRIVER_NAME, "Rotator not detected");
+						close(PRIVATE_DATA->handle);
+						PRIVATE_DATA->handle = 0;
+					}
+				}
 			}
 		}
 		if (PRIVATE_DATA->handle > 0) {
@@ -97,25 +107,46 @@ static void rotator_connection_handler(indigo_device *device) {
 			}
 		}
 		if (PRIVATE_DATA->handle > 0) {
-			if (falcon_command(device, "FA", response, sizeof(response)) && !strncmp(response, "FR_OK", 5)) {
-				char *pnt, *token = strtok_r(response, ":", &pnt);
-				token = strtok_r(NULL, ":", &pnt); // position_in_deg
-				if (token) {
-					ROTATOR_POSITION_ITEM->number.target = ROTATOR_POSITION_ITEM->number.value = indigo_atod(token);
-				}
-				token = strtok_r(NULL, ":", &pnt); // is_running
-				token = strtok_r(NULL, ":", &pnt); // limit_detect
-				token = strtok_r(NULL, ":", &pnt); // do_derotation
-				token = strtok_r(NULL, ":", &pnt); // motor_reverse
-				if (token) {
-					if (*token == '0')
-						indigo_set_switch(ROTATOR_DIRECTION_PROPERTY, ROTATOR_DIRECTION_NORMAL_ITEM, true);
-					else
-						indigo_set_switch(ROTATOR_DIRECTION_PROPERTY, ROTATOR_DIRECTION_REVERSED_ITEM, true);
-				} else {
-					INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to parse 'FA' response");
-					close(PRIVATE_DATA->handle);
-					PRIVATE_DATA->handle = 0;
+			if (falcon_command(device, "FA", response, sizeof(response))) {
+				if (!strncmp(response, "FR_OK", 5)) {
+					char *pnt, *token = strtok_r(response, ":", &pnt);
+					token = strtok_r(NULL, ":", &pnt); // position_in_deg
+					if (token) {
+						ROTATOR_POSITION_ITEM->number.target = ROTATOR_POSITION_ITEM->number.value = indigo_atod(token);
+					}
+					token = strtok_r(NULL, ":", &pnt); // is_running
+					token = strtok_r(NULL, ":", &pnt); // limit_detect
+					token = strtok_r(NULL, ":", &pnt); // do_derotation
+					token = strtok_r(NULL, ":", &pnt); // motor_reverse
+					if (token) {
+						if (*token == '0')
+							indigo_set_switch(ROTATOR_DIRECTION_PROPERTY, ROTATOR_DIRECTION_NORMAL_ITEM, true);
+						else
+							indigo_set_switch(ROTATOR_DIRECTION_PROPERTY, ROTATOR_DIRECTION_REVERSED_ITEM, true);
+					} else {
+						INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to parse 'FA' response");
+						close(PRIVATE_DATA->handle);
+						PRIVATE_DATA->handle = 0;
+					}
+				} else if (!strncmp(response, "F2R:", 4)) {
+					char *pnt, *token = strtok_r(response, ":", &pnt); // position_in_deg
+					if (token) {
+						ROTATOR_POSITION_ITEM->number.target = ROTATOR_POSITION_ITEM->number.value = indigo_atod(token);
+					}
+					token = strtok_r(NULL, ":", &pnt); // is_running
+					token = strtok_r(NULL, ":", &pnt); // speed
+					token = strtok_r(NULL, ":", &pnt); // microsteps
+					token = strtok_r(NULL, ":", &pnt); // direction
+					if (token) {
+						if (*token == '0')
+							indigo_set_switch(ROTATOR_DIRECTION_PROPERTY, ROTATOR_DIRECTION_NORMAL_ITEM, true);
+						else
+							indigo_set_switch(ROTATOR_DIRECTION_PROPERTY, ROTATOR_DIRECTION_REVERSED_ITEM, true);
+					} else {
+						INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to parse 'FA' response");
+						close(PRIVATE_DATA->handle);
+						PRIVATE_DATA->handle = 0;
+					}
 				}
 			} else {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to read 'FA' response");
@@ -184,7 +215,7 @@ static void rotator_position_handler(indigo_device *device) {
 			break;
 		}
 	} else {
-		INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to read 'WM' response");
+		INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to read 'MD'/'SD' response");
 		ROTATOR_POSITION_PROPERTY->state = INDIGO_ALERT_STATE;
 	}
 	if (falcon_command(device, "FD", response, sizeof(response)) && !strncmp(response, "FD:", 3)) {

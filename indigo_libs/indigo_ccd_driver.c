@@ -230,6 +230,12 @@ indigo_result indigo_ccd_attach(indigo_device *device, const char* driver_name, 
 				return INDIGO_FAILED;
 			CCD_GAIN_PROPERTY->hidden = true;
 			indigo_init_number_item(CCD_GAIN_ITEM, CCD_GAIN_ITEM_NAME, "Gain", 0, 500, 1, 100);
+			// -------------------------------------------------------------------------------- CCD_EGAIN
+			CCD_EGAIN_PROPERTY = indigo_init_number_property(NULL, device->name, CCD_EGAIN_PROPERTY_NAME, CCD_MAIN_GROUP, "Electrons per A/D unit", INDIGO_OK_STATE, INDIGO_RO_PERM, 1);
+			if (CCD_EGAIN_PROPERTY == NULL)
+				return INDIGO_FAILED;
+			CCD_EGAIN_PROPERTY->hidden = true;
+			indigo_init_number_item(CCD_EGAIN_ITEM, CCD_EGAIN_ITEM_NAME, "E-gain (e-/ADU)", 0, 10000, 0, 0);
 			// -------------------------------------------------------------------------------- CCD_OFFSET
 			CCD_OFFSET_PROPERTY = indigo_init_number_property(NULL, device->name, CCD_OFFSET_PROPERTY_NAME, CCD_MAIN_GROUP, "Offset", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
 			if (CCD_OFFSET_PROPERTY == NULL)
@@ -389,6 +395,8 @@ indigo_result indigo_ccd_enumerate_properties(indigo_device *device, indigo_clie
 			indigo_define_property(device, CCD_OFFSET_PROPERTY, NULL);
 		if (indigo_property_match(CCD_GAIN_PROPERTY, property))
 			indigo_define_property(device, CCD_GAIN_PROPERTY, NULL);
+		if (indigo_property_match(CCD_EGAIN_PROPERTY, property))
+			indigo_define_property(device, CCD_EGAIN_PROPERTY, NULL);
 		if (indigo_property_match(CCD_GAMMA_PROPERTY, property))
 			indigo_define_property(device, CCD_GAMMA_PROPERTY, NULL);
 		if (indigo_property_match(CCD_FRAME_TYPE_PROPERTY, property))
@@ -498,6 +506,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 			indigo_define_property(device, CCD_BIN_PROPERTY, NULL);
 			indigo_define_property(device, CCD_OFFSET_PROPERTY, NULL);
 			indigo_define_property(device, CCD_GAIN_PROPERTY, NULL);
+			indigo_define_property(device, CCD_EGAIN_PROPERTY, NULL);
 			indigo_define_property(device, CCD_GAMMA_PROPERTY, NULL);
 			indigo_define_property(device, CCD_FRAME_TYPE_PROPERTY, NULL);
 			indigo_define_property(device, CCD_IMAGE_FORMAT_PROPERTY, NULL);
@@ -541,6 +550,7 @@ indigo_result indigo_ccd_change_property(indigo_device *device, indigo_client *c
 			indigo_delete_property(device, CCD_BIN_PROPERTY, NULL);
 			indigo_delete_property(device, CCD_OFFSET_PROPERTY, NULL);
 			indigo_delete_property(device, CCD_GAIN_PROPERTY, NULL);
+			indigo_delete_property(device, CCD_EGAIN_PROPERTY, NULL);
 			indigo_delete_property(device, CCD_GAMMA_PROPERTY, NULL);
 			indigo_delete_property(device, CCD_FRAME_TYPE_PROPERTY, NULL);
 			indigo_delete_property(device, CCD_IMAGE_FORMAT_PROPERTY, NULL);
@@ -920,6 +930,7 @@ indigo_result indigo_ccd_detach(indigo_device *device) {
 	indigo_release_property(CCD_FRAME_PROPERTY);
 	indigo_release_property(CCD_BIN_PROPERTY);
 	indigo_release_property(CCD_GAIN_PROPERTY);
+	indigo_release_property(CCD_EGAIN_PROPERTY);
 	indigo_release_property(CCD_GAMMA_PROPERTY);
 	indigo_release_property(CCD_OFFSET_PROPERTY);
 	indigo_release_property(CCD_FRAME_TYPE_PROPERTY);
@@ -1212,7 +1223,9 @@ static void raw_to_tiff(indigo_device *device, void *data_in, int frame_width, i
 	else if (CCD_FRAME_TYPE_DARKFLAT_ITEM->sw.value)
 		add_key(&next_key, false, "IMAGETYP= 'DarkFlat'            / frame type");
 	if (!CCD_GAIN_PROPERTY->hidden)
-		add_key(&next_key, false, "GAIN    = %20.2f / Gain", CCD_GAIN_ITEM->number.value);
+		add_key(&next_key, false, "GAIN    = %20.2f / Sensor gain", CCD_GAIN_ITEM->number.value);
+	if (!CCD_EGAIN_PROPERTY->hidden && CCD_EGAIN_ITEM->number.value > 0)
+		add_key(&next_key, false, "EGAIN   = %20.4f / Electrons per A/D unit [e-/ADU]", CCD_EGAIN_ITEM->number.value);
 	if (!CCD_OFFSET_PROPERTY->hidden)
 		add_key(&next_key, false, "OFFSET  = %20.2f / Offset", CCD_OFFSET_ITEM->number.value);
 	if (!CCD_GAMMA_PROPERTY->hidden)
@@ -1220,6 +1233,7 @@ static void raw_to_tiff(indigo_device *device, void *data_in, int frame_width, i
 	add_key(&next_key, false, "DATE-OBS= '%s' / UTC date that FITS file was created", date_time_end);
 	add_key(&next_key, false, "INSTRUME= '%s'%*c / instrument name", device->name, (int)(19 - strlen(device->name)), ' ');
 	add_key(&next_key, false, "ROWORDER= 'TOP-DOWN'           / Image row order");
+	add_key(&next_key, false, "SWCREATE= 'INDIGO 2.0-%s'     / Capture software", INDIGO_VERSION_MAJOR(INDIGO_VERSION_CURRENT), INDIGO_VERSION_MINOR(INDIGO_VERSION_CURRENT), INDIGO_BUILD);
 	if (keywords) {
 		while (keywords->type && (next_key - fits_header) < (FITS_HEADER_SIZE - 80)) {
 			switch (keywords->type) {
@@ -1685,7 +1699,9 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 		else if (CCD_FRAME_TYPE_DARKFLAT_ITEM->sw.value)
 			add_key(&header, true,  "IMAGETYP= 'DarkFlat'            / frame type");
 		if (!CCD_GAIN_PROPERTY->hidden)
-			add_key(&header, true,  "GAIN    = %20.2f / Gain", CCD_GAIN_ITEM->number.value);
+			add_key(&header, true,  "GAIN    = %20.2f / Sensor gain", CCD_GAIN_ITEM->number.value);
+		if (!CCD_EGAIN_PROPERTY->hidden && CCD_EGAIN_ITEM->number.value > 0)
+			add_key(&header, true,  "EGAIN   = %20.4f / Electrons per A/D unit [e-/ADU]", CCD_EGAIN_ITEM->number.value);
 		if (!CCD_OFFSET_PROPERTY->hidden)
 			add_key(&header, true,  "OFFSET  = %20.2f / Offset", CCD_OFFSET_ITEM->number.value);
 		if (!CCD_GAMMA_PROPERTY->hidden)
@@ -1693,6 +1709,7 @@ void indigo_process_image(indigo_device *device, void *data, int frame_width, in
 		add_key(&header, true,  "DATE-OBS= '%s' / UTC date that FITS file was created", date_time_end);
 		add_key(&header, true,  "INSTRUME= '%s'%*c / instrument name", device->name, (int)(19 - strlen(device->name)), ' ');
 		add_key(&header, true,  "ROWORDER= 'TOP-DOWN'           / Image row order");
+		add_key(&header, true,  "SWCREATE= 'INDIGO 2.0-%s'     / Capture software", INDIGO_BUILD);
 		if (!CCD_LENS_PROPERTY->hidden) {
 			// https://indico.esa.int/event/124/attachments/711/771/06_ESA-SSA-NEO-RS-0003_1_6_FITS_keyword_requirements_2014-08-01.pdf
 			// 5.4 Telescope information

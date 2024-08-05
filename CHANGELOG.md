@@ -2,8 +2,125 @@
 
 All notable changes to INDIGO framework will be documented in this file.
 
+# [2.0-292] - 01 Aug Thu 2024
+## Overall:
+- indigo_make_psf_map() added to raw utils
+- tools/metainfo.sh replaced by indigo_driver_metadata
+- pseudo-tty simulators updated to use curses
+
+- indigo_ccd_driver:
+	- CCD_EGAIN prroperty added
+	- save EGAIN in FITS/TIFF file
+	- SWCREATE added to FITS/TIFF headers;
+
+## Driver Fixes:
+- indigo_agent_imager:
+	- FOCUSPOS FITS keyword added correctly
+
+- indigo_agent_guider:
+	- SNR is item populated for all detection algorithms
+
+- indigo_ccd_asi:
+	- populate CCD_EGAIN property
+
+- indigo_ccd_mi:
+	- fix pixel size rounding
+	- populate CCD_EGAIN property
+
+- indigo_ccd_playerone:
+	- populate CCD_EGAIN property
+
+- indigo_ccd_atik:
+	- SDK updated to v.2024.06.29.1893
+
+- indigo_mount_lx200:
+	- TeenAstro support added
+
+- indigo_focuser_astroasis:
+	- added support for Intel and Arm MacOS
+
+- indigo_wheel_fli:
+	- fix race in the configuration loading
+
+- indigo_aux_ppb:
+	- persistent configuration fixed
+	- add basic Saddle PowerBox support
+	- P# response is included in the error message to help identify new device models
+
+- indigo_aux_upb:
+	- P# response is included in the error message to help identify new device models
+
+- ccd_qhy2:
+	- SDK updated to v.2024.07.29
+
+
+# [2.0-290] - 22 Jul Mon 2024
+## Overall:
+- name and device attributes added to getProperty command in JSON protocol
+
+## Driver Fixes:
+- indigo_focuser_primaluce:
+	- calibration routine enabled for Esatto2 focusers
+
+- indigo_rotator_falcon:
+	- support for v2 added
+	
+- indigo_ccd_playerone
+	- SDK updated to v3.6.3
+	
+- indigo_ccd_touptek & OEMs
+	- SDK updated to v56.25996.20240707
+	- focuser support added
+	
+- indigo_aux_wcv4ec
+	- support for firmware 20240618
+	
+- indigo_mount_starbook
+	- responsiveness issues fixed
+	
+- indigo_agent_mount
+	- broken LX200 server fixed 
+
+- indigo_aux_upb:
+	- issues with powerlines persistence fixed 
+	
+## New drivers:
+- indigo_aux_upb3:
+	- driver for PegasusAstro UltimatePowebox v3 and newer 
+
+- indigo_focuser_fc3:
+	- driver for PegasusAstro FocusCube v3 and newer 
+
+- indigo_focuser_astroasis
+	- driver for Astroasis Oasis focuser
+
+# [2.0-288] - 28 Jun Fri 2024
+## Overall:
+- indigo_examples: add remote_server_client_mount.c example
+
+## Driver Fixes:
+- indigo_agent_imager:
+	- fix image format restoration after focus failure in a sequence
+
+- indigo_agent_alpaca:
+	- naming convetion fixed
+
+- indigo_gps_nmea:
+	- add support for GALILEO, GLONASS, BEIDOU, NAVIC and QZSS
+	- automatic or user selectable positioning system
+
+- indigo_mount_ioptron
+	- add support for HEM15 mount
+
+## New drivers:
+- indigo_ccd_bresser:
+	- driver for Bresser (touptek OEM) cameras
+
+- indigo_ocuser_optecfl:
+	- Optec FocusLynx focusers driver
+
 # [2.0-286] - 06 Jun Thu 2024
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_guider:
 	- fix AGENT_GUIDER_FLIP_REVERSES_DEC proeprty initialization
 
@@ -46,7 +163,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- indigo_find_stars_precise() discards stars that are in close proximity and can be included in the same slection
 	- better star detection - the oversaturated stars will not affect the detection of the good stars
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_guider:
 	- fix star duplication in selection if there are no enough stars
 
@@ -101,7 +218,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- move abort exposure code to indigo_ccd_abort_exposure_cleanup()
 	- proeprly initialize CCD_ABORT_EXPOSURE
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_astrometry:
 	- FITS conversion bug fixed
 
@@ -140,14 +257,14 @@ All notable changes to INDIGO framework will be documented in this file.
 - initial property enumeration fixed for several drivers
 - indigo_client: INDIGO_MAX_DRIVERS increased to 256
 
-### New Drivers:
+## New Drivers:
 - indigo_focuser_ioptron:
 	- driver for iOptron focuser (untested)
 
 - indigo_focuser_qhy:
 	- driver for QHY Q-Focuser added
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_imager:
 	- batch is paused on meridian ONLY if it was started BEFORE reaching meridian
 	- more optimal U-Curve AF approach
@@ -193,7 +310,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_docs:
 	- IMAGING_AF_TUNING.md - updated to describe U-Curve
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_imager:
 	- fix FOCUSER_MODE_PROPERTY, CCD_UPLOAD_MODE_PROPERTY and CCD_IMAGE_FORMAT_PROPERTY restoration in focus process
 	- Add U-Curve focus estimator
@@ -219,7 +336,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_mount_starbook:
 	- fix hangup issue of starbook driver
 
-### New Drivers:
+## New Drivers:
 - indigo_rotator_wa:
 	- driver for Wanderer Astro field rotators
 
@@ -235,7 +352,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - add indigo_copy_property()
 - target added to indigo_trace_property() output for number properties
 
-### Driver Fixes:
+## Driver Fixes:
 - indigio_ccd_mi:
 	- Fix hotplug handling
 	- Update MI library to 0.10.0/0.9.0
@@ -253,7 +370,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_mount_asi:
 	- remap SLEW_RATE_FIND and SLEW_RATE_CENTERING speeds
 
-### New Drivers:
+## New Drivers:
 - indigo_wheel_mi: Moravian Instruments filetr wheel driver
 
 
@@ -277,7 +394,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- PROTOCOLS.md - fixes
 	- PROTOCOLS.md - add "tip" hint and explain better some other hints
 
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_scripting:
 	- select_image_format() added
 
@@ -332,7 +449,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigosky tools:
 	- better error hadling in rpi_ctrl_v2.sh
 
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_imager:
 	- features settings are saved now
 	- obsolete AGENT_IMAGER_DITHERING proeprty removed
@@ -380,7 +497,7 @@ All notable changes to INDIGO framework will be documented in this file.
 
 
 # [2.0-270] - 22 Jan Mon 2024
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_guider:
 	- dithering fixes
 
@@ -388,7 +505,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- dithering fixes
 
 # [2.0-268] - 20 Jan Fri 2024
-### Driver fixes:
+## Driver fixes:
 - indigo_mount_synscan:
 	- sanity check reverted as it introduced another issues
 
@@ -404,7 +521,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_aux_driver: add indigo_aux_dewpoint() utility function
 - Script base sequencer added
 
-### New Drivers:
+## New Drivers:
 - indigo_aux_wbplus3:
 	- Wanderer Astro WandererBox Plus V3 driver added
 
@@ -414,7 +531,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_aux_wcv4ec:
 	- Wanderer Astro WandererCover V4-EC driver added
 
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_guider:
 	- dithering moved from imager agent and API changed
 	- add dithering strategies: Randomized spiral, random and spiral
@@ -472,7 +589,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - rpi_ctrl_v2.sh: indigosky management script for debian bookworm added
 
 # [2.0-258] - 05 Dec Tue 2023
-### Driver fixes:
+## Driver fixes:
 - indigo_aux_asiair:
 	- code cleanup
 	- fix PWM and Power handling
@@ -493,7 +610,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- DEVICE_BAUDRATE change fixed
 	- fix indigo_enumerate_serial_ports() on linux
 
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_alpaca:
 	- GEOGRAPHIC_COORDINATES processing fixed
 
@@ -522,7 +639,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - RAW format can store embedded FITS keywords
 - indigo_raw_to_fits: add support for embedded FITS keywords
 
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_alpaca:
 	- JSON syntax fixed
 	- Agents are not exported
@@ -564,7 +681,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_ccd_driver: JPEG previews - crash fixed
 - indigo_ccd_driver: JPEG previews - fix broken lines at the botom of the frame
 
-### Driver fixes:
+## Driver fixes:
 - indigo_wheel_sx:
 	- USB rules file added
 
@@ -575,7 +692,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_ccd_driver: add 4 stretch presets - SLIGHT, MODERATE, NORMAL & HARD
 - indigo_mount_driver: add MOUNT_TARGET_INFO property to show rise/transit/set times and time to next transit of the object
 
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_astrometry:
 	- astrometry processes are killed more aggressively
 
@@ -618,7 +735,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_bus: fix indigo_dtos() rounding error that can result in DD:MM:60
 - indigo_bus: indigo_trace_property shows number format
 
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_astometry / indigo_agent_astap:
 	- make AGENT_PLATESOLVER_WCS proeprty states consistent with other processes during precise goto process
 	- do not fail solving in case of image failure if no solving is requested
@@ -655,7 +772,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_raw_utils: fix Invalid free() because of uninitialised value
 - indigo_server: fix occasional crash when trying to load nonexisting driver
 
-### Driver fixes:
+## Driver fixes:
 - indigo_ccd_playerone:
 	- update sdk to 3.5.0
 
@@ -667,10 +784,10 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_docs: update INDIGO_SERVER_AND_DRIVERS_GUIDE.md
 - remote service discovery fixed
 
-### New Drivers:
+## New Drivers:
 - indigo_aux_asiair: driver for ZWO ASIAIR Power Ports
 
-### Driver fixes:
+## Driver fixes:
 - indigo_ccd_ppt:
 	- Canon LV crash fixed
 	- Canon R7, R10, R6m2, R8, R50 and R100 support added
@@ -692,10 +809,10 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_docs: update SCRIPTING_BASICS.md
 - indigo_driver: property state fixes
 
-### New Drivers:
+## New Drivers:
 - indigo_aux_uch: driver for Pegasus USB Control Hub
 
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_mount:
 	- SIDE_OF_PIER propagation fixed
 
@@ -757,7 +874,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- fix focus compensation sign
 
 # [2.0-240] - 08 Jun Thu 2023
-### Driver fixes:
+## Driver fixes:
 - indigo_ccd_touptek & family:
 	- increase timeout for the exposure watchdog
 
@@ -765,7 +882,7 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall:
 	- imager and guider phases made public enums
 
-### Driver fixes:
+## Driver fixes:
 - insigo_agent_imager:
 	- sequence phase item added
 	- sequence state fixes
@@ -795,7 +912,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- typo fixed
 
 # [2.0-236] - 17 May Wed 2023
-### Driver fixes:
+## Driver fixes:
 - indigo_agent_imager:
 	- fix item descriptions
 	- sequence can have up to 128 batches
@@ -821,7 +938,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- fix FITS files saved on server regression.
 	- optimize saving images on server
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_ccd_asi:
 	- updated SDK to v.1.29
 
@@ -834,11 +951,11 @@ All notable changes to INDIGO framework will be documented in this file.
 	- support larger headers for FITS and XIFS images
 	- fix "Instrument:Camera:FocalLength" XISF proeprty
 
-### New Drivers:
+## New Drivers:
 - indigo_focuser_primaluce:
 	- driver for PrimaLuceLab SESTO SENSO 2 and ESATTO focusers, plus ARCO rotators
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_mount_asi:
 	- use more generic symlink as AM3 and AM5 share the same PID (AM3 is supported)
 	- add park
@@ -868,7 +985,7 @@ All notable changes to INDIGO framework will be documented in this file.
 
 - fix logging issues
 
-### Driver Fixes
+## Driver Fixes
 - indigo_ccd_uvc:
 	-usb rules file added
 
@@ -892,7 +1009,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- CCD_EXPOSURE_PROPERTY updated once a second.
 	- exposure countdown fixed
 
-### Driver Fixes
+## Driver Fixes
 - indigo_agent_astrometry:
 	- add basic index file integritiy check when downloaded
 
@@ -942,7 +1059,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- add discover command
 	- can be built on windows with MinGW
 
-### Driver Fixes
+## Driver Fixes
 - indigo_ccd_touptek & family:
 	- fix guider timer issue
 
@@ -973,7 +1090,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_server_start fixed for linux
 - timers: logging fixed
 
-### Driver Fixes
+## Driver Fixes
 - indigo_ccd_asi:
 	- custom suffix changed to string to string
 	- logging fixes
@@ -1028,11 +1145,11 @@ All notable changes to INDIGO framework will be documented in this file.
 - for hotplug drivers, the first device of a type will not have a suffix #XXX (unless it has permaned suffix added, only ASI and Player one support it)
 - fixed reseting of timer reference while callback is still executed
 
-### New Drivers:
+## New Drivers:
 - indigo ccd_ogma:
 	- OMGA Camera driver added - toupteck clone
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_ccd_sx:
 	- long exposure fixed - regression
 
@@ -1075,7 +1192,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - logging cleanup, indigo_log_message_handler signature changed
 - INDIGO_BUILD_COMMIT, INDIGO_BUILD_TIME added in log
 
-### New Drivers:
+## New Drivers:
 - indigo_ccd_omegonpro:
 	- Omegon camera driver based on Touptek
 
@@ -1090,7 +1207,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_ccd_mallin:
 	- MallinCam camera driver based on Touptek
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_ccd_touptek & family:
 	- fix exposure problem on linux
 	- fix camera changed (use part of serial number on mac, when sdk is fixed will be used on linux too)
@@ -1130,7 +1247,7 @@ All notable changes to INDIGO framework will be documented in this file.
 
 # [2.0-214] - 20 Jan Thu 2023
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_guider: fixed pixel scale
 
 # [2.0-212] - 19 Jan Thu 2023
@@ -1141,7 +1258,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- selection can not be changed while list is busy - fixes connect race
 	- CCD_LENS_FOV created for CCDs only
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_ccd_ssag:
 	- custom vid/pid enabled
 
@@ -1153,7 +1270,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - APTDIA and FOCALLEN added to fits headers
 - device profile names are configurable
 
-### New Drivers:
+## New Drivers:
 - indigo_wheel_indigo:
 	- PegasusAstro Indigo filter wheel driver - looking for testers!
 
@@ -1166,7 +1283,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_rotator_optec:
 	- Optec Pyxis camera field rotator - looking for testers!
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_astrometry:
 	- use same reference RA and Dec for the 3 points in polar alignment
 	- fix bug in polar error recalculation leading to offset between 0" and 20"
@@ -1211,7 +1328,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_lock_master_device()/indigo_unlock_master_device() added
 - INDIGO bus stop fixed
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_config:
 	- add AGENT_CONFIG_LAST_CONFIG proeprty
 	- replace spaces from config names with undercore
@@ -1252,7 +1369,7 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall
 - all ccd drivers: fix exposure countdown deadlock
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_config:
 	- fix driver name
 	- fix stale BUSY state, make save/load/delete more verbose
@@ -1272,7 +1389,7 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall
 - all ccd drivers: fix exposure countdown race
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_ccd_asi:
 	- SDK updated to v.1.27
 
@@ -1298,11 +1415,11 @@ All notable changes to INDIGO framework will be documented in this file.
 	- FITS keyword OBS-DAT used with millisec precision
 	- EXPTIME fixed for streaming
 
-### New Drivers:
+## New Drivers:
 - indigo_agent_config:
 	- new configuration agent created - it manages server condigurations
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_alpaca:
 	- imagebytes support
 
@@ -1336,7 +1453,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_server:
 	- better handling of driver failure to load
 
-### Driver Fixes
+## Driver Fixes
 - indigo_agent_astap:
 	- use pixel scale from camera as a hint
 
@@ -1362,7 +1479,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- remove partially saved files
 	- zero length image download fixed
 
-### Driver Fixes
+## Driver Fixes
 - indigo_agent_mount:
 	- forward events generated by the joystick buttons to the mount driver only if item is set
 
@@ -1384,14 +1501,14 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall
 - better property buffers handling to avoid memory fragmentation
 
-### Driver Fixes
+## Driver Fixes
 - indigo_agent_imager:
 	- more relaxed buffer allocation
 
 
 ## [2.0-194] - 27 Sep Tue 2022
 
-### Driver Fixes
+## Driver Fixes
 - indigo_agent_imager:
 	- fix wrong size of AGENT_IMAGER_DOWNLOAD_FILES_PROPERTY when no files available
 
@@ -1411,7 +1528,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - All ccd drivers:
 	- server stored images use more advanced name templates
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_imager:
 	- scandir() leeks fixed
 
@@ -1436,7 +1553,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- set CCD_IMAGE state to ALERT when CCD_EXPOSURE is ALERT
 	- use indigo_ccd_failure_cleanup() to cleanup the state at error
 
-### New Drivrs
+## New Drivrs
 - indigo_ccd_playerone:
 	- Driver for PlayerOne cameras
 	- 32-bit Intel not supported
@@ -1444,7 +1561,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_focuser_prodigy:
 	- supports focuser part only, power box not implemented yet
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_imager:
 	- AGENT_PAUSE_PROCESS_WAIT_ITEM added to AGENT_PAUSE_PROCESS_PROPERTY
 	- frame counting with wait & pause fixed
@@ -1496,7 +1613,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - EXPTIME format in FITS changed to %20.4f for values < 1
 - mount_driver: All alignment points can be deleted at once
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_guider:
 	- added weighted selection guiding method
 	- increased guide stars to 24
@@ -1538,7 +1655,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - all guider drivers can handle simultaneous RA and Dec guiding
 - agent configuration load regression fixed
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_guider:
 	- RA and Dec guiding pulses are issued simultaneously
 
@@ -1569,11 +1686,11 @@ All notable changes to INDIGO framework will be documented in this file.
 	- Web UI: add solar system objects to the star map
 	- Web UI: fix Lambda and Phi designations (lambda - longitude, Phi - latitude)
 
-### New drivers
+## New drivers
 - indigo_mount_asi:
 	- driver optimized for the lx200 dialect of ZWO AM mounts (AM mounts can still be used with the generic lx200 driver)
 
-### Driver fixes
+## Driver fixes
 - indigo_mount_lx200:
 	- handshake fails if auto detection is not successful
 	- optimizations for ZWO AM mount
@@ -1620,11 +1737,11 @@ All notable changes to INDIGO framework will be documented in this file.
 - rotator property names mapped for legacy protocol
 - indigosky: can now work at 5GHz Wifi up to 200Mbit/s
 
-### New drivers
+## New drivers
 - indigo_mount_starbook:
 	- Vixen StarBook mount controller driver added
 
-### Driver fixes
+## Driver fixes
 - indigo_mount_lx200:
 	- code refacored, made asynchronous
 	- ZWO AM5 support completed and tested
@@ -1665,11 +1782,11 @@ All notable changes to INDIGO framework will be documented in this file.
 - POLAR_ALIGNMENT: add notes that 3PPA will not work when looking at the pole
 - deb_package: added indigo-server.service and create indigo user on install
 
-### New drivers
+## New drivers
 - indigo_rotator_optec:
 	- Optec Pyxis rotator driver created
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_imager:
 	- rotator support added
 
@@ -1732,7 +1849,7 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall
 - indigo_ccd_driver: fix exposure timer counter stall if you abort and start new exposure before the previous timer is hit
 
-### Driver fixes
+## Driver fixes
 - indigo_ccd_asi: fix race condition in exposure timer handler
 
 ## [2.0-172] - 29 Mar Tue 2022
@@ -1762,7 +1879,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- fix BUSY status handling
 	- fix race in deivce attach
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_imager:
 	- AGENT_IMAGER_BREAKPOINT, AGENT_IMAGER_RESUME_CONDITION and AGENT_IMAGER_BARRIER_STATE properties added for inter-agent synchronization
 	- documentation fixed
@@ -1829,7 +1946,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_platesolver: better AGENT_PLATESOLVER_PA_STATE property state transitions
 - Makefile: libhidapi-libhidraw.a replaced with libhidapi-libusb.a
 
-### Driver fixes
+## Driver fixes
 - indigo_astrometry_agent:
 	- see overall: indigo_platesolver
 
@@ -1862,7 +1979,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_docs: POLAR_ALIGNMENT.md added
 - ccd_driver: byte_order_rgb interpreted correctly for TIFF format
 
-### New drivers
+## New drivers
 - indigo_astap_agent:
 	- plate solver agent using ASTAP
 	- has all the features as Astrometry agent
@@ -1870,7 +1987,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_ccd_svb:
 	- driver for SvBony cameras
 
-### Driver fixes
+## Driver fixes
 - indigo_astrometry_agent:
 	- solving can be triggered by a processes
 	- added 3-point polar alignment
@@ -1934,7 +2051,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - IMAGING_AF_TUNING: updated to reflect the latest AF changes
 - indigo_process_image(): fix sending of a wrong error message
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_imager:
 	- complete rewrite of RMS contrast estimator
 	- RMS AF supports RGB images
@@ -1970,7 +2087,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_stod(): fix for values [-1, 0] represented as positive
 - libusb: updated
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_solver:
 	- more reliable "Sync and center"
 	- FOV unit parsing fixed
@@ -2019,7 +2136,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_docs: updated IMAGING_AF_TUNING.md
 - indigo_framework: add indigo_contrast() call to calculate Root Mean Square (RMS) contrast of the image
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_imager:
 	- add new backlash clearing strategy "Backlash overshoot"
 	- add new autofocus estimator "RMS contrast"
@@ -2054,7 +2171,7 @@ All notable changes to INDIGO framework will be documented in this file.
 	- more Fuji models added
 
 ## [2.0-160] - Wed Sep 15 2021
-### Driver fixes
+## Driver fixes
 - indigo_ccd_asi:
 	- updated SDK to 1.20
 		- adds support for ASI482 and ASI485
@@ -2074,10 +2191,10 @@ All notable changes to INDIGO framework will be documented in this file.
 - dome drivers: DOME_DIMENSION property made persistent
 - indigo docs: IMAGING_AF_TUNING - guidelines for auto focus tuning
 
-### New Drivers
+## New Drivers
 - indigo_aux_geoptikflat: Geoptik flat field generator driver
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_imager:
 	- fix backlash application if it is handled by the driver
 	- fix CCD_UPLOAD_MODE_PROPERTY and CCD_IMAGE_FORMAT_PROPERTY restoration in preview process
@@ -2098,7 +2215,7 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall:
 - j2k coordinates added to indigo_topo_planet()
 
-### Driver fixes
+## Driver fixes
 - indigo_agent_astrometry: index download or solving can be aborted
 
 - indigo_agent_guider:
@@ -2127,14 +2244,14 @@ All notable changes to INDIGO framework will be documented in this file.
 	- accept timeout 0
 	- timeout countdown is started only if the connection is established
 
-### New Drivers
+## New Drivers
 - indigo_dome_beaver: Driver for NexDome domes with beaver controllers
 
 - indigo_aux_astromechanics: ASTROMECHANICS Light Pollution Meter driver - untested
 
 - indigo_focuser_astromechanics:  ASTROMECHANICS focuser driver - untested
 
-### Driver fixes
+## Driver fixes
 - indigo_ccd_asi:
 	- updated to SDK v.1.19.1 - fixes multi camera issue
 	- fix unity gain calculation for cameras with full well < ADC resolution
@@ -2154,7 +2271,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_client: fix http timeout for blob transfer - RPi is slow at compressing large images
 - fix typo leading to server self lock.
 
-### Driver fixes
+## Driver fixes
 - indigo_ccd_altair: macOS library architecture fixed
 
 ## [2.0-150] - Wed Jun 09 2021
@@ -2168,7 +2285,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - added full NGC/IC catalog
 - fix random behavior while removing related agent
 
-### Driver Fixes
+## Driver Fixes
 - indigo_aux_ppb: PPB Micro support added
 - indigo_ccd_simulator: battery level property added
 
@@ -2202,7 +2319,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - fixed telescope alignment
 - wifi channel can be selected for indigo sky in Access Point mode
 
-### Driver Fixes
+## Driver Fixes
 - indigo_mount_ioptron: add firmware version 3.1
 - indigo_wheel_qhy: fix typo
 
@@ -2222,11 +2339,11 @@ All notable changes to INDIGO framework will be documented in this file.
 - debug log level setting fixed
 - add indigo_compensate_backlash() call to be used in rotators and focusers
 
-### New Drivers:
+## New Drivers:
 - indigo_agent_alpaca: Agent that exposes INDIGO devices to ASCOM/Alpaca clients.
 - dome_talon6ror: driver for Talon 6 dome controller
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_imager:
 	- focuser backlash and agent backlash properties synchronized
 
@@ -2346,11 +2463,11 @@ All notable changes to INDIGO framework will be documented in this file.
 - weather & sky conditions properties standardized
 - indigo_docs: GUIDING_PI_CONTROLLER_TUNING added
 
-### New Drivers:
+## New Drivers:
 - indigo_dome_skyroof: Interactive Astronomy SkyRoof driver added
 - insigo_aux_skyalert: Interactive Astronomy SkyAlert driver added
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_imager:
 	- DSLR raw formats added to download code
 
@@ -2420,10 +2537,10 @@ All notable changes to INDIGO framework will be documented in this file.
 - fix agents crash when some properties are deleted
 - device detach code fixes: no need to explicitly call disconnect at detach
 
-### New Drivers:
+## New Drivers:
 - indigo_agent_astrometry: Agent for plate solving using astrometry.net (indigo-astrometry should be installed).
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_imager:
 	- sub-framing support added to preview process
 	- sub-frame selection fixes
@@ -2467,7 +2584,7 @@ All notable changes to INDIGO framework will be documented in this file.
 
 
 ## [2.0-140] - Sun Dec 27 2020
-### New Drivers:
+## New Drivers:
 - indigo_mount_rainbow: RainbowAstro mount driver
 - indigo_agent_scripting: ECMAscript support for INDIGO
 
@@ -2489,7 +2606,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - Data can be passed to timers using indigo_set_timer_with_data()
 - indigo_resize_property() call fixed
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_guider:
 	- fix guiding issue when with Declination guiding off
 	- calculate correctly RMSE RA and Dec
@@ -2520,7 +2637,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_property_match_writable() added
 - fixed read only property handling in core library
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_mount_nexstar:
 	- experimental guide pulse support added
 	- several bugfixes
@@ -2543,7 +2660,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_focuser_asi:
 	- temperature compensation fixed
 
-### New Drivers:
+## New Drivers:
 - indigo_focuser_mypro2
 
 ## [2.0-134] - Mon Nov 16 2020
@@ -2559,7 +2676,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - BLOB caching synchronization fixes
 - AVI support added to DSLR drivers
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_aux_cloudwatcher:
 	- support for Pocket CW
 	- support for older AAG units
@@ -2575,7 +2692,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_mount_nexstar: StarSense related fixes
 - indigo_ccd_qhy / indigo_ccd_qhy2: many driver and SDK fixes
 
-### New Drivers:
+## New Drivers:
 - indigo_wheel_qhy: QHY standalone filter wheels driver
 - indigo_mount_nexstaraux: Celestron Wifi mount drivers
 
@@ -2592,7 +2709,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - scientific number notation support added to JSON
 - CLIENT_DEVELOPMENT_BASICS.md and INDIGO_AGENTS.md documents updated
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_imager:
   - report failure if focusing did not converge
   - more robust focusing
@@ -2616,7 +2733,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_focuser_usbv3: bug fixes
 
 
-### New Drivers:
+## New Drivers:
 - wheel_qhy: QHY standalone filter wheel driver
 
 ## [2.0-128] - Mon Oct 05 2020
@@ -2627,7 +2744,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - webGUI: auto focus, guiding mode and dithering added
 - XISF metadata fixed and extended
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_guider:  many enhancements the main ones are:
   - Guiding now uses real Proportional-Integral (PI) controller. Explained in the driver README.md.
   - Dithering process auto detects when the guiding settled.
@@ -2678,7 +2795,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - DLL build added to Windows makefile
 - PSF calculation fixed
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_ccd_atik: macOS Horizon issues fixed
 - indigo_ccd_qsi: improved, fixed and tested with physical hardware
 - indigo_mount_pmc8: protocol switching fixed
@@ -2699,7 +2816,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - blob transfer improvements - name resolution is done only once
 - support ROWORDER keyword in fits.
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_agent_guider: PSF radius added, fixes
 - indigo_agent_imager: PSF radius added, fixes
 - indigo_aux_ppb: PPB Advanced support added
@@ -2713,7 +2830,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_ccd_atik: SDK updated to 2020_06_23
 - indigo_ccd_qhy2: SDK updated to V2020.06.05 for macOS and  V2020.05.22 for linux
 
-### New Drivers:
+## New Drivers:
 - indigo_mount_pmc8: PMC8 mount controller driver
 - indigo_aux_rpio: Raspberry Pi GPIO driver
 
@@ -2725,7 +2842,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - Dynamic libraries ARE NOT binary compatible due to changes in indigo_device structure
 - Drivers can not be unloaded if any of the handled devices is connected
 
-### Driver Fixes:
+## Driver Fixes:
 - ALL DRIVERS are updated due to the new timer handling
 - indigo_efa_focuser: calibration added for celestron devices
 - indigo_lx200_mount: unpark added for OneStep dialect, tracking status fixed, ...
@@ -2741,7 +2858,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_ccd_atik: AtikOne wheel control fixed, new SDK used
 - indigo_ccd_mi: support for new CMOS cameras added
 
-### New Drivers:
+## New Drivers:
 - indigo_dome_baader
 - indigo_aux_mgbox
 - indigo_wheel_manual
@@ -2754,7 +2871,7 @@ All notable changes to INDIGO framework will be documented in this file.
     - Fix deadlock on indigosky
     - Fix password trucation bug
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_ccd_ptp: Sony camera related fixes
 - indigo_mount_temma: Side of pier fixed
 
@@ -2763,11 +2880,11 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall:
 - indigo framework: fix "&" character escape in XML
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_ccd_ptp: Sony and Canon camera related fixes
 - indigo_mount_temma: Add pier side update notify
 
-### New Drivers:
+## New Drivers:
 - indigo_dome_dragonfly: Lunatico Astronomia Dragonfly Dome / Relay controller driver
 - indigo_aux_dragonfly: Lunatico Astronomia Dragonfly Relay controller driver
 
@@ -2777,7 +2894,7 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall:
 - indigosky fixes
 
-### Driver fixes:
+## Driver fixes:
 - lunatico drivers: show proper description
 
 ## [2.0-114] - Sat Mar 7 2020
@@ -2795,7 +2912,7 @@ All notable changes to INDIGO framework will be documented in this file.
     - use updated version of fxload
 - Developer Documentation updated
 
-### Driver Fixes:
+## Driver Fixes:
 - indigo_mount_nexstar: fixes and worarounds for StarSense HC
 - indigo_focuser_dsd: add support for DSD AF3
 - indigo_agent_guider: abort fixed, remote driver fixed
@@ -2806,7 +2923,7 @@ All notable changes to INDIGO framework will be documented in this file.
 - indigo_ccd_asi: firmware updated to v.1.14.1227
 - indigo_ccd_qhy: camera firmware updated, but the QHY provided SDK is still badly unstable
 
-### New Drivers:
+## New Drivers:
 - indigo_focuser_lunatico: Lunatico Astronomy Limpet/Armadillo/Platypus Focuser/Rotator/Powerbox/GPIO driver
 - indigo_rotator_lunatico: Lunatico Astronomy Limpet/Armadillo/Platypus Rotator/Focuser/Powerbox/GPIO driver
 - indigo_rotator_simulator: Rotator simulator deiver
@@ -2817,7 +2934,7 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall:
 - Developer documentation added
 
-### Driver fixes:
+## Driver fixes:
 - indigo_mount_temma: bug fixes
 - infigo_ccd_atik: SDK updated
 - indigo_focuser_dmfc, indigo_aux_upb: focuser speed limits fixed
@@ -2831,10 +2948,10 @@ All notable changes to INDIGO framework will be documented in this file.
 - Add missing FITS keywords to xisf format
 - fix FITS keyword DATE-OBS to indicate exposure start
 
-### New Drivers:
+## New Drivers:
 - indigo_gps_gpsd: GPSD client driver
 
-### Driver fixes:
+## Driver fixes:
 - indigo_gps_nmea: bug fixes
 - infigo_ccd_ptp:
     - Add Canon EOS 90D
@@ -2854,7 +2971,7 @@ All notable changes to INDIGO framework will be documented in this file.
 ### Overall:
 - webGUI: readonly switch support added
 
-### Drivers:
+## Drivers:
 - indigo_mount_synscan: many fixes including PC Direct mode and baud rate detection.
 - indigo_mount_nexstar: support side of pier, update libnexstar.
 - indigo_mount_temma: support side of pier, zenith sync and drive speed.

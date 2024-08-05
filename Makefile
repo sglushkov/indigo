@@ -21,7 +21,7 @@
 #---------------------------------------------------------------------
 
 INDIGO_VERSION = 2.0
-INDIGO_BUILD = 287
+INDIGO_BUILD = 293
 
 # Keep the suffix empty for official releases
 INDIGO_BUILD_SUFFIX =
@@ -49,7 +49,7 @@ INSTALL_FIRMWARE = $(INSTALL_ROOT)/lib/firmware
 
 STABLE_DRIVERS = agent_alignment agent_auxiliary agent_guider agent_imager agent_lx200_server agent_mount agent_snoop ao_sx aux_cloudwatcher aux_dragonfly aux_dsusb aux_fbc aux_flatmaster aux_flipflat aux_joystick aux_mgbox aux_ppb aux_sqm aux_upb aux_usbdp ccd_altair ccd_apogee ccd_asi ccd_atik ccd_dsi ccd_fli ccd_iidc ccd_mi ccd_ptp ccd_qsi ccd_sbig ccd_simulator ccd_ssag ccd_sx ccd_touptek ccd_uvc dome_dragonfly dome_nexdome3 dome_simulator focuser_asi focuser_dmfc focuser_dsd focuser_efa focuser_fcusb focuser_fli focuser_focusdreampro focuser_lunatico focuser_moonlite focuser_steeldrive2 focuser_usbv3 focuser_wemacro gps_gpsd gps_nmea gps_simulator guider_asi guider_cgusbst4 guider_gpusb mount_asi mount_ioptron mount_lx200 mount_nexstar mount_nexstaraux mount_pmc8 mount_simulator mount_synscan mount_temma rotator_lunatico rotator_simulator system_ascol wheel_asi wheel_atik wheel_fli wheel_manual wheel_qhy wheel_sx aux_rpio ccd_ica focuser_wemacro_bt guider_eqmac focuser_mypro2 agent_astrometry mount_rainbow agent_scripting focuser_mjkzz focuser_mjkzz_bt dome_talon6ror aux_geoptikflat ccd_svb agent_astap ccd_playerone agent_config ccd_omegonpro ccd_ssg ccd_rising ccd_mallin wheel_playerone ccd_ogma aux_uch aux_wcv4ec aux_wbprov3 aux_wbplusv3 indigo_wheel_mi rotator_wa focuser_primaluce focuser_qhy ccd_bresser
 UNSTABLE_DRIVERS = ccd_qhy ccd_qhy2
-UNTESTED_DRIVERS = aux_arteskyflat aux_rts dome_baader dome_nexdome focuser_lakeside focuser_nfocus focuser_nstep focuser_optec focuser_robofocus wheel_optec wheel_quantum wheel_trutek wheel_xagyl dome_skyroof aux_skyalert agent_alpaca dome_beaver focuser_astromechanics aux_astromechanics rotator_optec mount_starbook focuser_prodigy wheel_indigo rotator_falcon focuser_ioptron focuser_optecfl
+UNTESTED_DRIVERS = aux_arteskyflat aux_rts dome_baader dome_nexdome focuser_lakeside focuser_nfocus focuser_nstep focuser_optec focuser_robofocus wheel_optec wheel_quantum wheel_trutek wheel_xagyl dome_skyroof aux_skyalert agent_alpaca dome_beaver focuser_astromechanics aux_astromechanics rotator_optec mount_starbook focuser_prodigy wheel_indigo rotator_falcon focuser_ioptron focuser_optecfl focuser_fc3 aux_upb3
 DEVELOPED_DRIVERS =
 OPTIONAL_DRIVERS = ccd_andor
 EXCLUDED_DRIVERS = ccd_gphoto2
@@ -147,6 +147,7 @@ endif
 
 all:	init $(BUILD_LIB)/libindigo.$(SOEXT)
 	@$(MAKE)	-C indigo_libs all
+	@$(MAKE)	-C indigo_tools all
 	@$(MAKE)	-C indigo_drivers -f ../Makefile.drvs all
 ifeq ($(OS_DETECTED),Darwin)
 	@$(MAKE)	-C indigo_mac_drivers  -f ../Makefile.drvs all
@@ -155,7 +156,6 @@ ifeq ($(OS_DETECTED),Linux)
 	@$(MAKE)	-C indigo_linux_drivers  -f ../Makefile.drvs all
 endif
 	@$(MAKE)	-C indigo_server all
-	@$(MAKE)	-C indigo_tools all
 
 $(BUILD_LIB)/libindigo.$(SOEXT): $(filter-out $(INDIGO_ROOT)/indigo_libs/indigo/indigo_config.h, $(wildcard $(INDIGO_ROOT)/indigo_libs/indigo/*.h))
 	@echo --------------------------------------------------------------------- Forced clean - framework headers are changed
@@ -163,6 +163,7 @@ $(BUILD_LIB)/libindigo.$(SOEXT): $(filter-out $(INDIGO_ROOT)/indigo_libs/indigo/
 
 status:
 	@$(MAKE)	-C indigo_libs status
+	@$(MAKE)	-C indigo_tools status
 	@$(MAKE)	-C indigo_drivers -f ../Makefile.drvs status
 ifeq ($(OS_DETECTED),Darwin)
 	@$(MAKE)	-C indigo_mac_drivers -f ../Makefile.drvs status
@@ -171,7 +172,6 @@ ifeq ($(OS_DETECTED),Linux)
 	@$(MAKE)	-C indigo_linux_drivers -f ../Makefile.drvs status
 endif
 	@$(MAKE)	-C indigo_server status
-	@$(MAKE)	-C indigo_tools status
 
 reconfigure:
 	rm -f Makefile.inc
@@ -188,6 +188,7 @@ reconfigure:
 
 install: reconfigure init all
 	@sudo $(MAKE)	-C indigo_libs install
+	@sudo $(MAKE)	-C indigo_tools install
 	@sudo $(MAKE)	-C indigo_drivers -f ../Makefile.drvs install
 ifeq ($(OS_DETECTED),Darwin)
 	@sudo $(MAKE)	-C indigo_mac_drivers -f ../Makefile.drvs install
@@ -196,7 +197,6 @@ ifeq ($(OS_DETECTED),Linux)
 	@sudo $(MAKE)	-C indigo_linux_drivers -f ../Makefile.drvs install
 endif
 	@sudo $(MAKE)	-C indigo_server install
-	@sudo $(MAKE)	-C indigo_tools install
 ifeq ($(OS_DETECTED),Linux)
 	sudo udevadm control --reload-rules
 	@$(MAKE)	    -C tools/fxload -f Makefile
@@ -214,6 +214,7 @@ indigo-environment-install:
 
 uninstall: reconfigure init
 	@sudo $(MAKE)	-C indigo_libs uninstall
+	@sudo $(MAKE)	-C indigo_tools uninstall
 	@sudo $(MAKE)	-C indigo_drivers -f ../Makefile.drvs uninstall
 ifeq ($(OS_DETECTED),Darwin)
 	@sudo $(MAKE)	-C indigo_mac_drivers -f ../Makefile.drvs uninstall
@@ -222,7 +223,6 @@ ifeq ($(OS_DETECTED),Linux)
 	@sudo $(MAKE)	-C indigo_linux_drivers -f ../Makefile.drvs uninstall
 endif
 	@sudo $(MAKE)	-C indigo_server uninstall
-	@sudo $(MAKE)	-C indigo_tools uninstall
 ifeq ($(OS_DETECTED),Linux)
 	sudo udevadm control --reload-rules
 endif
@@ -238,10 +238,10 @@ package: INSTALL_RULES = $(INSTALL_ROOT)/lib/udev/rules.d
 package: INSTALL_FIRMWARE = $(INSTALL_ROOT)/lib/firmware
 package: reconfigure init all
 	@$(MAKE)	-C indigo_libs install
+	@$(MAKE)	-C indigo_tools install
 	@$(MAKE)	-C indigo_drivers -f ../Makefile.drvs install
 	@$(MAKE)	-C indigo_linux_drivers -f ../Makefile.drvs install
 	@$(MAKE)	-C indigo_server install
-	@$(MAKE)	-C indigo_tools install
 	@$(MAKE)	-C tools/fxload -f Makefile
 ifeq ($(ARCH_DETECTED),$(filter $(ARCH_DETECTED),arm arm64))
 	install -d $(INSTALL_ROOT)/usr/bin
@@ -307,6 +307,7 @@ endif
 
 clean: init
 	@$(MAKE)	-C indigo_libs clean
+	@$(MAKE)	-C indigo_tools clean
 	@$(MAKE)	-C indigo_drivers -f ../Makefile.drvs clean
 ifeq ($(OS_DETECTED),Darwin)
 	@$(MAKE)	-C indigo_mac_drivers -f ../Makefile.drvs clean
@@ -315,10 +316,10 @@ ifeq ($(OS_DETECTED),Linux)
 	@$(MAKE)	-C indigo_linux_drivers -f ../Makefile.drvs clean
 endif
 	@$(MAKE)	-C indigo_server clean
-	@$(MAKE)	-C indigo_tools clean
 
 clean-all: Makefile.inc
 	@$(MAKE)	-C indigo_libs clean-all
+	@$(MAKE)	-C indigo_tools clean-all
 	@$(MAKE)	-C indigo_drivers -f ../Makefile.drvs clean-all
 ifeq ($(OS_DETECTED),Darwin)
 	@$(MAKE)	-C indigo_mac_drivers -f ../Makefile.drvs clean-all
@@ -329,7 +330,6 @@ ifeq ($(OS_DETECTED),Linux)
 	rm -rf $(INDIGO_ROOT)/indigo-$(INDIGO_VERSION)-$(INDIGO_BUILD)-$(DEBIAN_ARCH)
 endif
 	@$(MAKE)	-C indigo_server clean-all
-	@$(MAKE)	-C indigo_tools clean-all
 	rm -rf $(BUILD_ROOT)
 	rm -rf Makefile.inc
 
