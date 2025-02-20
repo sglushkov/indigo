@@ -44,7 +44,7 @@ static int median3(int a, int b, int c) {
 bool indigo_is_bayered_image(indigo_raw_header *header, size_t data_length) {
 	if (header->signature == INDIGO_RAW_MONO8 || header->signature == INDIGO_RAW_MONO16) {
 		size_t expected_length = sizeof(indigo_raw_header) + header->width * header->height * ((header->signature == INDIGO_RAW_MONO8) ? 1 : 2);
-		int extension_length = data_length - expected_length;
+		int extension_length = (int)(data_length - expected_length);
 		if (extension_length > 0) {
 			char *extension = (char *)header + expected_length;;
 			extension[extension_length - 1] = '\0'; /* Make sure it is null terminated */
@@ -115,11 +115,31 @@ indigo_result indigo_equalize_bayer_channels(indigo_raw_type raw_type, void *dat
 		}
 	}
 
-	double overall_average = (ch1_sum + ch2_sum + ch3_sum + ch4_sum) / (double)(ch1_count + ch2_count + ch3_count + ch4_count);
-	double ch1_scale_factor = overall_average / (ch1_sum / (double)ch1_count);
-	double ch2_scale_factor = overall_average / (ch2_sum / (double)ch2_count);
-	double ch3_scale_factor = overall_average /(ch3_sum / (double)ch3_count);
-	double ch4_scale_factor = overall_average / (ch4_sum / (double)ch4_count);
+	double total_count = (double)(ch1_count + ch2_count + ch3_count + ch4_count);
+
+	if (total_count == 0) {
+		return INDIGO_FAILED;
+	}
+
+	double overall_average = (double)(ch1_sum + ch2_sum + ch3_sum + ch4_sum) / total_count;
+
+	if (ch1_count == 0 || ch2_count == 0 || ch3_count == 0 || ch4_count == 0) {
+		return INDIGO_FAILED;
+	}
+
+	double ch1_avg = ch1_sum / (double)ch1_count;
+	double ch2_avg = ch2_sum / (double)ch2_count;
+	double ch3_avg = ch3_sum / (double)ch3_count;
+	double ch4_avg = ch4_sum / (double)ch4_count;
+
+	if (ch1_avg == 0 || ch2_avg == 0 || ch3_avg == 0 || ch4_avg == 0) {
+		return INDIGO_FAILED;
+	}
+
+	double ch1_scale_factor = overall_average / ch1_avg;
+	double ch2_scale_factor = overall_average / ch2_avg;
+	double ch3_scale_factor = overall_average / ch3_avg;
+	double ch4_scale_factor = overall_average / ch4_avg;
 
 	if (raw_type == INDIGO_RAW_MONO16) {
 		uint16_t* data16 = (uint16_t*)data;
@@ -462,11 +482,11 @@ indigo_result indigo_selection_psf(indigo_raw_type raw_type, const void *data, d
 	free(values);
 	double stddev = sqrt(sum / background_count);
 
-	indigo_debug("HFD : background = %2f, stddev = %.2f, threshold = %.2f, max = %.2f", background, stddev,  background + 2 * stddev, max);
-	indigo_debug("FWHM: background = %2f, stddev = %.2f, threshold = %.2f, max = %.2f", background, stddev,  background + 6 * stddev, max);
+	/* HFD calculation */
+	double threshold = background + 2 * stddev; /* 2 * stddev is a good threshold for HFD */
+	indigo_debug("HFD : background = %2f, stddev = %.2f, threshold = %.2f, max = %.2f", background, stddev, threshold, max);
 
-	/* HFD works fine with gignal 2 * stddev */
-	if (max < background + 2 * stddev) {
+	if (max < threshold) {
 		*hfd = 2 * radius + 1;
 	} else {
 		double prod = 0, total = 0;
@@ -504,7 +524,7 @@ indigo_result indigo_selection_psf(indigo_raw_type raw_type, const void *data, d
 						break;
 					}
 				}
-				value -= background;
+				value -= threshold;
 					if (value > 0) {
 					double dist = sqrt((x - i) * (x - i) + (y - j) * (y - j));
 					prod += dist * value;
@@ -515,8 +535,11 @@ indigo_result indigo_selection_psf(indigo_raw_type raw_type, const void *data, d
 		*hfd = 2 * prod / total;
 	}
 
-	/* FWHM is erratic with peak < 6*stddev */
-	if (max < background + 6 * stddev) {
+	/* FWHM calculation */
+	threshold = background + 6 * stddev; /* 6 * stddev is a good threshold for FWHM*/
+	indigo_debug("FWHM: background = %2f, stddev = %.2f, threshold = %.2f, max = %.2f", background, stddev, threshold, max);
+
+	if (max < threshold) {
 		*fwhm = 2 * radius + 1;
 	} else {
 		double half_max = *peak / 2 + background;
@@ -1012,63 +1035,172 @@ indigo_result indigo_centroid_frame_digest(indigo_raw_type raw_type, const void 
 
 #define BG_RADIUS	5
 
-static double calibrate_re(double (*vector)[2], int size) {
-	int first = BG_RADIUS + 1, last = size - BG_RADIUS - 1;
-	double avg = 0;
-	double mins[size];
-	for (int i = first; i <= last; i++) {
-		double min = vector[i - BG_RADIUS][RE];
-		for (int j = -BG_RADIUS + 1; j <= BG_RADIUS; j++) {
-			double value = vector[i + j][RE];
-			if (value < min)
-				min = value;
-		}
-		mins[i] = min;
+//static void remove_gradient(double (*vector)[2], int size) {
+//	double x_mean = size / 2.0;
+//	double y_mean = 0;
+//	for (int i = 0; i < size; i++) {
+//		y_mean += vector[i][RE];
+//	}
+//	y_mean /= size;
+//	double numerator = 0.0, denominator = 0.0;
+//	for (int i = 0; i < size; i++) {
+//		numerator += (i - x_mean) * (vector[i][RE] - y_mean);
+//		denominator += (i - x_mean) * (i - x_mean);
+//	}
+//	double slope = numerator / denominator;
+//	for (int i = 0; i < size; i++) {
+//		vector[i][RE] -= i * slope;
+//	}
+//}
+
+// Function to calculate the signal-to-noise ratio (SNR)
+double calculate_snr_8(uint8_t *array, int size) {
+	double sum = 0;
+	for (int i = 0; i < size; i++) {
+		sum += array[i];
 	}
-	for (int i = 0; i < first; i++)
-		vector[i][RE] = 0;
-	for (int i = last + 1; i < size; i++)
-		vector[i][RE] = 0;
-	avg = 0;
-	int count = last - first + 1;
-	for (int i = first; i <= last; i++) {
-		double value = vector[i][RE] - mins[i];
-		vector[i][RE] = value;
-		avg += value;
+	double mean = sum / size;
+
+	sum = 0;
+	for (int i = 0; i < size; i++) {
+		sum += (array[i] - mean) * (array[i] - mean);
 	}
-	avg /= count;
-	double stddev = 0;
-	for (int i = first; i <= last; i++) {
-		double value = vector[i][RE] - avg;
-		stddev += value * value;
-	}
-	stddev /= count;
-	double threshold = avg + sqrt(stddev);
-	double signal_ms = 0, noise_ms = 0;
-	int signal_count = 0, noise_count = 0;
-	for (int i = first; i <= last; i++) {
-		double value = vector[i][RE];
-		if (value > threshold) {
-			signal_ms += value * value;
+	double stddev = sqrt(sum / size);
+
+	double threshold = mean + stddev;
+
+	double signal = 0;
+	double noise = 0;
+	int signal_count = 0;
+	int noise_count = 0;
+
+	for (int i = 0; i < size; i++) {
+		if (array[i] >= threshold) {
+			signal += array[i];
 			signal_count++;
 		} else {
-			noise_ms += value * value;
+			noise += array[i];
 			noise_count++;
 		}
 	}
 
-	double snr = (signal_ms / signal_count) / (noise_ms / noise_count);
-	//INDIGO_DEBUG(indigo_debug("calibrate_re: threshold = %g, S/N = %g", threshold, snr));
+	double avg_signal = signal_count > 0 ? signal / signal_count : 0;
+	double avg_noise = noise_count > 0 ? noise / noise_count : 0;
+
+	double snr =  avg_noise > 0 ? avg_signal * avg_signal / (avg_noise * avg_noise) : 0;
 	return snr;
 }
 
-indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *data, const int width, const int height, const int edge_clipping, indigo_frame_digest *digest) {
-	const int xx = edge_clipping;
-	const int yy = edge_clipping;
+double calculate_snr_16(uint16_t *array, int size) {
+	double sum = 0;
+	for (int i = 0; i < size; i++) {
+		sum += array[i];
+	}
+	double mean = sum / size;
 
-	if (width <= 2 * xx)
+	sum = 0;
+	for (int i = 0; i < size; i++) {
+		sum += (array[i] - mean) * (array[i] - mean);
+	}
+	double stddev = sqrt(sum / size);
+
+	double threshold = mean + stddev;
+
+	double signal = 0;
+	double noise = 0;
+	int signal_count = 0;
+	int noise_count = 0;
+
+	for (int i = 0; i < size; i++) {
+		if (array[i] >= threshold) {
+			signal += array[i];
+			signal_count++;
+		} else {
+			noise += array[i];
+			noise_count++;
+		}
+	}
+
+	double avg_signal = signal_count > 0 ? signal / signal_count : 0;
+	double avg_noise = noise_count > 0 ? noise / noise_count : 0;
+
+	double snr =  avg_noise > 0 ? avg_signal * avg_signal / (avg_noise * avg_noise) : 0;
+	return snr;
+}
+
+static double calculate_donuts_snr(double (*array)[2], int size) {
+	double sum = 0;
+	for (int i = 0; i < size; i++) {
+		sum += array[i][RE];
+	}
+	double mean = sum / size;
+
+	sum = 0;
+	for (int i = 0; i < size; i++) {
+		double amplitude = sqrt(array[i][RE] * array[i][RE] + array[i][IM] * array[i][IM]);
+		sum += (amplitude - mean) * (amplitude - mean);
+	}
+	double stddev = sqrt(sum / size);
+
+	double threshold = mean + stddev;
+
+	double signal = 0;
+	double noise = 0;
+	int signal_count = 0;
+	int noise_count = 0;
+
+	for (int i = 0; i < size; i++) {
+		double amplitude = sqrt(array[i][RE] * array[i][RE] + array[i][IM] * array[i][IM]);
+		if (amplitude >= threshold) {
+			signal += amplitude;
+			signal_count++;
+		} else {
+			noise += amplitude;
+			noise_count++;
+		}
+	}
+
+	double avg_signal = signal_count > 0 ? signal / signal_count : 0;
+	double avg_noise = noise_count > 0 ? noise / noise_count : 0;
+
+	double snr =  avg_noise > 0 ? avg_signal * avg_signal / (avg_noise * avg_noise) : 0;
+	return snr;
+}
+
+static void calibrate_re(double (*vector)[2], int size) {
+	int first = BG_RADIUS + 1, last = size - BG_RADIUS - 1;
+	double mins[size];
+//	remove_gradient(vector, size);
+	for (int i = first; i <= last; i++) {
+		double min = vector[i - BG_RADIUS][RE];
+		for (int j = -BG_RADIUS + 1; j <= BG_RADIUS; j++) {
+			double value = vector[i + j][RE];
+			if (value < min) {
+				min = value;
+			}
+		}
+		mins[i] = min;
+	}
+	for (int i = 0; i < first; i++) {
+		vector[i][RE] = 0;
+	}
+	for (int i = last + 1; i < size; i++) {
+		vector[i][RE] = 0;
+	}
+	for (int i = first; i <= last; i++) {
+		double value = vector[i][RE] - mins[i];
+		vector[i][RE] = value;
+	}
+}
+
+indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *data, const int width, const int height, const int edge_clipping, indigo_frame_digest *digest) {
+	return indigo_donuts_frame_digest_clipped(raw_type, data, width, height, edge_clipping, edge_clipping, width - 2 * edge_clipping, height - 2 * edge_clipping, digest);
+}
+
+indigo_result indigo_donuts_frame_digest_clipped(indigo_raw_type raw_type, const void *data, const int width, const int height, const int include_left, const int include_top, const int include_width, const int include_height, indigo_frame_digest *digest) {
+	if (include_width <= 0)
 		return INDIGO_FAILED;
-	if (height <= 2 * yy)
+	if (include_height <= 0)
 		return INDIGO_FAILED;
 	if ((data == NULL) || (digest == NULL))
 		return INDIGO_FAILED;
@@ -1077,8 +1209,8 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 	uint16_t *data16 = (uint16_t *)data;
 
 	double sum = 0, max = 0;
-	const int ce = width - xx, le = height - yy;
-	const int cs = xx, ls = yy;
+	const int ce = include_left + include_width, le = include_top + include_height;
+	const int cs = include_left, ls = include_top;
 	double value;
 	switch (raw_type) {
 		case INDIGO_RAW_MONO8: {
@@ -1151,18 +1283,16 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 		}
 	}
 
-	int sub_width = width - 2 * xx;
-	int sub_height = height - 2 * yy;
 	/* Set threshold 15% above average value */
-	double threshold = 1.15 * sum / (sub_width * sub_height);
+	double threshold = 1.15 * sum / (include_width * include_height);
 
-	INDIGO_DEBUG(indigo_debug("Donuts: threshold = %.3f, max = %.3f, edge_clipping = %dpx", threshold, max, edge_clipping));
+	INDIGO_DEBUG(indigo_debug("Donuts: threshold = %.3f, max = %.3f", threshold, max));
 
 	/* If max is below the thresold no guiding is possible */
 	if (max <= threshold) return INDIGO_GUIDE_ERROR;
 
-	digest->width = next_power_2(sub_width);
-	digest->height = next_power_2(sub_height);
+	digest->width = next_power_2(include_width);
+	digest->height = next_power_2(include_height);
 	double (*col_x)[2] = calloc(2 * digest->width * sizeof(double), 1);
 	double (*col_y)[2] = calloc(2 * digest->height * sizeof(double), 1);
 	double (*fcol_x)[2] = calloc(2 * digest->width * sizeof(double), 1);
@@ -1179,7 +1309,7 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 					/* Set all values below the threshold to 0 */
 					if (value < 0) value = 0;
 
-					col_x[i-xx][RE] += value;
+					col_x[i - include_left][RE] += value;
 					col_y[y][RE] += value;
 				}
 			}
@@ -1193,7 +1323,7 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 					/* Set all values below the threshold to 0 */
 					if (value < 0) value = 0;
 
-					col_x[i-xx][RE] += value;
+					col_x[i - include_left][RE] += value;
 					col_y[y][RE] += value;
 				}
 			}
@@ -1208,7 +1338,7 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 					/* Set all values below the threshold to 0 */
 					if (value < 0) value = 0;
 
-					col_x[i-xx][RE] += value;
+					col_x[i - include_left][RE] += value;
 					col_y[y][RE] += value;
 				}
 			}
@@ -1223,7 +1353,7 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 					/* Set all values below the threshold to 0 */
 					if (value < 0) value = 0;
 
-					col_x[i-xx][RE] += value;
+					col_x[i - include_left][RE] += value;
 					col_y[y][RE] += value;
 				}
 			}
@@ -1238,10 +1368,11 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 					/* Set all values below the threshold to 0 */
 					if (value < 0) value = 0;
 
-					col_x[i-xx][RE] += value;
+					col_x[i - include_left][RE] += value;
 					col_y[y][RE] += value;
 				}
 			}
+			digest->snr = calculate_snr_8(data8, width * height * 4);
 			break;
 		}
 		case INDIGO_RAW_RGB48: {
@@ -1253,7 +1384,7 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 					/* Set all values below the threshold to 0 */
 					if (value < 0) value = 0;
 
-					col_x[i-xx][RE] += value;
+					col_x[i - include_left][RE] += value;
 					col_y[y][RE] += value;
 				}
 			}
@@ -1264,7 +1395,8 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 	switch (raw_type) {
 		case INDIGO_RAW_MONO8:
 		case INDIGO_RAW_MONO16: {
-			digest->snr = (calibrate_re(col_x, sub_width) + calibrate_re(col_y, sub_height)) / 2;
+			calibrate_re(col_x, include_width);
+			calibrate_re(col_y, include_height);
 
 			fft(digest->width, col_x, digest->fft_x);
 			fft(digest->height, col_y, digest->fft_y);
@@ -1273,23 +1405,27 @@ indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *d
 		default: {
 			/* Remove hot from the digest */
 			fcol_x[0][RE] = median3(0, col_x[0][RE], col_x[1][RE]);
-			for (int i = 1; i < sub_width-1; i++) {
+			for (int i = 1; i < include_width - 1; i++) {
 				fcol_x[i][RE] = median3(col_x[i - 1][RE], col_x[i][RE], col_x[i + 1][RE]);
 			}
-			fcol_x[sub_width - 1][RE] = median3(col_x[sub_width - 2][RE], col_x[sub_width - 1][RE], 0);
+			fcol_x[include_width - 1][RE] = median3(col_x[include_width - 2][RE], col_x[include_width - 1][RE], 0);
 
 			fcol_y[0][RE] = median3(0, col_y[0][RE], col_y[1][RE]);
-			for (int i = 1; i < sub_height-1; i++) {
+			for (int i = 1; i < include_height - 1; i++) {
 				fcol_y[i][RE] = median3(col_y[i - 1][RE], col_y[i][RE], col_y[i + 1][RE]);
 			}
-			fcol_y[sub_height - 1][RE] = median3(col_y[sub_height - 2][RE], col_y[sub_height - 1][RE], 0);
+			fcol_y[include_height - 1][RE] = median3(col_y[include_height - 2][RE], col_y[include_height - 1][RE], 0);
 
-			digest->snr = (calibrate_re(fcol_x, sub_width) + calibrate_re(fcol_y, sub_height)) / 2;
+			calibrate_re(fcol_x, include_width);
+			calibrate_re(fcol_y, include_height);
 
 			fft(digest->width, fcol_x, digest->fft_x);
 			fft(digest->height, fcol_y, digest->fft_y);
 		}
 	}
+
+	digest->snr = (calculate_donuts_snr(digest->fft_x, digest->width) + calculate_donuts_snr(digest->fft_y, digest->height)) / 2.0;
+	INDIGO_DEBUG(indigo_debug("Donuts: FFT SNR = %g", digest->snr));
 
 	digest->algorithm = donuts;
 	free(col_x);
@@ -1969,9 +2105,9 @@ double indigo_contrast(indigo_raw_type raw_type, const void *data, const uint8_t
 /* multistar guide */
 
 indigo_result indigo_reduce_multistar_digest(const indigo_frame_digest *avg_ref, const indigo_frame_digest ref[], const indigo_frame_digest new_digest[], const int count, indigo_frame_digest *digest) {
-	double drifts[MAX_MULTISTAR_COUNT] = {0};
-	double drifts_x[MAX_MULTISTAR_COUNT] = {0};
-	double drifts_y[MAX_MULTISTAR_COUNT] = {0};
+	double drifts[INDIGO_MAX_MULTISTAR_COUNT] = {0};
+	double drifts_x[INDIGO_MAX_MULTISTAR_COUNT] = {0};
+	double drifts_y[INDIGO_MAX_MULTISTAR_COUNT] = {0};
 	double average = 0;
 	double drift_x, drift_y;
 
@@ -2031,9 +2167,9 @@ indigo_result indigo_reduce_multistar_digest(const indigo_frame_digest *avg_ref,
 }
 
 indigo_result indigo_reduce_weighted_multistar_digest(const indigo_frame_digest *avg_ref, const indigo_frame_digest ref[], const indigo_frame_digest new_digest[], const int count, indigo_frame_digest *digest) {
-	double drifts[MAX_MULTISTAR_COUNT] = {0};
-	double drifts_x[MAX_MULTISTAR_COUNT] = {0};
-	double drifts_y[MAX_MULTISTAR_COUNT] = {0};
+	double drifts[INDIGO_MAX_MULTISTAR_COUNT] = {0};
+	double drifts_x[INDIGO_MAX_MULTISTAR_COUNT] = {0};
+	double drifts_y[INDIGO_MAX_MULTISTAR_COUNT] = {0};
 	double average = 0;
 	double drift_x, drift_y;
 
@@ -2130,10 +2266,12 @@ indigo_result indigo_calculate_drift(const indigo_frame_digest *ref, const indig
 indigo_result indigo_delete_frame_digest(indigo_frame_digest *fdigest) {
 	if (fdigest) {
 		if (fdigest->algorithm == donuts) {
-			if (fdigest->fft_x)
+			if (fdigest->fft_x) {
 				free(fdigest->fft_x);
-			if (fdigest->fft_y)
+			}
+			if (fdigest->fft_y) {
 				free(fdigest->fft_y);
+			}
 		}
 		fdigest->width = 0;
 		fdigest->height = 0;
@@ -2156,7 +2294,7 @@ static int luminance_comparator(const void *item_1, const void *item_2) {
 /* With radius < 3, no precise star positins will be determined */
 indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *data, const uint16_t radius, const int width, const int height, const int stars_max, indigo_star_detection star_list[], int *stars_found) {
 	if (data == NULL || star_list == NULL || stars_found == NULL) return INDIGO_FAILED;
-
+	
 	int  size = width * height;
 	uint16_t *buf = indigo_safe_malloc(size * sizeof(uint16_t));
 	int star_size = 100;
@@ -2164,12 +2302,12 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 	int clip_width  = width - clip_edge;
 	int clip_height = height - clip_edge;
 	uint16_t max_luminance = 0;
-
+	
 	uint8_t *data8 = (uint8_t *)data;
 	uint16_t *data16 = (uint16_t *)data;
 	double sum = 0;
 	double sum_sq = 0;
-
+	
 	switch (raw_type) {
 		case INDIGO_RAW_MONO8: {
 			max_luminance = 0xFF;
@@ -2230,28 +2368,28 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			break;
 		}
 	}
-
+	
 	// Calculate mean
 	double mean = sum / size;
-
+	
 	/* Calculate standard deviation - simplified, approximate estimate,
-	   with a nice property that it is less affected by outliers. This proeprty
-	   fixes the issue with finding guide stars in the presence of saturated stars,
-	   as it effectively filters out the outliers.
-	*/
+	 with a nice property that it is less affected by outliers. This proeprty
+	 fixes the issue with finding guide stars in the presence of saturated stars,
+	 as it effectively filters out the outliers.
+	 */
 	double stddev = sqrt(fabs(sum_sq / size - mean * mean));
-
+	
 	/* Calculate threshold - add 4.5 stddev threshold for stars */
 	uint32_t threshold = 4.5 * stddev + mean;
 	indigo_debug("%s(): image mean = %.2f, simplified stddev = %.2f, star detection threshold = %d", __FUNCTION__, mean, stddev, threshold);
-
+	
 	int threshold_hist = threshold * 0.9;
-
+	
 	int found = 0;
 	int width2 = width / 2;
 	int height2 = height / 2;
 	uint32_t lmax = threshold + 1;
-
+	
 	indigo_star_detection star = { 0 };
 	int divider = (width > height) ? height2 : width2;
 	while (lmax > threshold) {
@@ -2261,22 +2399,22 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 		star.nc_distance = 0;
 		star.luminance = 0;
 		star.oversaturated = 0;
-
+		
 		for (int j = clip_edge; j < clip_height; j++) {
 			for (int i = clip_edge; i < clip_width; i++) {
 				int off = j * width + i;
 				if (
-				    buf[off] > lmax &&
-				    /* also check median of the neighbouring pixels to avoid hot pixels and lines */
-				    median3(buf[off - 1], buf[off], buf[off + 1]) > threshold &&
-				    median3(buf[off - width], buf[off], buf[off + width]) > threshold &&
-				    median3(buf[off - width - 1], buf[off], buf[off + width + 1]) > threshold &&
-				    median3(buf[off - width + 1], buf[off], buf[off + width - 1]) > threshold
-				) {
-					lmax = buf[off];
-					star.x = i;
-					star.y = j;
-				}
+						buf[off] > lmax &&
+						/* also check median of the neighbouring pixels to avoid hot pixels and lines */
+						median3(buf[off - 1], buf[off], buf[off + 1]) > threshold &&
+						median3(buf[off - width], buf[off], buf[off + width]) > threshold &&
+						median3(buf[off - width - 1], buf[off], buf[off + width + 1]) > threshold &&
+						median3(buf[off - width + 1], buf[off], buf[off + width - 1]) > threshold
+						) {
+							lmax = buf[off];
+							star.x = i;
+							star.y = j;
+						}
 			}
 		}
 		if (lmax > threshold) {
@@ -2289,7 +2427,9 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			int star_y = (int)star.y;
 			// clear +X, +Y quadrant
 			for (int j = star_y; j <= max_j; j++) {
-				if (buf[j * width + star_x] < threshold_hist) break;
+				if (buf[j * width + star_x] < threshold_hist) {
+					break;
+				}
 				for (int i = star_x; i <= max_i; i++) {
 					int off = j * width + i;
 					if (buf[off] > threshold_hist) {
@@ -2302,7 +2442,9 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			}
 			// clear -X, +Y quadrant
 			for (int j = star_y; j <= max_j; j++) {
-				if (buf[j * width + star_x - 1] < threshold_hist) break;
+				if (buf[j * width + star_x - 1] < threshold_hist) {
+					break;
+				}
 				for (int i = star_x - 1; i >= min_i; i--) {
 					int off = j * width + i;
 					if (buf[off] > threshold_hist) {
@@ -2315,7 +2457,9 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			}
 			// clear +X, -Y quadrant
 			for (int j = star_y - 1; j >= min_j; j--) {
-				if (buf[j * width + star_x] < threshold_hist) break;
+				if (buf[j * width + star_x] < threshold_hist) {
+					break;
+				}
 				for (int i = star_x; i <= max_i; i++) {
 					int off = j * width + i;
 					if (buf[off] > threshold_hist) {
@@ -2328,7 +2472,9 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 			}
 			// clear -X, -Y quadrant
 			for (int j = star_y - 1; j >= min_j; j--) {
-				if (buf[j * width + star_x - 1] < threshold_hist) break;
+				if (buf[j * width + star_x - 1] < threshold_hist) {
+					break;
+				}
 				for (int i = star_x - 1; i >= min_i; i--) {
 					int off = j * width + i;
 					if (buf[off] > threshold_hist) {
@@ -2339,7 +2485,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 					}
 				}
 			}
-
+			
 			indigo_result res = INDIGO_FAILED;
 			if (radius >= 3) {
 				indigo_frame_digest center = {0};
@@ -2347,29 +2493,29 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 				star.x = center.centroid_x;
 				star.y = center.centroid_y;
 				star.close_to_other = false;
-				if(res == INDIGO_OK) {
+				if (res == INDIGO_OK) {
 					indigo_delete_frame_digest(&center);
 				}
 			}
-
+			
 			/* Check if the star is a duplicate (probably artifact) or is in close proximity to another one.
-			   In both cses these stars should not be used */
+			 In both cses these stars should not be used */
 			if (res == INDIGO_OK || radius < 3) {
 				for (int i = 0; i < found; i++) {
 					double dx = fabs(star_list[i].x - star.x);
 					double dy = fabs(star_list[i].y - star.y);
 					if (dx < 1 && dy < 1) {
 						/* The star (probably artifact) is a duplicate of another star.
-						   We mark the other star as being close to another one, so it
-						   won't be used automatically, and we skip the duplicate. */
+						 We mark the other star as being close to another one, so it
+						 won't be used automatically, and we skip the duplicate. */
 						indigo_debug("indigo_find_stars(): star (%lf, %lf) skipped, duplicate of #%u = (%lf, %lf)", star.x, star.y, i + 1, star_list[i].x, star_list[i].y);
 						star_list[i].close_to_other = true;
 						res = INDIGO_FAILED;
 						break;
 					} else if (dx < radius && dy < radius) {
 						/* The star is too close to another star.
-						   We mark both star as being close to another one, so they
-						   won't be used automatically but we keep both stars in the list. */
+						 We mark both star as being close to another one, so they
+						 won't be used automatically but we keep both stars in the list. */
 						indigo_debug("indigo_find_stars(): star (%lf, %lf), too close to #%u = (%lf, %lf)", star.x, star.y, i + 1, star_list[i].x, star_list[i].y);
 						star.close_to_other = true;
 						star_list[i].close_to_other = true;
@@ -2377,7 +2523,7 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 					}
 				}
 			}
-
+			
 			if (res == INDIGO_OK || radius < 3) {
 				star.oversaturated = lmax == max_luminance;
 				star.nc_distance = sqrt((star.x - width2) * (star.x - width2) + (star.y - height2) * (star.y - height2));
@@ -2391,15 +2537,25 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 		}
 	}
 	free(buf);
-
+	
 	qsort(star_list, found, sizeof(indigo_star_detection), luminance_comparator);
-
+	
 	INDIGO_DEBUG(
-		for (size_t i = 0;i < found; i++) {
-			indigo_debug("indigo_find_stars: star #%u = (%lf, %lf), ncdist = %lf, lum = %lf, close_to_other = %d", i+1, star_list[i].x, star_list[i].y, star_list[i].nc_distance, star_list[i].luminance, star_list[i].close_to_other);
-		}
-	)
-
+							 for (size_t i = 0;i < found; i++) {
+								 indigo_debug(
+															"%s: star #%u = (%lf, %lf), ncdist = %lf, lum = %lf, close_to_other = %d, oversaturated = %d",
+															__FUNCTION__,
+															i+1,
+															star_list[i].x,
+															star_list[i].y,
+															star_list[i].nc_distance,
+															star_list[i].luminance,
+															star_list[i].close_to_other,
+															star_list[i].oversaturated
+															);
+							 }
+							 )
+	
 	*stars_found = found;
 	return INDIGO_OK;
 }
@@ -2407,6 +2563,48 @@ indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *da
 indigo_result indigo_find_stars(indigo_raw_type raw_type, const void *data, const int width, const int height, const int stars_max, indigo_star_detection star_list[], int *stars_found) {
 	return indigo_find_stars_precise(raw_type, data, 0, width, height, stars_max, star_list, stars_found);
 }
+
+indigo_result indigo_find_stars_precise_filtered(indigo_raw_type raw_type, const void *data, const uint16_t radius, const int width, const int height, const int stars_max, indigo_star_detection star_list[], int *stars_found) {
+	int safety_margin = width < height ? width * 0.05 : height * 0.05;
+	return indigo_find_stars_precise_clipped(raw_type, data, radius, width, height, stars_max, safety_margin, safety_margin, width - 2 * safety_margin, height - 2 * safety_margin, 0, 0, 0, 0, star_list, stars_found);
+}
+
+indigo_result indigo_find_stars_precise_clipped(indigo_raw_type raw_type, const void *data, const uint16_t radius, const int width, const int height, const int stars_max, const int include_left, const int include_top, const int include_width, const int include_height, const int exclude_left, const int exclude_top, const int exclude_width, const int exclude_height, indigo_star_detection star_list[], int *stars_found) {
+	indigo_result res = indigo_find_stars_precise(raw_type, data, radius, width, height, stars_max, star_list, stars_found);
+	if (res != INDIGO_OK) {
+		return res;
+	}
+	/* Filter out stars that are too close to the edges or are oversaturated */
+	int include_right = include_left + include_width;
+	int include_bottom = include_top + include_height;
+	bool clip_excluded = exclude_width > 0 && exclude_height > 0;
+	int exclude_right = exclude_left + exclude_width;
+	int exclude_bottom = exclude_top + exclude_height;
+	int usable = 0;
+	for (int i = 0; i < *stars_found; i++) {
+		if (star_list[i].oversaturated || star_list[i].close_to_other) {
+			indigo_debug("%s: SKIP star #%d (%lf, %lf), oversaturated = %d close_to_other = %d", __FUNCTION__, i+1, star_list[i].x, star_list[i].y, star_list[i].oversaturated, star_list[i].close_to_other);
+			continue;
+		}
+		if (star_list[i].x < include_left || include_right < star_list[i].x || star_list[i].y < include_top || include_bottom < star_list[i].y) {
+			indigo_debug("%s: NOT INCLUDED star #%d (%lf, %lf)", __FUNCTION__, i+1, star_list[i].x, star_list[i].y);
+			continue;
+		}
+		if (clip_excluded && ((exclude_left < star_list[i].x && star_list[i].x < exclude_right) || (exclude_top < star_list[i].y && star_list[i].y < exclude_bottom))) {
+			indigo_debug("%s: EXCLUDED star #%d (%lf, %lf)", __FUNCTION__, i+1, star_list[i].x, star_list[i].y);
+			continue;
+		}
+		indigo_debug("%s: KEEP star #%d (%lf, %lf) , oversaturated = %d close_to_other = %d", __FUNCTION__, i+1, star_list[i].x, star_list[i].y, star_list[i].oversaturated, star_list[i].close_to_other);
+		star_list[usable++] = star_list[i];
+	}
+	indigo_debug("%s: %d usable stars of %d found", __FUNCTION__, usable, *stars_found);
+	*stars_found = usable;
+	//for (int i = 0; i < usable; i++) {
+	//	indigo_debug("%s: usable star #%d (%lf, %lf)", __FUNCTION__, i+1, star_list[i].x, star_list[i].y);
+	//}
+	return INDIGO_OK;
+}
+
 
 static int nc_distance_comparator(const void *item_1, const void *item_2) {
 	if (((indigo_star_detection *)item_1)->nc_distance < ((indigo_star_detection *)item_2)->nc_distance)
@@ -2437,8 +2635,9 @@ indigo_result indigo_make_psf_map(indigo_raw_type image_raw_type, const void *im
 	indigo_find_stars_precise(image_raw_type, image_data, radius, image_width, image_height, stars_max, stars, &total_stars);
 	for (int i = 0; i < total_stars; i++) {
 		indigo_star_detection *star = stars + i;
-		if (star->oversaturated || star->close_to_other)
-			continue;
+		if (star->oversaturated || star->close_to_other) {
+  continue;
+}
 		double star_fwhm, star_hfd, star_peak;
 		indigo_selection_psf(image_raw_type, image_data, star->x, star->y, radius, image_width, image_height, &star_fwhm, &star_hfd, &star_peak);
 		star->x /= map_scale; // scale to map coordimates
@@ -2540,4 +2739,346 @@ indigo_result indigo_make_psf_map(indigo_raw_type image_raw_type, const void *im
 	indigo_safe_free(psfs);
 	indigo_safe_free(stars);
 	return INDIGO_OK;
+}
+
+//static void save_pgm(const char* filename, const uint8_t* mono, int width, int height) {
+//	FILE* file = fopen(filename, "wb");
+//	fprintf(file, "P5\n%d %d\n255\n", width, height);
+//	fwrite(mono, 1, width * height, file);
+//	fclose(file);
+//}
+//
+//static void save_ppm(const char* filename, const uint8_t* rgb, int width, int height) {
+//	FILE* file = fopen(filename, "wb");
+//	fprintf(file, "P6\n%d %d\n255\n", width, height);
+//	fwrite(rgb, 1, width * height * 3, file);
+//	fclose(file);
+//}
+
+// creates INDIGO_RAW_MONO8 with 0 or 255 values only
+
+uint8_t* indigo_binarize(indigo_raw_type raw_type, const void *data, const int width, const int height, double sigma) {
+	int size = width * height;
+	long sum = 0;
+	long sum_sq = 0;
+	switch (raw_type) {
+		case INDIGO_RAW_MONO8: {
+			uint8_t *source_pixels = (uint8_t *)data;
+			for (int i = 0; i < size; i++) {
+				int value = source_pixels[i];
+				sum += value;
+				sum_sq += value * value;
+			}
+			break;
+		}
+		case INDIGO_RAW_MONO16: {
+			uint16_t *source_pixels = (uint16_t *)data;
+			for (int i = 0; i < size; i++) {
+				int value = source_pixels[i];
+				sum += value;
+				sum_sq += value * value;
+			}
+			break;
+		}
+		case INDIGO_RAW_RGB24: {
+			uint8_t *source_pixels = (uint8_t *)data;
+			for (int i = 0; i < size; i++) {
+				int i3 = 3 * i;
+				int value = (source_pixels[i3] + source_pixels[i3 + 1] + source_pixels[i3 + 2]) / 3;
+				sum += value;
+				sum_sq += value * value;
+			}
+			break;
+		}
+		case INDIGO_RAW_RGBA32: {
+			uint8_t *source_pixels = (uint8_t *)data;
+			for (int i = 0; i < size; i++) {
+				int i4 = 4 * i;
+				int value = (source_pixels[i4] + source_pixels[i4 + 1] + source_pixels[i4 + 2]) / 3;
+				sum += value;
+				sum_sq += value * value;
+			}
+			break;
+		}
+		case INDIGO_RAW_ABGR32: {
+			uint8_t *source_pixels = (uint8_t *)data;
+			for (int i = 0; i < size; i++) {
+				int i4 = 4 * i;
+				int value = (source_pixels[i4 + 1] + source_pixels[i4 + 2] + source_pixels[i4 + 3]) / 3;
+				sum += value;
+				sum_sq += value * value;
+			}
+			break;
+		}
+		case INDIGO_RAW_RGB48: {
+			uint16_t *source_pixels = (uint16_t *)data;
+			for (int i = 0; i < size; i++) {
+				int i3 = 3 * i;
+				int value = (source_pixels[i3] + source_pixels[i3 + 1] + source_pixels[i3 + 2]) / 3;
+				sum += value;
+				sum_sq += value * value;
+			}
+			break;
+		}
+	}
+	double mean = (double)sum / size;
+	double stddev = sqrt((double)sum_sq / size - mean * mean);
+	int threshold = mean + (sigma * stddev);
+	sum = 0;
+	uint8_t *target_pixels = (uint8_t *)indigo_safe_malloc(size);
+	switch (raw_type) {
+		case INDIGO_RAW_MONO8: {
+			uint8_t *source_pixels = (uint8_t *)data;
+			for (int i = 0; i < size; i++) {
+				target_pixels[i] = source_pixels[i] > threshold ? (void)(sum++), 255 : 0;
+			}
+			break;
+		}
+		case INDIGO_RAW_MONO16: {
+			uint16_t *source_pixels = (uint16_t *)data;
+			for (int i = 0; i < size; i++) {
+				target_pixels[i] = source_pixels[i] > threshold ? (void)(sum++), 255 : 0;
+			}
+			break;
+		}
+		case INDIGO_RAW_RGB24: {
+			uint8_t *source_pixels = (uint8_t *)data;
+			threshold *= 3;
+			for (int i = 0; i < size; i++) {
+				int i3 = 3 * i;
+				target_pixels[i] = (source_pixels[i3] + source_pixels[i3 + 1] + source_pixels[i3 + 2]) > threshold ? (void)(sum++), 255 : 0;
+			}
+			break;
+		}
+		case INDIGO_RAW_RGBA32: {
+			uint8_t *source_pixels = (uint8_t *)data;
+			threshold *= 3;
+			for (int i = 0; i < size; i++) {
+				int i4 = 4 * i;
+				target_pixels[i] = (source_pixels[i4] + source_pixels[i4 + 1] + source_pixels[i4 + 2]) > threshold ? (void)(sum++), 255 : 0;
+			}
+			break;
+		}
+		case INDIGO_RAW_ABGR32: {
+			uint8_t *source_pixels = (uint8_t *)data;
+			threshold *= 3;
+			for (int i = 0; i < size; i++) {
+				int i4 = 4 * i;
+				target_pixels[i] = (source_pixels[i4 + 1] + source_pixels[i4 + 2] + source_pixels[i4 + 3]) > threshold ? (void)(sum++), 255 : 0;
+			}
+			break;
+		}
+		case INDIGO_RAW_RGB48: {
+			uint16_t *source_pixels = (uint16_t *)data;
+			threshold *= 3;
+			for (int i = 0; i < size; i++) {
+				int i3 = 3 * i;
+				target_pixels[i] = (source_pixels[i3] + source_pixels[i3 + 1] + source_pixels[i3 + 2]) > threshold ? (void)(sum++), 255 : 0;
+			}
+			break;
+		}
+	}
+	if (sum > size * 0.1) {
+		indigo_error("Too many (%d%%) bright pixels", (int)((100 * sum) / size));
+		indigo_safe_free(target_pixels);
+		return NULL;
+	}
+	return target_pixels;
+}
+
+// expects INDIGO_RAW_MONO8 data
+
+void indigo_skeletonize(uint8_t* data, int width, int height) {
+	uint8_t (*pixels)[width] = (uint8_t (*)[width]) data;
+	uint8_t (*temp)[width] = (uint8_t (*)[width]) (uint8_t*)malloc(width * height);
+	memcpy(temp, pixels, width * height);
+	int change = 1;
+	while (change) {
+		change = 0;
+		for (int y = 1; y < height - 1; y++) {
+			for (int x = 1; x < width - 1; x++) {
+				if (pixels[y][x] == 255) {
+					int neighbors = 0;
+					for (int i = -1; i <= 1; i++) {
+						for (int j = -1; j <= 1; j++) {
+							if (!(i == 0 && j == 0) && pixels[y + i][x + j] == 255) {
+								neighbors++;
+							}
+						}
+					}
+					if (neighbors >= 4 && neighbors <= 5) {
+						temp[y][x] = 0;
+						change = 1;
+					}
+				}
+			}
+		}
+		memcpy(pixels, temp, width * height);
+	}
+	free(temp);
+}
+
+#define RHO_RES			3000
+#define THETA_RES 	3000
+#define MAX_LINES 	15
+
+static void hough_transform(uint8_t* data, int width, int height, int *hough) {
+	uint8_t (*pixels)[width] = (uint8_t (*)[width]) data;
+	int (*acc)[THETA_RES] = (int (*)[THETA_RES]) hough;
+	double theta_step = M_PI / THETA_RES;
+	double rho_step = 2 * sqrt(width * width + height * height) / RHO_RES;
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			if (pixels[y][x] > 0) {
+				for (int theta_index = 0; theta_index < THETA_RES; theta_index++) {
+					double theta = theta_index * theta_step;
+					double rho = x * cos(theta) + y * sin(theta);
+					int rho_index = (int)(rho / rho_step) + RHO_RES / 2;
+					acc[rho_index][theta_index]++;
+				}
+			}
+		}
+	}
+}
+
+static int find_hough_max(int *hough, int width, int height, double *rho, double *theta) {
+	int (*acc)[THETA_RES] = (int (*)[THETA_RES]) hough;
+	int max = 0;
+	int max_rho_index = 0;
+	int max_theta_index = 0;
+	double theta_step = M_PI / THETA_RES;
+	double rho_step = 2 * sqrt(width * width + height * height) / RHO_RES;
+	for (int theta_index = 0; theta_index < THETA_RES; theta_index++) {
+		for (int rho_index = 0; rho_index < RHO_RES; rho_index++) {
+			int count = acc[rho_index][theta_index];
+			if (count > max) {
+				max = count;
+				max_rho_index = rho_index;
+				max_theta_index = theta_index;
+			}
+		}
+	}
+	int DIFF = M_PI / 180 / theta_step;
+	for (int diff = -DIFF; diff < DIFF; diff++) {
+		int theta_index = max_theta_index + diff;
+		if (theta_index < 0) {
+			continue;
+		}
+		if (theta_index >= THETA_RES) {
+			break;
+		}
+		for (int rho_index = 0; rho_index < RHO_RES; rho_index++) {
+			acc[rho_index][theta_index] = 0;
+		}
+	}
+	*rho = (max_rho_index - RHO_RES / 2) * rho_step;
+	*theta = max_theta_index * theta_step;
+	return max;
+}
+
+static void hough_to_cartesian(double rho, double theta, double* m, double* b) {
+	*m = -1 / tan(theta);
+	*b = rho / sin(theta);
+}
+
+static void line_intersection(double m1, double b1, double m2, double b2, double* x, double* y) {
+	*x = (b2 - b1) / (m1 - m2);
+	*y = m1 * (*x) + b1;
+}
+
+static double focus_error(const int width, const int height, double rho1, double theta1, double rho2, double theta2, double rho3, double theta3) {
+	double m1, b1, m2, b2, m3, b3;
+	int w10 = width / 10, w90 = width - w10;
+	int h10 = height / 10, h90 = height - h10;
+	hough_to_cartesian(rho1, theta1, &m1, &b1);
+	hough_to_cartesian(rho2, theta2, &m2, &b2);
+	hough_to_cartesian(rho3, theta3, &m3, &b3);
+	double x12, y12, x23, y23;
+	line_intersection(m1, b1, m2, b2, &x12, &y12);
+	line_intersection(m2, b2, m3, b3, &x23, &y23);
+	double x_m = (x12 + x23) / 2;
+	double y_m = (y12 + y23) / 2;
+	if (x_m < w10 || x_m > w90 || y_m < h10 || y_m > h90)
+		return INFINITY;
+	double x2, y2;
+	line_intersection(m1, b1, m3, b3, &x2, &y2);
+	return sqrt((x2 - x_m) * (x2 - x_m) + (y2 - y_m) * (y2 - y_m));
+}
+
+double indigo_bahtinov_error(indigo_raw_type raw_type, const void *data, const int width, const int height, double sigma, double *rho1, double *theta1, double *rho2, double *theta2, double *rho3, double *theta3) {
+	uint8_t *mono = indigo_binarize(raw_type, data, width, height, sigma);
+	if (mono == NULL) {
+		return -1;
+	}
+	indigo_skeletonize(mono, width, height);
+	int *hough = indigo_safe_malloc(RHO_RES * THETA_RES * sizeof(int));
+	hough_transform(mono, width, height, hough);
+	double rhos[MAX_LINES] = { 0.0 };
+	double thetas[MAX_LINES] = { 0.0 };
+	for (int line = 0; line < MAX_LINES; line++) {
+		int max = find_hough_max(hough, width, height, rhos + line, thetas + line);
+		indigo_debug("%s: %3d. %9.3f %9.3f -> %4d", __FUNCTION__, line, rhos[line], thetas[line] / M_PI * 180, max);
+	}
+	int line1 = -1, line2 = -1, line3 = -1;
+	for (int index1 = 0; index1 < MAX_LINES && line1 == -1; index1++) {
+		double angle1 = thetas[index1] / M_PI * 180;
+		for (int index2 = 0; index2 < MAX_LINES && line2 == -1; index2++) {
+			if (index2 == index1) {
+				continue;
+			}
+			double angle2 = thetas[index2] / M_PI * 180;
+			if (fabs(angle2 - angle1) > 90) {
+				angle2 += (angle2 > 90 ? -180 : 180);
+			}
+			for (int index3 = 0; index3 < MAX_LINES && line3 == -1; index3++) {
+				if (index3 == index1 || index3 == index2) {
+					continue;
+				}
+				double angle3 = thetas[index3] / M_PI * 180;
+				if (fabs(angle3 - angle1) > 90) {
+					angle3 += (angle3 > 90 ? -180 : 180);
+				}
+				if (fabs(fabs(angle1 - angle2) - fabs(angle1 - angle3)) > 1) {
+					continue;
+				}
+				if (fabs(angle1 - angle2) < 15 || fabs(angle1 - angle3) < 15 || fabs(angle2 - angle3) < 30) {
+					continue;
+				}
+				if (fabs(angle1 - angle2) > 40 || fabs(angle1 - angle3) > 40 || fabs(angle2 - angle3) > 80) {
+					continue;
+				}
+				if (!(angle2 < angle1 && angle1 < angle3)) {
+					continue;
+				}
+				line1 = index1;
+				line2 = index2;
+				line3 = index3;
+			}
+		}
+	}
+	indigo_safe_free(hough);
+	if (line1 != -1) {
+		indigo_debug("%s: selected spikes:", __FUNCTION__);
+		indigo_debug("%s: %3d. %9.3f %9.3f", __FUNCTION__, line1, rhos[line1], thetas[line1] / M_PI * 180);
+		indigo_debug("%s: %3d. %9.3f %9.3f", __FUNCTION__, line2, rhos[line2], thetas[line2] / M_PI * 180);
+		indigo_debug("%s: %3d. %9.3f %9.3f", __FUNCTION__, line3, rhos[line3], thetas[line3] / M_PI * 180);
+		double error_px = focus_error(width, height, rhos[line1], thetas[line1], rhos[line2], thetas[line2], rhos[line3], thetas[line3]);
+		indigo_debug("%s: focus error = %.2fpx", __FUNCTION__, error_px);
+		if (error_px < 100) {
+			*rho1 = rhos[line1];
+			*rho2 = rhos[line2];
+			*rho3 = rhos[line3];
+			*theta1 = thetas[line1];
+			*theta2 = thetas[line2];
+			*theta3 = thetas[line3];
+			return error_px;
+		}
+	}
+	*rho1 = 0;
+	*rho2 = 0;
+	*rho3 = 0;
+	*theta1 = 0;
+	*theta2 = 0;
+	*theta3 = 0;
+	return -1;
 }

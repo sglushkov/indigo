@@ -329,35 +329,25 @@ static indigo_result aux_attach(indigo_device *device) {
 
 static indigo_result aux_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(AUX_POWER_OUTLET_PROPERTY, property))
-			indigo_define_property(device, AUX_POWER_OUTLET_PROPERTY, NULL);
-		if (indigo_property_match(AUX_POWER_OUTLET_STATE_PROPERTY, property))
-			indigo_define_property(device, AUX_POWER_OUTLET_STATE_PROPERTY, NULL);
-		if (indigo_property_match(AUX_HEATER_OUTLET_PROPERTY, property))
-			indigo_define_property(device, AUX_HEATER_OUTLET_PROPERTY, NULL);
-		if (indigo_property_match(AUX_USB_PORT_PROPERTY, property))
-			indigo_define_property(device, AUX_USB_PORT_PROPERTY, NULL);
-		if (indigo_property_match(AUX_DEW_CONTROL_PROPERTY, property))
-			indigo_define_property(device, AUX_DEW_CONTROL_PROPERTY, NULL);
-		if (indigo_property_match(AUX_WEATHER_PROPERTY, property))
-			indigo_define_property(device, AUX_WEATHER_PROPERTY, NULL);
-		if (indigo_property_match(AUX_INFO_PROPERTY, property))
-			indigo_define_property(device, AUX_INFO_PROPERTY, NULL);
-		if (indigo_property_match(AUX_SAVE_OUTLET_STATES_AS_DEFAULT_PROEPRTY, property))
-			indigo_define_property(device, AUX_SAVE_OUTLET_STATES_AS_DEFAULT_PROEPRTY, NULL);
-		if (indigo_property_match(X_AUX_REBOOT_PROPERTY, property))
-			indigo_define_property(device, X_AUX_REBOOT_PROPERTY, NULL);
-		if (indigo_property_match(X_AUX_VARIABLE_POWER_OUTLET_PROPERTY, property))
-			indigo_define_property(device, X_AUX_VARIABLE_POWER_OUTLET_PROPERTY, NULL);
+		indigo_define_matching_property(AUX_POWER_OUTLET_PROPERTY);
+		indigo_define_matching_property(AUX_POWER_OUTLET_STATE_PROPERTY);
+		indigo_define_matching_property(AUX_HEATER_OUTLET_PROPERTY);
+		indigo_define_matching_property(AUX_USB_PORT_PROPERTY);
+		indigo_define_matching_property(AUX_DEW_CONTROL_PROPERTY);
+		indigo_define_matching_property(AUX_WEATHER_PROPERTY);
+		indigo_define_matching_property(AUX_INFO_PROPERTY);
+		indigo_define_matching_property(AUX_SAVE_OUTLET_STATES_AS_DEFAULT_PROEPRTY);
+		indigo_define_matching_property(X_AUX_REBOOT_PROPERTY);
+		indigo_define_matching_property(X_AUX_VARIABLE_POWER_OUTLET_PROPERTY);
 	}
-	if (indigo_property_match(AUX_OUTLET_NAMES_PROPERTY, property))
-		indigo_define_property(device, AUX_OUTLET_NAMES_PROPERTY, NULL);
+	indigo_define_matching_property(AUX_OUTLET_NAMES_PROPERTY);
 	return indigo_aux_enumerate_properties(device, NULL, NULL);
 }
 
 static void aux_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	char response[128];
 	bool updatePowerOutletState = false;
 	bool updateWeather = false;
@@ -481,7 +471,7 @@ static void aux_connection_handler(indigo_device *device) {
 			upb_open(device);
 		}
 		if (PRIVATE_DATA->handle > 0) {
-			if (upb_command(device, "PV", response, sizeof(response)) ) {
+			if (upb_command(device, "PV", response, sizeof(response))) {
 				strcpy(INFO_DEVICE_MODEL_ITEM->text.value, "PeagasusAstro UPBv3");
 				strcpy(INFO_DEVICE_FW_REVISION_ITEM->text.value, response + 3);
 				indigo_update_property(device, INFO_PROPERTY, NULL);
@@ -882,8 +872,9 @@ static indigo_result focuser_attach(indigo_device *device) {
 }
 
 static void focuser_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	char response[128];
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
 	if (upb_command(device, "ES", response, sizeof(response))) {

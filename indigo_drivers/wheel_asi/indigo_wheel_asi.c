@@ -23,7 +23,7 @@
  \file indigo_wheel_asi.c
  */
 
-#define DRIVER_VERSION 0x000B
+#define DRIVER_VERSION 0x000C
 #define DRIVER_NAME "indigo_wheel_asi"
 
 #include <stdlib.h>
@@ -37,8 +37,6 @@
 
 #include <indigo/indigo_driver_xml.h>
 #include "indigo_wheel_asi.h"
-
-#if !(defined(__APPLE__) && defined(__arm64__))
 
 #if defined(INDIGO_FREEBSD)
 #include <libusb.h>
@@ -150,7 +148,7 @@ static indigo_result wheel_attach(indigo_device *device) {
 			return INDIGO_FAILED;
 		indigo_init_switch_item(X_CALIBRATE_START_ITEM, X_CALIBRATE_START_ITEM_NAME, "Start", false);
 		// --------------------------------------------------------------------------------- X_CUSTOM_SUFFIX
-		X_CUSTOM_SUFFIX_PROPERTY = indigo_init_text_property(NULL, device->name, "X_CUSTOM_SUFFIX", "Advanced", "Device name custom suffix", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
+		X_CUSTOM_SUFFIX_PROPERTY = indigo_init_text_property(NULL, device->name, "X_CUSTOM_SUFFIX", WHEEL_ADVANCED_GROUP, "Device name custom suffix", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
 		if (X_CUSTOM_SUFFIX_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_text_item(X_CUSTOM_SUFFIX_ITEM, X_CUSTOM_SUFFIX_NAME, "Suffix", PRIVATE_DATA->custom_suffix);
@@ -165,17 +163,15 @@ static indigo_result wheel_attach(indigo_device *device) {
 static indigo_result wheel_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	assert(device != NULL);
 	if (device->is_connected) {
-		if (indigo_property_match(X_CALIBRATE_PROPERTY, property))
-			indigo_define_property(device, X_CALIBRATE_PROPERTY, NULL);
-		if (indigo_property_match(X_CUSTOM_SUFFIX_PROPERTY, property))
-			indigo_define_property(device, X_CUSTOM_SUFFIX_PROPERTY, NULL);
+		indigo_define_matching_property(X_CALIBRATE_PROPERTY);
+		indigo_define_matching_property(X_CUSTOM_SUFFIX_PROPERTY);
 	}
 	return indigo_wheel_enumerate_properties(device, client, property);
 }
 
 static void wheel_connect_callback(indigo_device *device) {
 	EFW_INFO info;
-	int index;
+	int index = 0;
 	CONNECTION_PROPERTY->state = INDIGO_OK_STATE;
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		index = find_index_by_device_id(PRIVATE_DATA->dev_id);
@@ -329,7 +325,6 @@ static indigo_result wheel_detach(indigo_device *device) {
 
 // -------------------------------------------------------------------------------- hot-plug support
 
-static pthread_mutex_t device_mutex = PTHREAD_MUTEX_INITIALIZER;
 #define MAX_DEVICES                   10
 #define NO_DEVICE                 (-1000)
 
@@ -384,7 +379,9 @@ static int find_available_device_slot() {
 static int find_device_slot(int id) {
 	for(int slot = 0; slot < MAX_DEVICES; slot++) {
 		indigo_device *device = devices[slot];
-		if (device == NULL) continue;
+		if (device == NULL) {
+			continue;
+		}
 		if (PRIVATE_DATA->dev_id == id) return slot;
 	}
 	return -1;
@@ -448,23 +445,23 @@ static void process_plug_event(indigo_device *unused) {
 		NULL,
 		wheel_detach
 		);
-	pthread_mutex_lock(&device_mutex);
+	pthread_mutex_lock(&indigo_device_enumeration_mutex);
 	int slot = find_available_device_slot();
 	if (slot < 0) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "No device slots available.");
-		pthread_mutex_unlock(&device_mutex);
+		pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 		return;
 	}
 	int id = find_plugged_device_id();
 	if (id == NO_DEVICE) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "No plugged device found.");
-		pthread_mutex_unlock(&device_mutex);
+		pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 		return;
 	}
 	int res = EFWOpen(id);
 	if (res) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "EFWOpen(%d}) = %d", id, res);
-		pthread_mutex_unlock(&device_mutex);
+		pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 		return;
 	} else {
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "EFWOpen(%d}) = %d", id, res);
@@ -478,7 +475,7 @@ static void process_plug_event(indigo_device *unused) {
 		}
 		if (res != EFW_ERROR_MOVING) {
 			EFWClose(id);
-			pthread_mutex_unlock(&device_mutex);
+			pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 			return;
 		}
 		  indigo_usleep(ONE_SECOND_DELAY);
@@ -503,19 +500,21 @@ static void process_plug_event(indigo_device *unused) {
 	device->private_data = private_data;
 	indigo_attach_device(device);
 	devices[slot]=device;
-	pthread_mutex_unlock(&device_mutex);
+	pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 }
 
 static void process_unplug_event(indigo_device *unused) {
 	int slot, id;
 	bool removed = false;
-	pthread_mutex_lock(&device_mutex);
+	pthread_mutex_lock(&indigo_device_enumeration_mutex);
 	while ((id = find_unplugged_device_id()) != -1) {
 		slot = find_device_slot(id);
-		if (slot < 0) continue;
+		if (slot < 0) {
+			continue;
+		}
 		indigo_device **device = &devices[slot];
 		if (*device == NULL) {
-			pthread_mutex_unlock(&device_mutex);
+			pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 			return;
 		}
 		indigo_detach_device(*device);
@@ -527,7 +526,7 @@ static void process_unplug_event(indigo_device *unused) {
 	if (!removed) {
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "No ASI EFW device unplugged (maybe ASI Camera)!");
 	}
-	pthread_mutex_unlock(&device_mutex);
+	pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 }
 
 static int hotplug_callback(libusb_context *ctx, libusb_device *dev, libusb_hotplug_event event, void *user_data) {
@@ -556,8 +555,9 @@ static int hotplug_callback(libusb_context *ctx, libusb_device *dev, libusb_hotp
 static void remove_all_devices() {
 	for (int index = 0; index < MAX_DEVICES; index++) {
 		indigo_device **device = &devices[index];
-		if (*device == NULL)
+		if (*device == NULL) {
 			continue;
+		}
 		indigo_detach_device(*device);
 		free((*device)->private_data);
 		free(*device);
@@ -614,21 +614,3 @@ indigo_result indigo_wheel_asi(indigo_driver_action action, indigo_driver_info *
 	return INDIGO_OK;
 }
 
-#else
-
-indigo_result indigo_wheel_asi(indigo_driver_action action, indigo_driver_info *info) {
-	static indigo_driver_action last_action = INDIGO_DRIVER_SHUTDOWN;
-
-	SET_DRIVER_INFO(info, "ZWO ASI Filter Wheel", __FUNCTION__, DRIVER_VERSION, true, last_action);
-
-	switch(action) {
-		case INDIGO_DRIVER_INIT:
-		case INDIGO_DRIVER_SHUTDOWN:
-			return INDIGO_UNSUPPORTED_ARCH;
-		case INDIGO_DRIVER_INFO:
-			break;
-	}
-	return INDIGO_OK;
-}
-
-#endif

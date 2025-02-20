@@ -25,7 +25,7 @@
  \file indigo_gps_nmea.c
  */
 
-#define DRIVER_VERSION 0x000D
+#define DRIVER_VERSION 0x000E
 #define DRIVER_NAME	"indigo_gps_nmea"
 
 #include <stdlib.h>
@@ -233,7 +233,7 @@ static void gps_refresh_callback(indigo_device *device) {
 				if (!strcmp(tokens[5], "W"))
 					lon = -lon;
 				lon = round(lon * 10000) / 10000;
-				if (GPS_GEOGRAPHIC_COORDINATES_LONGITUDE_ITEM->number.value != lon || GPS_GEOGRAPHIC_COORDINATES_LATITUDE_ITEM->number.value != lat ) {
+				if (GPS_GEOGRAPHIC_COORDINATES_LONGITUDE_ITEM->number.value != lon || GPS_GEOGRAPHIC_COORDINATES_LATITUDE_ITEM->number.value != lat) {
 					GPS_GEOGRAPHIC_COORDINATES_LONGITUDE_ITEM->number.value = lon;
 					GPS_GEOGRAPHIC_COORDINATES_LATITUDE_ITEM->number.value = lat;
 				}
@@ -372,7 +372,6 @@ static indigo_result gps_attach(indigo_device *device) {
 	if (indigo_gps_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
 		// --------------------------------------------------------------------------------
 		pthread_mutex_init(&PRIVATE_DATA->serial_mutex, NULL);
-		SIMULATION_PROPERTY->hidden = true;
 		DEVICE_PORT_PROPERTY->hidden = false;
 		DEVICE_PORTS_PROPERTY->hidden = false;
 		DEVICE_BAUDRATE_PROPERTY->hidden = false;
@@ -398,6 +397,7 @@ static indigo_result gps_attach(indigo_device *device) {
 		indigo_init_switch_item(QZSS_SYSTEM_ITEM, QZSS_SYSTEM_ITEM_NAME, "QZSS", false);
 		// --------------------------------------------------------------------------------
 		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
+/*
 #ifdef INDIGO_LINUX
 		for (int i = 0; i < DEVICE_PORTS_PROPERTY->count; i++) {
 			if (strstr(DEVICE_PORTS_PROPERTY->items[i].name, "ttyGPS")) {
@@ -406,6 +406,7 @@ static indigo_result gps_attach(indigo_device *device) {
 			}
 		}
 #endif
+*/
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return gps_enumerate_properties(device, NULL, NULL);
 	}
@@ -413,8 +414,7 @@ static indigo_result gps_attach(indigo_device *device) {
 }
 
 static indigo_result gps_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
-	if (indigo_property_match(GPS_SELECTED_SYSTEM_PROPERTY, property))
-		indigo_define_property(device, GPS_SELECTED_SYSTEM_PROPERTY, NULL);
+	indigo_define_matching_property(GPS_SELECTED_SYSTEM_PROPERTY);
 
 	return indigo_gps_enumerate_properties(device, NULL, NULL);
 }
@@ -502,6 +502,11 @@ indigo_result indigo_gps_nmea(indigo_driver_action action, indigo_driver_info *i
 		NULL,
 		gps_detach
 	);
+
+	static indigo_device_match_pattern patterns[2] = {0};
+	strcpy(patterns[0].product_string, "GPS");
+	strcpy(patterns[1].product_string, "GNSS");
+	INDIGO_REGISER_MATCH_PATTERNS(gps_template, patterns, 2);
 
 	static indigo_driver_action last_action = INDIGO_DRIVER_SHUTDOWN;
 

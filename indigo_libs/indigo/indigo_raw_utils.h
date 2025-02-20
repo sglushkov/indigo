@@ -26,7 +26,7 @@
 extern "C" {
 #endif
 
-#define MAX_MULTISTAR_COUNT 24
+#define INDIGO_MAX_MULTISTAR_COUNT 24
 
 typedef struct {
 	double x;             /* Star X */
@@ -53,6 +53,7 @@ typedef struct {
 	indigo_guide_algorithm algorithm;
 	int width;
 	int height;
+	double snr;
 	union {
 		double (*fft_x)[2];
 		double centroid_x;
@@ -61,7 +62,6 @@ typedef struct {
 		double (*fft_y)[2];
 		double centroid_y;
 	};
-	double snr;
 } indigo_frame_digest;
 
 
@@ -73,6 +73,8 @@ extern indigo_result indigo_equalize_bayer_channels(indigo_raw_type raw_type, vo
 
 extern indigo_result indigo_find_stars(indigo_raw_type raw_type, const void *data, const int width, const int height, const int stars_max, indigo_star_detection star_list[], int *stars_found);
 extern indigo_result indigo_find_stars_precise(indigo_raw_type raw_type, const void *data, const uint16_t radius, const int width, const int height, const int stars_max, indigo_star_detection star_list[], int *stars_found);
+extern indigo_result indigo_find_stars_precise_filtered(indigo_raw_type raw_type, const void *data, const uint16_t radius, const int width, const int height, const int stars_max, indigo_star_detection star_list[], int *stars_found);
+extern indigo_result indigo_find_stars_precise_clipped(indigo_raw_type raw_type, const void *data, const uint16_t radius, const int width, const int height, const int stars_max, const int include_left, const int include_top, const int include_width, const int include_height, const int exclude_left, const int exclude_top, const int exclude_width, const int exclude_height, indigo_star_detection star_list[], int *stars_found);
 extern indigo_result indigo_selection_psf(indigo_raw_type raw_type, const void *data, double x, double y, const int radius, const int width, const int height, double *fwhm, double *hfd, double *peak);
 
 extern indigo_result indigo_selection_frame_digest(indigo_raw_type raw_type, const void *data, double *x, double *y, const int radius, const int width, const int height, indigo_frame_digest *digest);
@@ -81,6 +83,7 @@ extern indigo_result indigo_reduce_multistar_digest(const indigo_frame_digest *a
 extern indigo_result indigo_reduce_weighted_multistar_digest(const indigo_frame_digest *avg_ref, const indigo_frame_digest ref[], const indigo_frame_digest new_digest[], const int count, indigo_frame_digest *digest);
 extern indigo_result indigo_centroid_frame_digest(indigo_raw_type raw_type, const void *data, const int width, const int height, indigo_frame_digest *digest);
 extern indigo_result indigo_donuts_frame_digest(indigo_raw_type raw_type, const void *data, const int width, const int height, const int border, indigo_frame_digest *digest);
+extern indigo_result indigo_donuts_frame_digest_clipped(indigo_raw_type raw_type, const void *data, const int width, const int height, const int include_left, const int include_top, const int include_width, const int include_height, indigo_frame_digest *digest);
 extern indigo_result indigo_calculate_drift(const indigo_frame_digest *ref, const indigo_frame_digest *new_digest, double *drift_x, double *drift_y);
 extern double indigo_guider_reponse(double p_gain, double i_gain, double guide_cycle_time, double drift, double avg_drift);
 extern indigo_result indigo_delete_frame_digest(indigo_frame_digest *fdigest);
@@ -98,6 +101,11 @@ extern indigo_result indigo_update_saturation_mask(indigo_raw_type raw_type, con
 //extern double indigo_stddev_abgr32(uint8_t set[], const int count, bool *saturated);
 
 extern indigo_result indigo_make_psf_map(indigo_raw_type image_raw_type, const void *image_data, const uint16_t radius, const int image_width, const int image_height, const int stars_max, indigo_raw_type map_raw_type, indigo_psf_param map_type, int map_width, int map_height, unsigned char *map_data, double *psf_min, double *psf_max);
+
+// Bahtinov images analysis related
+extern uint8_t* indigo_binarize(indigo_raw_type raw_type, const void *data, const int width, const int height, double sigma);
+extern void indigo_skeletonize(uint8_t* data, int width, int height);
+extern double indigo_bahtinov_error(indigo_raw_type raw_type, const void *data, const int width, const int height, double sigma, double *rho1, double *theta1, double *rho2, double *theta2, double *rho3, double *theta3);
 
 #ifdef __cplusplus
 }

@@ -243,10 +243,10 @@ indigo_result indigo_mount_attach(indigo_device *device, const char* driver_name
 			sprintf(MOUNT_ALIGNMENT_RESET_ITEM->hints, "warn_on_set:\"Reset alignment data?\";");
 			MOUNT_ALIGNMENT_RESET_PROPERTY->hidden = MOUNT_ALIGNMENT_MODE_CONTROLLER_ITEM->sw.value;
 			// -------------------------------------------------------------------------------- MOUNT_EPOCH
-			MOUNT_EPOCH_PROPERTY = indigo_init_number_property(NULL, device->name, MOUNT_EPOCH_PROPERTY_NAME, MOUNT_ALIGNMENT_GROUP, "Current epoch", INDIGO_OK_STATE, INDIGO_RO_PERM, 1);
+			MOUNT_EPOCH_PROPERTY = indigo_init_number_property(NULL, device->name, MOUNT_EPOCH_PROPERTY_NAME, MOUNT_ALIGNMENT_GROUP, "Current epoch", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
 			if (MOUNT_EPOCH_PROPERTY == NULL)
 				return INDIGO_FAILED;
-			indigo_init_number_item(MOUNT_EPOCH_ITEM, MOUNT_EPOCH_ITEM_NAME, "Epoch (0, 1950-2050)", 0, 2050, 0, 2000);
+			indigo_init_number_item(MOUNT_EPOCH_ITEM, MOUNT_EPOCH_ITEM_NAME, "Epoch (0, 1900-2050)", 0, 2050, 0, 2000);
 			// -------------------------------------------------------------------------------- MOUNT_ALIGNMENT_MODE
 			MOUNT_SIDE_OF_PIER_PROPERTY = indigo_init_switch_property(NULL, device->name, MOUNT_SIDE_OF_PIER_PROPERTY_NAME, MOUNT_MAIN_GROUP, "Side of pier", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 2);
 			if (MOUNT_SIDE_OF_PIER_PROPERTY == NULL)
@@ -351,72 +351,39 @@ indigo_result indigo_mount_enumerate_properties(indigo_device *device, indigo_cl
 	assert(device != NULL);
 	assert(DEVICE_CONTEXT != NULL);
 	if (IS_CONNECTED) {
-		if (indigo_property_match(MOUNT_INFO_PROPERTY, property))
-			indigo_define_property(device, MOUNT_INFO_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_GEOGRAPHIC_COORDINATES_PROPERTY, property))
-			indigo_define_property(device, MOUNT_GEOGRAPHIC_COORDINATES_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_LST_TIME_PROPERTY, property))
-			indigo_define_property(device, MOUNT_LST_TIME_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_UTC_TIME_PROPERTY, property))
-			indigo_define_property(device, MOUNT_UTC_TIME_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_SET_HOST_TIME_PROPERTY, property))
-			indigo_define_property(device, MOUNT_SET_HOST_TIME_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_PARK_PROPERTY, property))
-			indigo_define_property(device, MOUNT_PARK_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_PARK_SET_PROPERTY, property))
-			indigo_define_property(device, MOUNT_PARK_SET_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_PARK_POSITION_PROPERTY, property))
-			indigo_define_property(device, MOUNT_PARK_POSITION_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_HOME_PROPERTY, property))
-			indigo_define_property(device, MOUNT_HOME_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_HOME_SET_PROPERTY, property))
-			indigo_define_property(device, MOUNT_HOME_SET_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_HOME_POSITION_PROPERTY, property))
-			indigo_define_property(device, MOUNT_HOME_POSITION_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_SLEW_RATE_PROPERTY, property))
-			indigo_define_property(device, MOUNT_SLEW_RATE_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_MOTION_DEC_PROPERTY, property))
-			indigo_define_property(device, MOUNT_MOTION_DEC_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_MOTION_RA_PROPERTY, property))
-			indigo_define_property(device, MOUNT_MOTION_RA_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_TRACK_RATE_PROPERTY, property))
-			indigo_define_property(device, MOUNT_TRACK_RATE_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_CUSTOM_TRACKING_RATE_PROPERTY, property))
-			indigo_define_property(device, MOUNT_CUSTOM_TRACKING_RATE_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_TRACKING_PROPERTY, property))
-			indigo_define_property(device, MOUNT_TRACKING_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_GUIDE_RATE_PROPERTY, property))
-			indigo_define_property(device, MOUNT_GUIDE_RATE_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_ON_COORDINATES_SET_PROPERTY, property))
-			indigo_define_property(device, MOUNT_ON_COORDINATES_SET_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_EQUATORIAL_COORDINATES_PROPERTY, property))
-			indigo_define_property(device, MOUNT_EQUATORIAL_COORDINATES_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_HORIZONTAL_COORDINATES_PROPERTY, property))
-			indigo_define_property(device, MOUNT_HORIZONTAL_COORDINATES_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_TARGET_INFO_PROPERTY, property))
-			indigo_define_property(device, MOUNT_TARGET_INFO_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_ABORT_MOTION_PROPERTY, property))
-			indigo_define_property(device, MOUNT_ABORT_MOTION_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_ALIGNMENT_MODE_PROPERTY, property))
-			indigo_define_property(device, MOUNT_ALIGNMENT_MODE_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_RAW_COORDINATES_PROPERTY, property))
-			indigo_define_property(device, MOUNT_RAW_COORDINATES_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_ALIGNMENT_SELECT_POINTS_PROPERTY, property))
-			indigo_define_property(device, MOUNT_ALIGNMENT_SELECT_POINTS_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_ALIGNMENT_DELETE_POINTS_PROPERTY, property))
-			indigo_define_property(device, MOUNT_ALIGNMENT_DELETE_POINTS_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_ALIGNMENT_RESET_PROPERTY, property))
-			indigo_define_property(device, MOUNT_ALIGNMENT_RESET_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_EPOCH_PROPERTY, property))
-			indigo_define_property(device, MOUNT_EPOCH_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_SIDE_OF_PIER_PROPERTY, property))
-			indigo_define_property(device, MOUNT_SIDE_OF_PIER_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_SNOOP_DEVICES_PROPERTY, property))
-			indigo_define_property(device, MOUNT_SNOOP_DEVICES_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_PEC_PROPERTY, property))
-			indigo_define_property(device, MOUNT_PEC_PROPERTY, NULL);
-		if (indigo_property_match(MOUNT_PEC_TRAINING_PROPERTY, property))
-			indigo_define_property(device, MOUNT_PEC_TRAINING_PROPERTY, NULL);
+		indigo_define_matching_property(MOUNT_INFO_PROPERTY);
+		indigo_define_matching_property(MOUNT_GEOGRAPHIC_COORDINATES_PROPERTY);
+		indigo_define_matching_property(MOUNT_LST_TIME_PROPERTY);
+		indigo_define_matching_property(MOUNT_UTC_TIME_PROPERTY);
+		indigo_define_matching_property(MOUNT_SET_HOST_TIME_PROPERTY);
+		indigo_define_matching_property(MOUNT_PARK_PROPERTY);
+		indigo_define_matching_property(MOUNT_PARK_SET_PROPERTY);
+		indigo_define_matching_property(MOUNT_PARK_POSITION_PROPERTY);
+		indigo_define_matching_property(MOUNT_HOME_PROPERTY);
+		indigo_define_matching_property(MOUNT_HOME_SET_PROPERTY);
+		indigo_define_matching_property(MOUNT_HOME_POSITION_PROPERTY);
+		indigo_define_matching_property(MOUNT_SLEW_RATE_PROPERTY);
+		indigo_define_matching_property(MOUNT_MOTION_DEC_PROPERTY);
+		indigo_define_matching_property(MOUNT_MOTION_RA_PROPERTY);
+		indigo_define_matching_property(MOUNT_TRACK_RATE_PROPERTY);
+		indigo_define_matching_property(MOUNT_CUSTOM_TRACKING_RATE_PROPERTY);
+		indigo_define_matching_property(MOUNT_TRACKING_PROPERTY);
+		indigo_define_matching_property(MOUNT_GUIDE_RATE_PROPERTY);
+		indigo_define_matching_property(MOUNT_ON_COORDINATES_SET_PROPERTY);
+		indigo_define_matching_property(MOUNT_EQUATORIAL_COORDINATES_PROPERTY);
+		indigo_define_matching_property(MOUNT_HORIZONTAL_COORDINATES_PROPERTY);
+		indigo_define_matching_property(MOUNT_TARGET_INFO_PROPERTY);
+		indigo_define_matching_property(MOUNT_ABORT_MOTION_PROPERTY);
+		indigo_define_matching_property(MOUNT_ALIGNMENT_MODE_PROPERTY);
+		indigo_define_matching_property(MOUNT_RAW_COORDINATES_PROPERTY);
+		indigo_define_matching_property(MOUNT_ALIGNMENT_SELECT_POINTS_PROPERTY);
+		indigo_define_matching_property(MOUNT_ALIGNMENT_DELETE_POINTS_PROPERTY);
+		indigo_define_matching_property(MOUNT_ALIGNMENT_RESET_PROPERTY);
+		indigo_define_matching_property(MOUNT_EPOCH_PROPERTY);
+		indigo_define_matching_property(MOUNT_SIDE_OF_PIER_PROPERTY);
+		indigo_define_matching_property(MOUNT_SNOOP_DEVICES_PROPERTY);
+		indigo_define_matching_property(MOUNT_PEC_PROPERTY);
+		indigo_define_matching_property(MOUNT_PEC_TRAINING_PROPERTY);
 	}
 	return indigo_device_enumerate_properties(device, client, property);
 }
@@ -820,6 +787,10 @@ indigo_result indigo_mount_change_property(indigo_device *device, indigo_client 
 	} else if (indigo_property_match_changeable(MOUNT_EPOCH_PROPERTY, property)) {
 		// -------------------------------------------------------------------------------- MOUNT_EPOCH
 		indigo_property_copy_values(MOUNT_EPOCH_PROPERTY, property, false);
+		if (MOUNT_EPOCH_ITEM->number.target != 0 && MOUNT_EPOCH_ITEM->number.target != 1900 && MOUNT_EPOCH_ITEM->number.target != 1950 && MOUNT_EPOCH_ITEM->number.target != 2000 && MOUNT_EPOCH_ITEM->number.target != 2050) {
+			MOUNT_EPOCH_ITEM->number.value = MOUNT_EPOCH_ITEM->number.target = 2000;
+			indigo_send_message(device, "Warning! Valid values are 0, 1900, 1950, 2000 or 2050 only, value adjusted to 2000");
+		}
 		MOUNT_EPOCH_PROPERTY->state = INDIGO_OK_STATE;
 		indigo_update_property(device, MOUNT_EPOCH_PROPERTY, NULL);
 		return INDIGO_OK;

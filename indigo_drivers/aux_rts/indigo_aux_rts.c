@@ -114,17 +114,16 @@ static indigo_result aux_attach(indigo_device *device) {
 
 static indigo_result aux_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_CCD_EXPOSURE_PROPERTY, property))
-			indigo_define_property(device, X_CCD_EXPOSURE_PROPERTY, NULL);
-		if (indigo_property_match(X_CCD_ABORT_EXPOSURE_PROPERTY, property))
-			indigo_define_property(device, X_CCD_ABORT_EXPOSURE_PROPERTY, NULL);
+		indigo_define_matching_property(X_CCD_EXPOSURE_PROPERTY);
+		indigo_define_matching_property(X_CCD_ABORT_EXPOSURE_PROPERTY);
 	}
 	return indigo_aux_enumerate_properties(device, NULL, NULL);
 }
 
 static void aux_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
 	if (X_CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 		X_CCD_EXPOSURE_ITEM->number.value--;

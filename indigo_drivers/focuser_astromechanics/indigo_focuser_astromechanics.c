@@ -73,17 +73,20 @@ static bool astromechanics_command(indigo_device *device, char *command, char *r
 			FD_ZERO(&readout);
 			FD_SET(PRIVATE_DATA->handle, &readout);
 			long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
-			if (result <= 0)
+			if (result <= 0) {
 				break;
+			}
 			result = read(PRIVATE_DATA->handle, &c, 1);
 			if (result < 1) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to read from %s -> %s (%d)", DEVICE_PORT_ITEM->text.value, strerror(errno), errno);
 				return false;
 			}
-			if (c <= ' ')
+			if (c <= ' ') {
 				continue;
-			if (c < 0 || c == '#')
+			}
+			if (c < 0 || c == '#') {
 				break;
+			}
 			response[index++] = c;
 		}
 		response[index] = 0;
@@ -100,7 +103,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 	assert(device != NULL);
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_focuser_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
-		X_FOCUSER_APERTURE_PROPERTY = indigo_init_number_property(NULL, device->name, "X_FOCUSER_APERTURE", "Advanced", "Aperture", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
+		X_FOCUSER_APERTURE_PROPERTY = indigo_init_number_property(NULL, device->name, "X_FOCUSER_APERTURE", FOCUSER_ADVANCED_GROUP, "Aperture", INDIGO_OK_STATE, INDIGO_RW_PERM, 1);
 		if (X_FOCUSER_APERTURE_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_FOCUSER_APERTURE_ITEM, "APERURE", "Aperture", 0, 50, 1, 0);
@@ -138,8 +141,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 
 static indigo_result focuser_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_FOCUSER_APERTURE_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_APERTURE_PROPERTY, NULL);
+		indigo_define_matching_property(X_FOCUSER_APERTURE_PROPERTY);
 	}
 	return indigo_focuser_enumerate_properties(device, NULL, NULL);
 }

@@ -24,7 +24,7 @@
  \file indigo_aux_ppb.c
  */
 
-#define DRIVER_VERSION 0x0018
+#define DRIVER_VERSION 0x0019
 #define DRIVER_NAME "indigo_aux_ppb"
 
 #include <stdlib.h>
@@ -200,17 +200,6 @@ static indigo_result aux_attach(indigo_device *device) {
 		DEVICE_PORT_PROPERTY->hidden = false;
 		DEVICE_PORTS_PROPERTY->hidden = false;
 		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
-#ifdef INDIGO_MACOS
-		for (int i = 0; i < DEVICE_PORTS_PROPERTY->count; i++) {
-			if (strstr(DEVICE_PORTS_PROPERTY->items[i].name, "usbserial")) {
-				indigo_copy_value(DEVICE_PORT_ITEM->text.value, DEVICE_PORTS_PROPERTY->items[i].name);
-				break;
-			}
-		}
-#endif
-#ifdef INDIGO_LINUX
-		strcpy(DEVICE_PORT_ITEM->text.value, "/dev/ttyPPB");
-#endif
 		// --------------------------------------------------------------------------------
 		pthread_mutex_init(&PRIVATE_DATA->mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
@@ -221,33 +210,24 @@ static indigo_result aux_attach(indigo_device *device) {
 
 static indigo_result aux_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(AUX_POWER_OUTLET_PROPERTY, property))
-			indigo_define_property(device, AUX_POWER_OUTLET_PROPERTY, NULL);
-		if (indigo_property_match(AUX_POWER_OUTLET_STATE_PROPERTY, property))
-			indigo_define_property(device, AUX_POWER_OUTLET_STATE_PROPERTY, NULL);
-		if (indigo_property_match(AUX_DSLR_POWER_PROPERTY, property))
-			indigo_define_property(device, AUX_DSLR_POWER_PROPERTY, NULL);
-		if (indigo_property_match(AUX_HEATER_OUTLET_PROPERTY, property))
-			indigo_define_property(device, AUX_HEATER_OUTLET_PROPERTY, NULL);
-		if (indigo_property_match(AUX_DEW_CONTROL_PROPERTY, property))
-			indigo_define_property(device, AUX_DEW_CONTROL_PROPERTY, NULL);
-		if (indigo_property_match(AUX_WEATHER_PROPERTY, property))
-			indigo_define_property(device, AUX_WEATHER_PROPERTY, NULL);
-		if (indigo_property_match(AUX_INFO_PROPERTY, property))
-			indigo_define_property(device, AUX_INFO_PROPERTY, NULL);
-		if (indigo_property_match(AUX_SAVE_OUTLET_STATES_AS_DEFAULT_PROEPRTY, property))
-			indigo_define_property(device, AUX_SAVE_OUTLET_STATES_AS_DEFAULT_PROEPRTY, NULL);
-		if (indigo_property_match(X_AUX_REBOOT_PROPERTY, property))
-			indigo_define_property(device, X_AUX_REBOOT_PROPERTY, NULL);
+		indigo_define_matching_property(AUX_POWER_OUTLET_PROPERTY);
+		indigo_define_matching_property(AUX_POWER_OUTLET_STATE_PROPERTY);
+		indigo_define_matching_property(AUX_DSLR_POWER_PROPERTY);
+		indigo_define_matching_property(AUX_HEATER_OUTLET_PROPERTY);
+		indigo_define_matching_property(AUX_DEW_CONTROL_PROPERTY);
+		indigo_define_matching_property(AUX_WEATHER_PROPERTY);
+		indigo_define_matching_property(AUX_INFO_PROPERTY);
+		indigo_define_matching_property(AUX_SAVE_OUTLET_STATES_AS_DEFAULT_PROEPRTY);
+		indigo_define_matching_property(X_AUX_REBOOT_PROPERTY);
 	}
-	if (indigo_property_match(AUX_OUTLET_NAMES_PROPERTY, property))
-		indigo_define_property(device, AUX_OUTLET_NAMES_PROPERTY, NULL);
+	indigo_define_matching_property(AUX_OUTLET_NAMES_PROPERTY);
 	return indigo_aux_enumerate_properties(device, NULL, NULL);
 }
 
 static void aux_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	char response[128];
 	bool updatePowerOutlet = false;
 	bool updatePowerOutletState = false;
@@ -395,7 +375,6 @@ static void aux_connection_handler(indigo_device *device) {
 		if (PRIVATE_DATA->count++ == 0) {
 			PRIVATE_DATA->handle = indigo_open_serial(DEVICE_PORT_ITEM->text.value);
 			if (PRIVATE_DATA->handle > 0) {
-				bool connected = false;
 				int attempt = 0;
 				while (true) {
 					if (ppb_command(device, "P#", response, sizeof(response))) {
@@ -520,7 +499,7 @@ static void aux_connection_handler(indigo_device *device) {
 			} else {
 				strcpy(INFO_DEVICE_MODEL_ITEM->text.value, "PPB");
 			}
-			if (ppb_command(device, "PV", response, sizeof(response)) ) {
+			if (ppb_command(device, "PV", response, sizeof(response))) {
 				strcpy(INFO_DEVICE_FW_REVISION_ITEM->text.value, response);
 			}
 			indigo_update_property(device, INFO_PROPERTY, NULL);
@@ -766,6 +745,11 @@ indigo_result indigo_aux_ppb(indigo_driver_action action, indigo_driver_info *in
 		NULL,
 		aux_detach
 	);
+
+	static indigo_device_match_pattern patterns[1] = { 0 };
+	strcpy(patterns[0].vendor_string, "Pegasus Astro");
+	strcpy(patterns[0].product_string, "PPB");
+	INDIGO_REGISER_MATCH_PATTERNS(aux_template, patterns, 1);
 
 	SET_DRIVER_INFO(info, "PegasusAstro Pocket Powerbox", __FUNCTION__, DRIVER_VERSION, false, last_action);
 

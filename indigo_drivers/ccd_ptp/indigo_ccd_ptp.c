@@ -71,6 +71,9 @@ static indigo_result ccd_attach(indigo_device *device) {
 		CCD_INFO_PIXEL_WIDTH_ITEM->number.value = CCD_INFO_PIXEL_HEIGHT_ITEM->number.value =  CCD_INFO_PIXEL_SIZE_ITEM->number.value = PRIVATE_DATA->model.pixel_size;
 		CCD_INFO_BITS_PER_PIXEL_ITEM->number.value = 16;
 		CCD_JPEG_SETTINGS_PROPERTY->hidden = true;
+		if (PRIVATE_DATA->vendor == NIKON_VID || PRIVATE_DATA->vendor == CANON_VID) {
+			CCD_UPLOAD_MODE_PROPERTY->count = 4; // enable NONE item
+		}
 		// -------------------------------------------------------------------------------- CCD_IMAGE_FORMAT
 		CCD_IMAGE_FORMAT_PROPERTY = indigo_resize_property(CCD_IMAGE_FORMAT_PROPERTY, 5);
 		indigo_init_switch_item(CCD_IMAGE_FORMAT_FITS_ITEM, CCD_IMAGE_FORMAT_FITS_ITEM_NAME, "FITS format", false);
@@ -88,8 +91,8 @@ static indigo_result ccd_attach(indigo_device *device) {
 		DSLR_MIRROR_LOCKUP_PROPERTY = indigo_init_switch_property(NULL, device->name, DSLR_MIRROR_LOCKUP_PROPERTY_NAME, "DSLR", "Use mirror lockup", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 2);
 		if (DSLR_MIRROR_LOCKUP_PROPERTY == NULL)
 			return INDIGO_FAILED;
-		indigo_init_switch_item(DSLR_MIRROR_LOCKUP_LOCK_ITEM, DSLR_MIRROR_LOCKUP_LOCK_ITEM_NAME, "Lock", false);
-		indigo_init_switch_item(DSLR_MIRROR_LOCKUP_UNLOCK_ITEM, DSLR_MIRROR_LOCKUP_UNLOCK_ITEM_NAME, "Unlock", true);
+		indigo_init_switch_item(DSLR_MIRROR_LOCKUP_LOCK_ITEM, DSLR_MIRROR_LOCKUP_LOCK_ITEM_NAME, "On", false);
+		indigo_init_switch_item(DSLR_MIRROR_LOCKUP_UNLOCK_ITEM, DSLR_MIRROR_LOCKUP_UNLOCK_ITEM_NAME, "Off", true);
 		// -------------------------------------------------------------------------------- DSLR_ZOOM_PREVIEW
 		DSLR_ZOOM_PREVIEW_PROPERTY = indigo_init_switch_property(NULL, device->name, DSLR_ZOOM_PREVIEW_PROPERTY_NAME, "DSLR", "Zoom preview", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 2);
 		if (DSLR_ZOOM_PREVIEW_PROPERTY == NULL)
@@ -102,8 +105,8 @@ static indigo_result ccd_attach(indigo_device *device) {
 		if (DSLR_LOCK_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		DSLR_LOCK_PROPERTY->hidden = PRIVATE_DATA->lock == NULL;
-		indigo_init_switch_item(DSLR_LOCK_ITEM, DSLR_LOCK_ITEM_NAME, "Lock", false);
-		indigo_init_switch_item(DSLR_UNLOCK_ITEM, DSLR_UNLOCK_ITEM_NAME, "Unlock", true);
+		indigo_init_switch_item(DSLR_LOCK_ITEM, DSLR_LOCK_ITEM_NAME, "On", false);
+		indigo_init_switch_item(DSLR_UNLOCK_ITEM, DSLR_UNLOCK_ITEM_NAME, "Off", true);
 		// -------------------------------------------------------------------------------- DSLR_AF
 		DSLR_AF_PROPERTY = indigo_init_switch_property(NULL, device->name, DSLR_AF_PROPERTY_NAME, "DSLR", "Autofocus", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_AT_MOST_ONE_RULE, 1);
 		if (DSLR_AF_PROPERTY == NULL)
@@ -130,18 +133,12 @@ static indigo_result ccd_enumerate_properties(indigo_device *device, indigo_clie
 	assert(device != NULL);
 	assert(DEVICE_CONTEXT != NULL);
 	if (IS_CONNECTED) {
-		if (indigo_property_match(DSLR_DELETE_IMAGE_PROPERTY, property))
-			indigo_define_property(device, DSLR_DELETE_IMAGE_PROPERTY, NULL);
-		if (indigo_property_match(DSLR_MIRROR_LOCKUP_PROPERTY, property))
-			indigo_define_property(device, DSLR_MIRROR_LOCKUP_PROPERTY, NULL);
-		if (indigo_property_match(DSLR_ZOOM_PREVIEW_PROPERTY, property))
-			indigo_define_property(device, DSLR_ZOOM_PREVIEW_PROPERTY, NULL);
-		if (indigo_property_match(DSLR_LOCK_PROPERTY, property))
-			indigo_define_property(device, DSLR_LOCK_PROPERTY, NULL);
-		if (indigo_property_match(DSLR_AF_PROPERTY, property))
-			indigo_define_property(device, DSLR_AF_PROPERTY, NULL);
-		if (indigo_property_match(DSLR_SET_HOST_TIME_PROPERTY, property))
-			indigo_define_property(device, DSLR_SET_HOST_TIME_PROPERTY, NULL);
+		indigo_define_matching_property(DSLR_DELETE_IMAGE_PROPERTY);
+		indigo_define_matching_property(DSLR_MIRROR_LOCKUP_PROPERTY);
+		indigo_define_matching_property(DSLR_ZOOM_PREVIEW_PROPERTY);
+		indigo_define_matching_property(DSLR_LOCK_PROPERTY);
+		indigo_define_matching_property(DSLR_AF_PROPERTY);
+		indigo_define_matching_property(DSLR_SET_HOST_TIME_PROPERTY);
 		for (int i = 0; PRIVATE_DATA->info_properties_supported[i]; i++)
 			if (indigo_property_match(PRIVATE_DATA->properties[i].property, property))
 				indigo_define_property(device, PRIVATE_DATA->properties[i].property, NULL);
@@ -196,8 +193,9 @@ static void handle_connection(indigo_device *device) {
 				indigo_define_property(device, DSLR_SET_HOST_TIME_PROPERTY, NULL);
 				for (int i = 0; PRIVATE_DATA->info_properties_supported[i]; i++)
 					indigo_define_property(device, PRIVATE_DATA->properties[i].property, NULL);
-				if (PRIVATE_DATA->focuser)
+				if (PRIVATE_DATA->focuser) {
 					indigo_attach_device(PRIVATE_DATA->focuser);
+				}
 			} else {
 				for (int i = 0; PRIVATE_DATA->properties[i].property; i++)
 					indigo_release_property(PRIVATE_DATA->properties[i].property);
@@ -543,6 +541,7 @@ static indigo_device *attach_device(int vendor, int product, const char *usb_pat
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "found %s", CAMERA[i].name);
 			ptp_private_data *private_data = indigo_safe_malloc(sizeof(ptp_private_data));
 			private_data->model = CAMERA[i];
+			private_data->vendor = vendor;
 			if (vendor == CANON_VID) {
 				private_data->operation_code_label = ptp_operation_canon_code_label;
 				private_data->response_code_label = ptp_response_canon_code_label;
@@ -701,8 +700,10 @@ static indigo_device *attach_device(int vendor, int product, const char *usb_pat
 		char usb_path[INDIGO_NAME_SIZE];
 		snprintf(usb_path, INDIGO_NAME_SIZE, "%08x", dev.usbLocationID);
 		indigo_device *device = attach_device(dev.usbVendorID, dev.usbProductID, usb_path);
-		PRIVATE_DATA->dev = (ICCameraDevice *)dev;
-		[dev.userData setObject:[NSValue valueWithPointer:device] forKey:@"device"];
+		if (device != NULL) {
+			PRIVATE_DATA->dev = (ICCameraDevice *)dev;
+			[dev.userData setObject:[NSValue valueWithPointer:device] forKey:@"device"];
+		}
 		pthread_mutex_unlock(&device_mutex);
 	});
 }
@@ -723,8 +724,9 @@ static indigo_device *attach_device(int vendor, int product, const char *usb_pat
 					indigo_detach_device(device);
 					free(device);
 					devices[j] = NULL;
-					if (private_data->vendor_private_data)
+					if (private_data->vendor_private_data) {
 						free(private_data->vendor_private_data);
+					}
 					free(private_data);
 				}
 			}
@@ -770,8 +772,9 @@ static void process_unplug_event(libusb_device *dev) {
 				devices[j] = NULL;
 				free(device);
 				libusb_unref_device(dev);
-				if (private_data->vendor_private_data)
+				if (private_data->vendor_private_data) {
 					free(private_data->vendor_private_data);
+				}
 				free(private_data);
 				break;
 			}

@@ -23,7 +23,7 @@
  \file indigo_mount_rainbow.c
  */
 
-#define DRIVER_VERSION 0x000B
+#define DRIVER_VERSION 0x000D
 #define DRIVER_NAME	"indigo_mount_rainbow"
 
 #include <stdlib.h>
@@ -42,6 +42,7 @@
 
 #include <indigo/indigo_driver_xml.h>
 #include <indigo/indigo_io.h>
+#include <indigo/indigo_align.h>
 
 #include "indigo_mount_rainbow.h"
 
@@ -56,23 +57,6 @@ typedef struct {
 	unsigned long version;
 } rainbow_private_data;
 
-static bool rainbow_open(indigo_device *device) {
-	char *name = DEVICE_PORT_ITEM->text.value;
-	if (!indigo_is_device_url(name, "rainbow")) {
-		PRIVATE_DATA->handle = indigo_open_serial_with_speed(name, 115200);
-	} else {
-		indigo_network_protocol proto = INDIGO_PROTOCOL_TCP;
-		PRIVATE_DATA->handle = indigo_open_network_device(name, 4030, &proto);
-	}
-	if (PRIVATE_DATA->handle > 0) {
-		INDIGO_DRIVER_LOG(DRIVER_NAME, "Connected to %s", name);
-		return true;
-	} else {
-		INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to connect to %s", name);
-		return false;
-	}
-}
-
 static bool rainbow_command(indigo_device *device, char *command, indigo_property *property) {
 	pthread_mutex_lock(&PRIVATE_DATA->port_mutex);
 	bool result = indigo_write(PRIVATE_DATA->handle, command, strlen(command));
@@ -82,6 +66,38 @@ static bool rainbow_command(indigo_device *device, char *command, indigo_propert
 		property->state = INDIGO_ALERT_STATE;
 		if (IS_CONNECTED)
 			indigo_update_property(device, property, NULL);
+	}
+	return result;
+}
+
+static bool rainbow_response(indigo_device *device, char *response, int length) {
+	char c;
+	bool result = false;
+	struct timeval tv;
+	fd_set readout;
+	int i = 0;
+	while (true) {
+		response[i] = 0;
+		if (i == length - 1) {
+			break;
+		}
+		FD_ZERO(&readout);
+		FD_SET(PRIVATE_DATA->handle, &readout);
+		tv.tv_sec = 0;
+		tv.tv_usec = 200000;
+		if (select(PRIVATE_DATA->handle + 1, &readout, NULL, NULL, &tv) <= 0) {
+			break;
+		}
+		if (read(PRIVATE_DATA->handle, &c, 1) < 1) {
+			break;
+		}
+		response[i++] = c;
+		if (c == '#') {
+			response[i] = 0;
+			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "<- %s", response);
+			result = true;
+			break;
+		}
 	}
 	return result;
 }
@@ -102,6 +118,40 @@ static bool rainbow_sync_command(indigo_device *device, char *command, indigo_pr
 	return false;
 }
 
+static bool rainbow_open(indigo_device *device) {
+	char *name = DEVICE_PORT_ITEM->text.value;
+	if (!indigo_is_device_url(name, "rainbow")) {
+		PRIVATE_DATA->handle = indigo_open_serial_with_speed(name, 115200);
+	} else {
+		indigo_network_protocol proto = INDIGO_PROTOCOL_TCP;
+		PRIVATE_DATA->handle = indigo_open_network_device(name, 4030, &proto);
+	}
+	if (PRIVATE_DATA->handle > 0) {
+		char *command=":AV#";
+		bool result = indigo_write(PRIVATE_DATA->handle, command, strlen(command));
+		if (result) {
+			result = false;
+			char response[128];
+			if (rainbow_response(device, response, sizeof(response))) {
+				if (!strncmp(response, ":AV", 3)) {
+					result = true;
+				}
+			}
+		}
+		if (result) {
+			INDIGO_DRIVER_LOG(DRIVER_NAME, "Connected to %s", name);
+		} else {
+			close(PRIVATE_DATA->handle);
+			PRIVATE_DATA->handle = -1;
+			INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed: %s is not a Rainbow Astro mount", name);
+		}
+		return result;
+	} else {
+		INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to connect to %s", name);
+		return false;
+	}
+}
+
 static void rainbow_close(indigo_device *device) {
 	if (PRIVATE_DATA->handle > 0) {
 		close(PRIVATE_DATA->handle);
@@ -112,38 +162,22 @@ static void rainbow_close(indigo_device *device) {
 
 static void rainbow_reader(indigo_device *device) {
 	INDIGO_DRIVER_LOG(DRIVER_NAME, "Reader started");
-	char response[128], c;
-	struct timeval tv;
-	fd_set readout;
+	char response[128];
+	double ra, dec;
 	while (PRIVATE_DATA->handle > 0) {
-		int i = 0;
-		while (true) {
-			response[i] = 0;
-			if (i == sizeof(response) - 1)
-				break;
-			FD_ZERO(&readout);
-			FD_SET(PRIVATE_DATA->handle, &readout);
-			tv.tv_sec = 0;
-			tv.tv_usec = 100000;
-			if (select(PRIVATE_DATA->handle + 1, &readout, NULL, NULL, &tv) <= 0)
-				break;
-			if (read(PRIVATE_DATA->handle, &c, 1) < 1)
-				break;
-			response[i++] = c;
-			if (c == '#') {
-				response[i] = 0;
-				break;
-			}
-		}
-		if (*response == 0)
+		rainbow_response(device, response, sizeof(response));
+		if (*response == 0) {
 			continue;
-		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "<- %s", response);
+		}
 		if (!strncmp(response, ":GR", 3)) {
-			MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value = indigo_stod(response + 3);
+			ra = indigo_stod(response + 3);
 			continue;
 		}
 		if (!strncmp(response, ":GD", 3)) {
-			MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.value = indigo_stod(response + 3);
+			dec = indigo_stod(response + 3);
+			indigo_eq_to_j2k(MOUNT_EPOCH_ITEM->number.value, &ra, &dec);
+			MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value = ra;
+			MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.value = dec;
 			continue;
 		}
 		if (!strcmp(response, ":CL0#")) {
@@ -312,8 +346,6 @@ static indigo_result mount_attach(indigo_device *device) {
 	assert(device != NULL);
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_mount_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
-		// -------------------------------------------------------------------------------- SIMULATION
-		SIMULATION_PROPERTY->hidden = true;
 		// -------------------------------------------------------------------------------- DEVICE_PORT
 		DEVICE_PORT_PROPERTY->hidden = false;
 		// -------------------------------------------------------------------------------- DEVICE_PORTS
@@ -392,6 +424,9 @@ static void mount_geographic_coordinates_callback(indigo_device *device) {
 
 static void mount_equatorial_coordinates_callback(indigo_device *device) {
 	char command[128];
+	double ra = MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target;
+	double dec = MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target;
+	indigo_j2k_to_eq(MOUNT_EPOCH_ITEM->number.value, &ra, &dec);
 	if (MOUNT_ON_COORDINATES_SET_TRACK_ITEM->sw.value) {
 		if (MOUNT_TRACK_RATE_SIDEREAL_ITEM->sw.value) {
 			rainbow_command(device, ":CtR#", MOUNT_TRACK_RATE_PROPERTY);
@@ -402,9 +437,9 @@ static void mount_equatorial_coordinates_callback(indigo_device *device) {
 		} else if (MOUNT_TRACK_RATE_CUSTOM_ITEM->sw.value) {
 			rainbow_command(device, ":CtU#", MOUNT_TRACK_RATE_PROPERTY);
 		}
-		sprintf(command, ":CtA#:Sr%s#:Sd%s#:MS#", indigo_dtos(MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target, "%02d:%02d:%04.1f"), indigo_dtos(MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target, "%+03d*%02d:%04.1f"));
+		sprintf(command, ":CtA#:Sr%s#:Sd%s#:MS#", indigo_dtos(ra, "%02d:%02d:%04.1f"), indigo_dtos(dec, "%+03d*%02d:%04.1f"));
 	} else if (MOUNT_ON_COORDINATES_SET_SYNC_ITEM->sw.value) {
-		sprintf(command, ":Ck%07.3f%+7.3f#", MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target * 15, MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target);
+		sprintf(command, ":Ck%07.3f%+7.3f#", ra * 15, dec);
 	}
 	rainbow_command(device, command, MOUNT_EQUATORIAL_COORDINATES_PROPERTY);
 	indigo_update_coordinates(device, NULL);

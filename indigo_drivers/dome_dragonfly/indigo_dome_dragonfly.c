@@ -202,8 +202,6 @@ static int lunatico_init_properties(indigo_device *device) {
 	// -------------------------------------------------------------------------------- AUTHENTICATION
 	AUTHENTICATION_PROPERTY->hidden = false;
 	AUTHENTICATION_PROPERTY->count = 1;
-	// -------------------------------------------------------------------------------- SIMULATION
-	SIMULATION_PROPERTY->hidden = true;
 	// -------------------------------------------------------------------------------- DEVICE_PORT
 	DEVICE_PORT_PROPERTY->hidden = false;
 	DEVICE_PORT_PROPERTY->state = INDIGO_OK_STATE;
@@ -285,21 +283,14 @@ static int lunatico_init_properties(indigo_device *device) {
 
 static indigo_result lunatico_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (DEVICE_CONNECTED) {
-		if (indigo_property_match(AUX_GPIO_OUTLET_PROPERTY, property))
-			indigo_define_property(device, AUX_GPIO_OUTLET_PROPERTY, NULL);
-		if (indigo_property_match(AUX_OUTLET_PULSE_LENGTHS_PROPERTY, property))
-			indigo_define_property(device, AUX_OUTLET_PULSE_LENGTHS_PROPERTY, NULL);
-		if (indigo_property_match(AUX_GPIO_SENSORS_PROPERTY, property))
-			indigo_define_property(device, AUX_GPIO_SENSORS_PROPERTY, NULL);
+		indigo_define_matching_property(AUX_GPIO_OUTLET_PROPERTY);
+		indigo_define_matching_property(AUX_OUTLET_PULSE_LENGTHS_PROPERTY);
+		indigo_define_matching_property(AUX_GPIO_SENSORS_PROPERTY);
 	}
-	if (indigo_property_match(LA_DOME_SETTINGS_PROPERTY, property))
-		indigo_define_property(device, LA_DOME_SETTINGS_PROPERTY, NULL);
-	if (indigo_property_match(LA_DOME_FUNCTION_PROPERTY, property))
-		indigo_define_property(device, LA_DOME_FUNCTION_PROPERTY, NULL);
-	if (indigo_property_match(AUX_OUTLET_NAMES_PROPERTY, property))
-		indigo_define_property(device, AUX_OUTLET_NAMES_PROPERTY, NULL);
-	if (indigo_property_match(AUX_SENSOR_NAMES_PROPERTY, property))
-		indigo_define_property(device, AUX_SENSOR_NAMES_PROPERTY, NULL);
+	indigo_define_matching_property(LA_DOME_SETTINGS_PROPERTY);
+	indigo_define_matching_property(LA_DOME_FUNCTION_PROPERTY);
+	indigo_define_matching_property(AUX_OUTLET_NAMES_PROPERTY);
+	indigo_define_matching_property(AUX_SENSOR_NAMES_PROPERTY);
 	return INDIGO_OK;
 }
 
@@ -681,7 +672,7 @@ static void dome_timer_callback(indigo_device *device) {
 			indigo_update_property(device, DOME_SHUTTER_PROPERTY, "Roof is open.");
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Roof is open.");
 			return;
-		} else if(!opened && closed) {
+		} else if (!opened && closed) {
 			DEVICE_DATA.roof_timer_hits = 0;
 			DEVICE_DATA.roof_state = ROOF_CLOSED;
 			DOME_SHUTTER_PROPERTY->state = INDIGO_OK_STATE;
@@ -988,7 +979,7 @@ static void handle_dome_connect_property(indigo_device *device) {
 							DOME_SHUTTER_OPENED_ITEM->sw.value = true;
 							DEVICE_DATA.roof_state = ROOF_OPENED;
 							DOME_SHUTTER_PROPERTY->state = INDIGO_OK_STATE;
-						} else if(!opened && closed) {
+						} else if (!opened && closed) {
 							DOME_SHUTTER_CLOSED_ITEM->sw.value = true;
 							DEVICE_DATA.roof_state = ROOF_CLOSED;
 							DOME_SHUTTER_PROPERTY->state = INDIGO_OK_STATE;
@@ -1090,8 +1081,12 @@ static void create_port_device(int p_device_index, int l_device_index, device_ty
 		dome_detach
 	);
 
-	if (l_device_index >= MAX_LOGICAL_DEVICES) return;
-	if (p_device_index >= MAX_PHYSICAL_DEVICES) return;
+	if (l_device_index >= MAX_LOGICAL_DEVICES) {
+		return;
+	}
+	if (p_device_index >= MAX_PHYSICAL_DEVICES) {
+		return;
+	}
 	if (device_data[p_device_index].device[l_device_index] != NULL) {
 		if ((device_data[p_device_index].private_data) && (device_data[p_device_index].private_data->device_data[l_device_index].device_type == device_type)) {
 				return;
@@ -1123,8 +1118,12 @@ static void create_port_device(int p_device_index, int l_device_index, device_ty
 
 
 static void delete_port_device(int p_device_index, int l_device_index) {
-	if (l_device_index >= MAX_LOGICAL_DEVICES) return;
-	if (p_device_index >= MAX_PHYSICAL_DEVICES) return;
+	if (l_device_index >= MAX_LOGICAL_DEVICES) {
+		return;
+	}
+	if (p_device_index >= MAX_PHYSICAL_DEVICES) {
+		return;
+	}
 
 	if (device_data[p_device_index].device[l_device_index] != NULL) {
 		indigo_detach_device(device_data[p_device_index].device[l_device_index]);
@@ -1134,7 +1133,9 @@ static void delete_port_device(int p_device_index, int l_device_index) {
 	}
 
 	for (int i = 0; i < MAX_LOGICAL_DEVICES; i++) {
-		if (device_data[p_device_index].device[i] != NULL) return;
+		if (device_data[p_device_index].device[i] != NULL) {
+			return;
+		}
 	}
 
 	if (device_data[p_device_index].private_data != NULL) {
@@ -1168,7 +1169,7 @@ indigo_result indigo_dome_dragonfly(indigo_driver_action action, indigo_driver_i
 	case INDIGO_DRIVER_INIT:
 		last_action = action;
 		if (indigo_driver_initialized(CONFLICTING_DRIVER)) {
-			INDIGO_DRIVER_LOG(DRIVER_NAME, "Conflicting driver %s is already loaded", CONFLICTING_DRIVER);
+			INDIGO_DRIVER_ERROR(DRIVER_NAME, "Conflicting driver %s is already loaded", CONFLICTING_DRIVER);
 			last_action = INDIGO_DRIVER_SHUTDOWN;
 			return INDIGO_FAILED;
 		}

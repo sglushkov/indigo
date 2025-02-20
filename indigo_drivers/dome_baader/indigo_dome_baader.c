@@ -120,8 +120,9 @@ static bool baader_command(indigo_device *device, const char *command, char *res
 	}
 	// write command
 	indigo_write(PRIVATE_DATA->handle, command, strlen(command));
-	if (sleep > 0)
+	if (sleep > 0) {
 		usleep(sleep);
+	}
 
 	// read response
 	if (response != NULL) {
@@ -135,8 +136,9 @@ static bool baader_command(indigo_device *device, const char *command, char *res
 			tv.tv_usec = 100000;
 			timeout = 0;
 			long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
-			if (result <= 0)
+			if (result <= 0) {
 				break;
+			}
 			result = read(PRIVATE_DATA->handle, &c, 1);
 			if (result < 1) {
 				pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
@@ -525,8 +527,7 @@ static void dome_timer_callback(indigo_device *device) {
 
 static indigo_result baader_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_EMERGENCY_CLOSE_PROPERTY, property))
-			indigo_define_property(device, X_EMERGENCY_CLOSE_PROPERTY, NULL);
+		indigo_define_matching_property(X_EMERGENCY_CLOSE_PROPERTY);
 	}
 	return indigo_dome_enumerate_properties(device, NULL, NULL);
 }

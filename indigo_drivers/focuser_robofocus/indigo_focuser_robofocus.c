@@ -187,17 +187,16 @@ static indigo_result focuser_attach(indigo_device *device) {
 
 static indigo_result focuser_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_FOCUSER_POWER_CHANNELS_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_POWER_CHANNELS_PROPERTY, NULL);
-		if (indigo_property_match(X_FOCUSER_CONFIG_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_CONFIG_PROPERTY, NULL);
+		indigo_define_matching_property(X_FOCUSER_POWER_CHANNELS_PROPERTY);
+		indigo_define_matching_property(X_FOCUSER_CONFIG_PROPERTY);
 	}
 	return indigo_focuser_enumerate_properties(device, NULL, NULL);
 }
 
 static void focuser_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
 	char response[9];
 	if (robofocus_command(device, "FT000000", response)) {

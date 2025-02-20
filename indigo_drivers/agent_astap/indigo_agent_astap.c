@@ -23,7 +23,7 @@
  \file indigo_agent_astap.c
  */
 
-#define DRIVER_VERSION 0x0005
+#define DRIVER_VERSION 0x0008
 #define DRIVER_NAME	"indigo_agent_astap"
 
 #include <stdio.h>
@@ -326,7 +326,7 @@ static bool execute_command(indigo_device *device, char *command, ...) {
 	va_start(args, command);
 	vsnprintf(buffer, sizeof(buffer), command, args);
 	va_end(args);
-
+	
 	ASTAP_DEVICE_PRIVATE_DATA->abort_requested = false;
 	char command_buf[8 * 1024];
 	sprintf(command_buf, "%s 2>&1", buffer);
@@ -364,8 +364,9 @@ static bool execute_command(indigo_device *device, char *command, ...) {
 	size_t size = 0;
 	while (getline(&line, &size, output) >= 0)
 		parse_line(device, line);
-	if (line)
+	if (line) {
 		free(line);
+	}
 	fclose(output);
 	indigo_cancel_timer(device, &ASTAP_DEVICE_PRIVATE_DATA->time_limit);
 	ASTAP_DEVICE_PRIVATE_DATA->pid = 0;
@@ -483,8 +484,9 @@ static bool astap_solve(indigo_device *device, void *image, unsigned long image_
 				size_t size = 0;
 				while (getline(&line, &size, output) >= 0)
 					parse_line(device, line);
-				if (line)
+				if (line) {
 					free(line);
+				}
 				fclose(output);
 			} else {
 				AGENT_PLATESOLVER_WCS_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -644,8 +646,7 @@ static indigo_result agent_device_attach(indigo_device *device) {
 static indigo_result agent_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (client != NULL && client == FILTER_DEVICE_CONTEXT->client)
 		return INDIGO_OK;
-	if (indigo_property_match(AGENT_ASTAP_INDEX_PROPERTY, property))
-		indigo_define_property(device, AGENT_ASTAP_INDEX_PROPERTY, NULL);
+	indigo_define_matching_property(AGENT_ASTAP_INDEX_PROPERTY);
 	return indigo_platesolver_enumerate_properties(device, client, property);
 }
 

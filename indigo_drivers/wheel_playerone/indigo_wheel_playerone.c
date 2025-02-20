@@ -23,7 +23,7 @@
  \file indigo_wheel_playerone.c
  */
 
-#define DRIVER_VERSION 0x0007
+#define DRIVER_VERSION 0x0008
 #define DRIVER_NAME "indigo_wheel_playerone"
 
 #define PONE_HANDLE_MAX 24
@@ -86,7 +86,9 @@ static void wheel_timer_callback(indigo_device *device) {
 	/* PRIVATE_DATA->current_slot is modified only if PW_OK is returned,
 	   this prevents counting while FW is moving
 	*/
-	if (res == PW_OK) PRIVATE_DATA->current_slot++;
+	if (res == PW_OK) {
+		PRIVATE_DATA->current_slot++;
+	}
 	WHEEL_SLOT_ITEM->number.value = PRIVATE_DATA->current_slot;
 	if (PRIVATE_DATA->current_slot == PRIVATE_DATA->target_slot) {
 		WHEEL_SLOT_PROPERTY->state = INDIGO_OK_STATE;
@@ -99,8 +101,7 @@ static void wheel_timer_callback(indigo_device *device) {
 
 static indigo_result wheel_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(POA_CUSTOM_SUFFIX_PROPERTY, property))
-			indigo_define_property(device, POA_CUSTOM_SUFFIX_PROPERTY, NULL);
+		indigo_define_matching_property(POA_CUSTOM_SUFFIX_PROPERTY);
 	}
 	return indigo_wheel_enumerate_properties(device, NULL, NULL);
 }
@@ -294,7 +295,6 @@ static indigo_result wheel_detach(indigo_device *device) {
 
 // -------------------------------------------------------------------------------- hot-plug support
 
-static pthread_mutex_t device_mutex = PTHREAD_MUTEX_INITIALIZER;
 #define MAX_DEVICES                   10
 #define NO_DEVICE                 (-1000)
 
@@ -336,7 +336,9 @@ static int find_available_device_slot() {
 static int find_device_slot(int handle) {
 	for(int slot = 0; slot < MAX_DEVICES; slot++) {
 		indigo_device *device = devices[slot];
-		if (device == NULL) continue;
+		if (device == NULL) {
+			continue;
+		}
 		if (PRIVATE_DATA->dev_handle == handle) return slot;
 	}
 	return -1;
@@ -346,7 +348,9 @@ static int find_device_slot(int handle) {
 //static bool device_name_exists(const char *name) {
 //	for(int slot = 0; slot < MAX_DEVICES; slot++) {
 //		indigo_device *device = devices[slot];
-//		if (device == NULL) continue;
+//		if (device == NULL) {
+//      continue;
+//    }
 //		if (!strncmp(device->name, name, INDIGO_NAME_SIZE)) return true;
 //	}
 //	return false;
@@ -412,26 +416,26 @@ static void process_plug_event(indigo_device *unused) {
 		NULL,
 		wheel_detach
 		);
-	pthread_mutex_lock(&device_mutex);
+	pthread_mutex_lock(&indigo_device_enumeration_mutex);
 	int slot = find_available_device_slot();
 	if (slot < 0) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "No device slots available.");
-		pthread_mutex_unlock(&device_mutex);
+		pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 		return;
 	}
 	int handle = find_plugged_device_handle();
 	if (handle == NO_DEVICE) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "No plugged device found.");
-		pthread_mutex_unlock(&device_mutex);
+		pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 		return;
 	}
 	int res = POAOpenPW(handle);
 	if (res) {
-		INDIGO_DRIVER_ERROR(DRIVER_NAME, "POAOpenPW(%d}) = %d", handle, res);
-		pthread_mutex_unlock(&device_mutex);
+		INDIGO_DRIVER_ERROR(DRIVER_NAME, "POAOpenPW(%d) = %d", handle, res);
+		pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 		return;
 	} else {
-		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "POAOpenPW(%d}) = %d", handle, res);
+		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "POAOpenPW(%d) = %d", handle, res);
 	}
 	while (true) {
 		res = POAGetPWPropertiesByHandle(handle, &info);
@@ -442,7 +446,7 @@ static void process_plug_event(indigo_device *unused) {
 		}
 		if (res != PW_ERROR_IS_MOVING) {
 			POAClosePW(handle);
-			pthread_mutex_unlock(&device_mutex);
+			pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 			return;
 		}
 		indigo_usleep(ONE_SECOND_DELAY);
@@ -466,19 +470,21 @@ static void process_plug_event(indigo_device *unused) {
 	device->private_data = private_data;
 	indigo_attach_device(device);
 	devices[slot]=device;
-	pthread_mutex_unlock(&device_mutex);
+	pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 }
 
 static void process_unplug_event(indigo_device *unused) {
 	int slot, handle;
 	bool removed = false;
-	pthread_mutex_lock(&device_mutex);
+	pthread_mutex_lock(&indigo_device_enumeration_mutex);
 	while ((handle = find_unplugged_device_handle()) != -1) {
 		slot = find_device_slot(handle);
-		if (slot < 0) continue;
+		if (slot < 0) {
+			continue;
+		}
 		indigo_device **device = &devices[slot];
 		if (*device == NULL) {
-			pthread_mutex_unlock(&device_mutex);
+			pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 			return;
 		}
 		indigo_detach_device(*device);
@@ -490,7 +496,7 @@ static void process_unplug_event(indigo_device *unused) {
 	if (!removed) {
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "No Pheoenix FW unplugged (maybe Player One camera)!");
 	}
-	pthread_mutex_unlock(&device_mutex);
+	pthread_mutex_unlock(&indigo_device_enumeration_mutex);
 }
 
 static int hotplug_callback(libusb_context *ctx, libusb_device *dev, libusb_hotplug_event event, void *user_data) {
@@ -519,8 +525,9 @@ static int hotplug_callback(libusb_context *ctx, libusb_device *dev, libusb_hotp
 static void remove_all_devices() {
 	for (int index = 0; index < MAX_DEVICES; index++) {
 		indigo_device **device = &devices[index];
-		if (*device == NULL)
+		if (*device == NULL) {
 			continue;
+		}
 		indigo_detach_device(*device);
 		free((*device)->private_data);
 		free(*device);

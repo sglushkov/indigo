@@ -597,8 +597,6 @@ bool rpio_unexport_all(bool use_pwm) {
 // --------------------------------------------------------------------------------- INDIGO AUX RELAYS device implementation
 
 static int rpio_init_properties(indigo_device *device) {
-	// -------------------------------------------------------------------------------- SIMULATION
-	SIMULATION_PROPERTY->hidden = true;
 	// -------------------------------------------------------------------------------- DEVICE_PORT
 	DEVICE_PORT_PROPERTY->hidden = true;
 	// --------------------------------------------------------------------------------
@@ -834,21 +832,14 @@ static bool set_gpio_outlets(indigo_device *device) {
 
 static indigo_result aux_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(AUX_GPIO_OUTLET_PROPERTY, property))
-			indigo_define_property(device, AUX_GPIO_OUTLET_PROPERTY, NULL);
-		if (indigo_property_match(AUX_OUTLET_PULSE_LENGTHS_PROPERTY, property))
-			indigo_define_property(device, AUX_OUTLET_PULSE_LENGTHS_PROPERTY, NULL);
-		if (indigo_property_match(AUX_GPIO_OUTLET_FREQUENCIES_PROPERTY, property))
-			indigo_define_property(device, AUX_GPIO_OUTLET_FREQUENCIES_PROPERTY, NULL);
-		if (indigo_property_match(AUX_GPIO_OUTLET_DUTY_PROPERTY, property))
-			indigo_define_property(device, AUX_GPIO_OUTLET_DUTY_PROPERTY, NULL);
-		if (indigo_property_match(AUX_GPIO_SENSORS_PROPERTY, property))
-			indigo_define_property(device, AUX_GPIO_SENSORS_PROPERTY, NULL);
+		indigo_define_matching_property(AUX_GPIO_OUTLET_PROPERTY);
+		indigo_define_matching_property(AUX_OUTLET_PULSE_LENGTHS_PROPERTY);
+		indigo_define_matching_property(AUX_GPIO_OUTLET_FREQUENCIES_PROPERTY);
+		indigo_define_matching_property(AUX_GPIO_OUTLET_DUTY_PROPERTY);
+		indigo_define_matching_property(AUX_GPIO_SENSORS_PROPERTY);
 	}
-	if (indigo_property_match(AUX_OUTLET_NAMES_PROPERTY, property))
-		indigo_define_property(device, AUX_OUTLET_NAMES_PROPERTY, NULL);
-	if (indigo_property_match(AUX_SENSOR_NAMES_PROPERTY, property))
-		indigo_define_property(device, AUX_SENSOR_NAMES_PROPERTY, NULL);
+	indigo_define_matching_property(AUX_OUTLET_NAMES_PROPERTY);
+	indigo_define_matching_property(AUX_SENSOR_NAMES_PROPERTY);
 
 	return indigo_aux_enumerate_properties(device, NULL, NULL);
 }
@@ -871,7 +862,7 @@ static indigo_result aux_attach(indigo_device *device) {
 static void handle_aux_connect_property(indigo_device *device) {
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		PRIVATE_DATA->pwm_present = rpio_pwm_present();
-		if(PRIVATE_DATA->pwm_present) {
+		if (PRIVATE_DATA->pwm_present) {
 			AUX_GPIO_OUTLET_DUTY_PROPERTY->hidden = false;
 			AUX_GPIO_OUTLET_FREQUENCIES_PROPERTY->hidden = false;
 			indigo_send_message(device, "PWM on Outputs #1 and #2 is present");

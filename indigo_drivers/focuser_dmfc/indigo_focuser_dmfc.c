@@ -23,7 +23,7 @@
  \file indigo_focuser_dmfc.c
  */
 
-#define DRIVER_VERSION 0x000C
+#define DRIVER_VERSION 0x000D
 #define DRIVER_NAME "indigo_focuser_dmfc"
 
 #include <stdlib.h>
@@ -113,17 +113,6 @@ static indigo_result focuser_attach(indigo_device *device) {
 		// -------------------------------------------------------------------------------- DEVICE_PORT, DEVICE_PORTS
 		DEVICE_PORT_PROPERTY->hidden = false;
 		DEVICE_PORTS_PROPERTY->hidden = false;
-#ifdef INDIGO_MACOS
-		for (int i = 0; i < DEVICE_PORTS_PROPERTY->count; i++) {
-			if (strstr(DEVICE_PORTS_PROPERTY->items[i].name, "usbserial")) {
-				indigo_copy_value(DEVICE_PORT_ITEM->text.value, DEVICE_PORTS_PROPERTY->items[i].name);
-				break;
-			}
-		}
-#endif
-#ifdef INDIGO_LINUX
-		strcpy(DEVICE_PORT_ITEM->text.value, "/dev/ttyDMFC");
-#endif
 		// -------------------------------------------------------------------------------- INFO
 		INFO_PROPERTY->count = 6;
 		strcpy(INFO_DEVICE_MODEL_ITEM->text.value, "Undefined");
@@ -153,19 +142,17 @@ static indigo_result focuser_attach(indigo_device *device) {
 
 static indigo_result focuser_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_FOCUSER_MOTOR_TYPE_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_MOTOR_TYPE_PROPERTY, NULL);
-		if (indigo_property_match(X_FOCUSER_ENCODER_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_ENCODER_PROPERTY, NULL);
-		if (indigo_property_match(X_FOCUSER_LED_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_LED_PROPERTY, NULL);
+		indigo_define_matching_property(X_FOCUSER_MOTOR_TYPE_PROPERTY);
+		indigo_define_matching_property(X_FOCUSER_ENCODER_PROPERTY);
+		indigo_define_matching_property(X_FOCUSER_LED_PROPERTY);
 	}
 	return indigo_focuser_enumerate_properties(device, NULL, NULL);
 }
 
 static void focuser_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	char response[16];
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
 	if (dmfc_command(device, "T", response, sizeof(response))) {
@@ -551,6 +538,14 @@ indigo_result indigo_focuser_dmfc(indigo_driver_action action, indigo_driver_inf
 		NULL,
 		focuser_detach
 	);
+
+	static indigo_device_match_pattern patterns[2] = { 0 };
+	strcpy(patterns[0].vendor_string, "Pegasus Astro");
+	strcpy(patterns[0].product_string, "DMFC");
+	strcpy(patterns[1].vendor_string, "Pegasus Astro");
+	strcpy(patterns[1].product_string, "FocusCube");
+	INDIGO_REGISER_MATCH_PATTERNS(focuser_template, patterns, 2);
+
 
 	SET_DRIVER_INFO(info, "PegasusAstro DMFC Focuser", __FUNCTION__, DRIVER_VERSION, false, last_action);
 

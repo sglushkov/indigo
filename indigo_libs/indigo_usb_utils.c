@@ -23,8 +23,6 @@
  \file indigo_usb_utils.c
  */
 
-#include <string.h>
-
 #include <indigo/indigo_bus.h>
 #include <indigo/indigo_usb_utils.h>
 

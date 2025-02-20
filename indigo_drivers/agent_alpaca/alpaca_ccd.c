@@ -221,7 +221,7 @@ static indigo_alpaca_error alpaca_get_setccdtemperature(indigo_alpaca_device *de
 		pthread_mutex_unlock(&device->mutex);
 		return indigo_alpaca_error_NotConnected;
 	}
-	if (device->ccd.ccdtemperature == NAN) {
+	if (isnan(device->ccd.ccdtemperature)) {
 		pthread_mutex_unlock(&device->mutex);
 		return indigo_alpaca_error_NotImplemented;
 	}
@@ -354,10 +354,12 @@ static indigo_alpaca_error alpaca_get_sensortype(indigo_alpaca_device *device, i
 		pthread_mutex_unlock(&device->mutex);
 		return indigo_alpaca_error_NotConnected;
 	}
-	if (!strcmp(device->driver_info, "indigo_ccd_ptp") || !strncasecmp(device->ccd.readoutmodes_names[device->ccd.readoutmode], "rgb", 3))
+	if (!strncasecmp(device->ccd.readoutmodes_names[device->ccd.readoutmode], "rgb", 3)) {
 		*value = 1;
-	else
-		*value = 0;
+	} else {
+		bool is_bayered = get_bayer_RGGB_offsets(device->ccd.bayer_matrix->text.value, NULL, NULL);
+		*value = is_bayered ? 2 : 0;
+	}
 	pthread_mutex_unlock(&device->mutex);
 	return indigo_alpaca_error_OK;
 }
@@ -379,8 +381,10 @@ static indigo_alpaca_error alpaca_get_bayeroffsetx(indigo_alpaca_device *device,
 		pthread_mutex_unlock(&device->mutex);
 		return indigo_alpaca_error_NotConnected;
 	}
+	*value = 0;
+	bool is_bayered = get_bayer_RGGB_offsets(device->ccd.bayer_matrix->text.value, value, NULL);
 	pthread_mutex_unlock(&device->mutex);
-	return indigo_alpaca_error_NotImplemented;
+	return is_bayered ? indigo_alpaca_error_OK : indigo_alpaca_error_NotImplemented;
 }
 
 static indigo_alpaca_error alpaca_get_bayeroffsety(indigo_alpaca_device *device, int version, int *value) {
@@ -389,8 +393,10 @@ static indigo_alpaca_error alpaca_get_bayeroffsety(indigo_alpaca_device *device,
 		pthread_mutex_unlock(&device->mutex);
 		return indigo_alpaca_error_NotConnected;
 	}
+	*value = 0;
+	bool is_bayered = get_bayer_RGGB_offsets(device->ccd.bayer_matrix->text.value, NULL, value);
 	pthread_mutex_unlock(&device->mutex);
-	return indigo_alpaca_error_NotImplemented;
+	return is_bayered ? indigo_alpaca_error_OK : indigo_alpaca_error_NotImplemented;
 }
 
 static indigo_alpaca_error alpaca_get_exposuremin(indigo_alpaca_device *device, int version, double *value) {
@@ -567,8 +573,6 @@ static indigo_alpaca_error alpaca_get_readoutmodes(indigo_alpaca_device *device,
 	pthread_mutex_unlock(&device->mutex);
 	return indigo_alpaca_error_OK;
 }
-
-
 
 static indigo_alpaca_error alpaca_set_binx(indigo_alpaca_device *device, int version, int value) {
 	pthread_mutex_lock(&device->mutex);
@@ -779,7 +783,7 @@ static indigo_alpaca_error alpaca_startexposure(indigo_alpaca_device *device, in
 	time(&timer);
 	tm_info = gmtime(&timer);
 	strftime(device->ccd.lastexposuretarttime, sizeof(device->ccd.lastexposuretarttime), "%Y-%m-%dT%H:%M:%S", tm_info);
-	const char *names[] = { CCD_FRAME_LEFT_ITEM_NAME, CCD_FRAME_TOP_ITEM_NAME, CCD_FRAME_WIDTH_ITEM_NAME, CCD_FRAME_HEIGHT_ITEM_NAME };
+	static const char *names[] = { CCD_FRAME_LEFT_ITEM_NAME, CCD_FRAME_TOP_ITEM_NAME, CCD_FRAME_WIDTH_ITEM_NAME, CCD_FRAME_HEIGHT_ITEM_NAME };
 	const double values[] = { device->ccd.startx, device->ccd.starty, device->ccd.numx, device->ccd.numy };
 	indigo_change_number_property(indigo_agent_alpaca_client, device->indigo_device, CCD_FRAME_PROPERTY_NAME, 4, names, values);
 	indigo_change_switch_property_1(indigo_agent_alpaca_client, device->indigo_device, CCD_IMAGE_FORMAT_PROPERTY_NAME, CCD_IMAGE_FORMAT_RAW_ITEM_NAME, true);
@@ -1177,8 +1181,9 @@ long indigo_alpaca_ccd_get_command(indigo_alpaca_device *alpaca_device, int vers
 		if (result == indigo_alpaca_error_OK) {
 			long index = snprintf(buffer, buffer_length, "\"Value\": [ ");
 			for (int i = 0; i < ALPACA_MAX_ITEMS; i++) {
-				if (value[i] == NULL)
+				if (value[i] == NULL) {
 					break;
+				}
 				index += snprintf(buffer + index, buffer_length - index, "%s\"%s\"", i == 0 ? "" : ", ", value[i]);
 			}
 			index += snprintf(buffer + index, buffer_length - index, " ], \"ErrorNumber\": 0, \"ErrorMessage\": \"\"");
@@ -1489,7 +1494,8 @@ void indigo_alpaca_ccd_get_imagearray(indigo_alpaca_device *alpaca_device, int v
 			result = indigo_alpaca_error_InvalidOperation;
 		}
 		PRINTF("], \"ErrorNumber\": %d, \"ErrorMessage\": \"%s\", \"ClientTransactionID\": %u, \"ServerTransactionID\": %u }", result, indigo_alpaca_error_string(result), client_transaction_id, server_transaction_id);
-		if (use_gzip)
+		if (use_gzip) {
 			gzclose(gzf);
+		}
 	}
 }

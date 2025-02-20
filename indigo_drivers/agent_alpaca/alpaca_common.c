@@ -27,6 +27,32 @@
 
 #include "alpaca_common.h"
 
+bool get_bayer_RGGB_offsets(const char *pattern, int *x_offset, int *y_offset) {
+	if (pattern == NULL) {
+		return false;
+	}
+
+	// ASCOM Alpaca uses BUTTOM-UP orientation therefore Y offsets are mirorred.
+	// RGGB should have X=0, Y=0 but it is X=0, Y=1 in ASCOM Alpaca.
+	if (!strcasecmp(pattern, "RGGB")) {
+		if (x_offset) *x_offset = 0;
+		if (y_offset) *y_offset = 1;
+	} else if (!strcasecmp(pattern, "GRBG")) {
+		if (x_offset) *x_offset = 1;
+		if (y_offset) *y_offset = 1;
+	} else if (!strcasecmp(pattern, "GBRG")) {
+		if (x_offset) *x_offset = 0;
+		if (y_offset) *y_offset = 0;
+	} else if (!strcasecmp(pattern, "BGGR")) {
+		if (x_offset) *x_offset = 1;
+		if (y_offset) *y_offset = 0;
+	} else {
+		return false;
+	}
+
+	return true;
+}
+
 char *indigo_alpaca_error_string(int code) {
 	switch (code) {
 		case indigo_alpaca_error_OK:

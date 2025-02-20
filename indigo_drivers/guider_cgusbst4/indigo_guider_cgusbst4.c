@@ -23,7 +23,7 @@
  \file indigo_guider_cgusbst4.c
  */
 
-#define DRIVER_VERSION 0x0003
+#define DRIVER_VERSION 0x0004
 #define DRIVER_NAME	"indigo_guider_cgusbst4"
 
 #include <stdlib.h>
@@ -79,8 +79,9 @@ static bool cgusbst4_command(indigo_device *device, char *command, char *respons
 		tv.tv_sec = 0;
 		tv.tv_usec = 100000;
 		long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
-		if (result == 0)
+		if (result == 0) {
 			break;
+		}
 		if (result < 0) {
 			pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
 			return false;
@@ -93,8 +94,9 @@ static bool cgusbst4_command(indigo_device *device, char *command, char *respons
 	}
 	// write command
 	indigo_write(PRIVATE_DATA->handle, command, strlen(command));
-	if (sleep > 0)
+	if (sleep > 0) {
 		indigo_usleep(sleep);
+	}
 	// read response
 	if (response != NULL) {
 		int index = 0;
@@ -107,18 +109,18 @@ static bool cgusbst4_command(indigo_device *device, char *command, char *respons
 			tv.tv_usec = 100000;
 			timeout = 0;
 			long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
-			if (result <= 0)
+			if (result <= 0) {
 				break;
+			}
 			result = read(PRIVATE_DATA->handle, &c, 1);
 			if (result < 1) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to read from %s -> %s (%d)", DEVICE_PORT_ITEM->text.value, strerror(errno), errno);
 				pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
 				return false;
 			}
-			if (c < 0)
-				c = ':';
-			if (c == '#')
+			if (c == '#') {
 				break;
+			}
 			response[index++] = c;
 		}
 		response[index] = 0;
@@ -273,6 +275,11 @@ indigo_result indigo_guider_cgusbst4(indigo_driver_action action, indigo_driver_
 	);
 
 	static indigo_driver_action last_action = INDIGO_DRIVER_SHUTDOWN;
+
+	static indigo_device_match_pattern patterns[1] = { 0 };
+	strcpy(patterns[0].vendor_string, "Astrogene1000");
+	strcpy(patterns[0].product_string, "USB to ST4");
+	INDIGO_REGISER_MATCH_PATTERNS(mount_guider_template, patterns, 1);
 
 	SET_DRIVER_INFO(info, "CG-USB-ST4 Adapter", __FUNCTION__, DRIVER_VERSION, false, last_action);
 

@@ -23,7 +23,7 @@
  \file indigo_aux_uch.c
  */
 
-#define DRIVER_VERSION 0x0001
+#define DRIVER_VERSION 0x0002
 #define DRIVER_NAME "indigo_aux_uch"
 
 #include <stdlib.h>
@@ -161,6 +161,7 @@ static indigo_result aux_attach(indigo_device *device) {
 		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		DEVICE_PORT_PROPERTY->hidden = false;
 		DEVICE_PORTS_PROPERTY->hidden = false;
+/*
 #ifdef INDIGO_MACOS
 		for (int i = 0; i < DEVICE_PORTS_PROPERTY->count; i++) {
 			if (strstr(DEVICE_PORTS_PROPERTY->items[i].name, "usbserial")) {
@@ -172,6 +173,7 @@ static indigo_result aux_attach(indigo_device *device) {
 #ifdef INDIGO_LINUX
 		strcpy(DEVICE_PORT_ITEM->text.value, "/dev/Pegasus_UCH");
 #endif
+*/
 		// --------------------------------------------------------------------------------
 		pthread_mutex_init(&PRIVATE_DATA->mutex, NULL);
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
@@ -182,23 +184,19 @@ static indigo_result aux_attach(indigo_device *device) {
 
 static indigo_result aux_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(AUX_USB_PORT_PROPERTY, property))
-			indigo_define_property(device, AUX_USB_PORT_PROPERTY, NULL);
-		if (indigo_property_match(AUX_INFO_PROPERTY, property))
-			indigo_define_property(device, AUX_INFO_PROPERTY, NULL);
-		if (indigo_property_match(AUX_SAVE_OUTLET_STATES_AS_DEFAULT_PROEPRTY, property))
-			indigo_define_property(device, AUX_SAVE_OUTLET_STATES_AS_DEFAULT_PROEPRTY, NULL);
-		if (indigo_property_match(X_AUX_REBOOT_PROPERTY, property))
-			indigo_define_property(device, X_AUX_REBOOT_PROPERTY, NULL);
+		indigo_define_matching_property(AUX_USB_PORT_PROPERTY);
+		indigo_define_matching_property(AUX_INFO_PROPERTY);
+		indigo_define_matching_property(AUX_SAVE_OUTLET_STATES_AS_DEFAULT_PROEPRTY);
+		indigo_define_matching_property(X_AUX_REBOOT_PROPERTY);
 	}
-	if (indigo_property_match(AUX_OUTLET_NAMES_PROPERTY, property))
-		indigo_define_property(device, AUX_OUTLET_NAMES_PROPERTY, NULL);
+	indigo_define_matching_property(AUX_OUTLET_NAMES_PROPERTY);
 	return indigo_aux_enumerate_properties(device, NULL, NULL);
 }
 
 static void aux_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	char response[128];
 	bool updateInfo = false;
 	bool updateUSBPorts = false;
@@ -321,7 +319,7 @@ static void aux_connection_handler(indigo_device *device) {
 				PRIVATE_DATA->handle = 0;
 			}
 
-			if (uch_command(device, "PV", response, sizeof(response)) ) {
+			if (uch_command(device, "PV", response, sizeof(response))) {
 				strcpy(INFO_DEVICE_MODEL_ITEM->text.value, "USB Control Hub");
 				strcpy(INFO_DEVICE_FW_REVISION_ITEM->text.value, response + 3); // remove "PV:" prefix
 				indigo_update_property(device, INFO_PROPERTY, NULL);
@@ -497,6 +495,11 @@ indigo_result indigo_aux_uch(indigo_driver_action action, indigo_driver_info *in
 		NULL,
 		aux_detach
 	);
+
+	static indigo_device_match_pattern patterns[1] = {0};
+	strcpy(patterns[0].vendor_string, "Pegasus Astro");
+	strcpy(patterns[0].product_string, "USB Control Hub");
+	INDIGO_REGISER_MATCH_PATTERNS(aux_template, patterns, 1);
 
 	SET_DRIVER_INFO(info, "PegasusAstro USB Control Hub", __FUNCTION__, DRIVER_VERSION, false, last_action);
 

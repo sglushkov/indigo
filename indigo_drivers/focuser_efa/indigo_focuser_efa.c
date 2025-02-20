@@ -237,17 +237,16 @@ static indigo_result focuser_attach(indigo_device *device) {
 
 static indigo_result focuser_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_FOCUSER_FANS_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_FANS_PROPERTY, NULL);
-		if (indigo_property_match(X_FOCUSER_CALIBRATION_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_CALIBRATION_PROPERTY, NULL);
+		indigo_define_matching_property(X_FOCUSER_FANS_PROPERTY);
+		indigo_define_matching_property(X_FOCUSER_CALIBRATION_PROPERTY);
 	}
 	return indigo_focuser_enumerate_properties(device, NULL, NULL);
 }
 
 static void focuser_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
 	uint8_t response_packet[16];
 	if (PRIVATE_DATA->is_efa) {
@@ -328,8 +327,9 @@ static void focuser_goto(indigo_device *device, long target) {
 		if (efa_command(device, check_state_packet, response_packet)) {
 			if (response_packet[5] == 0xFE)
 				goto failure;
-			if (response_packet[5] == 0xFF)
+			if (response_packet[5] == 0xFF) {
 				break;
+			}
 		}
 		indigo_usleep(300000);
 	}

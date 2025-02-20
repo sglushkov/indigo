@@ -157,8 +157,9 @@ static bool nexdome_command(indigo_device *device, const char *command, char *re
 	}
 	// write command
 	indigo_write(PRIVATE_DATA->handle, command, strlen(command));
-	if (sleep > 0)
+	if (sleep > 0) {
 		usleep(sleep);
+	}
 
 	// read response
 	if (response != NULL) {
@@ -172,8 +173,9 @@ static bool nexdome_command(indigo_device *device, const char *command, char *re
 			tv.tv_usec = 100000;
 			timeout = 0;
 			long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
-			if (result <= 0)
+			if (result <= 0) {
 				break;
+			}
 			result = read(PRIVATE_DATA->handle, &c, 1);
 			if (result < 1) {
 				pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
@@ -194,7 +196,7 @@ static bool nexdome_command(indigo_device *device, const char *command, char *re
 }
 
 static bool nexdome_get_info(indigo_device *device, char *name, char *firmware) {
-	if(!name || !firmware) return false;
+	if (!name || !firmware) return false;
 
 	char response[NEXDOME_CMD_LEN]={0};
 	if (nexdome_command(device, "v\n", response, sizeof(response), NEXDOME_SLEEP)) {
@@ -221,7 +223,7 @@ static bool nexdome_abort(indigo_device *device) {
 
 
 static bool nexdome_dome_state(indigo_device *device, nexdome_dome_state_t *state) {
-	if(!state) return false;
+	if (!state) return false;
 
 	char response[NEXDOME_CMD_LEN]={0};
 	if (nexdome_command(device, "m\n", response, sizeof(response), NEXDOME_SLEEP)) {
@@ -238,7 +240,7 @@ static bool nexdome_dome_state(indigo_device *device, nexdome_dome_state_t *stat
 
 
 static bool nexdome_get_azimuth(indigo_device *device, float *azimuth) {
-	if(!azimuth) return false;
+	if (!azimuth) return false;
 
 	char response[NEXDOME_CMD_LEN]={0};
 	if (nexdome_command(device, "q\n", response, sizeof(response), NEXDOME_SLEEP)) {
@@ -253,7 +255,7 @@ static bool nexdome_get_azimuth(indigo_device *device, float *azimuth) {
 
 
 static bool nexdome_shutter_state(indigo_device *device, nexdome_shutter_state_t *state, bool *not_raining) {
-	if(!state || !not_raining) return false;
+	if (!state || !not_raining) return false;
 
 	char response[NEXDOME_CMD_LEN]={0};
 	if (nexdome_command(device, "u\n", response, sizeof(response), NEXDOME_SLEEP)) {
@@ -271,7 +273,7 @@ static bool nexdome_shutter_state(indigo_device *device, nexdome_shutter_state_t
 
 
 //static bool nexdome_get_shutter_position(indigo_device *device, float *pos) {
-//	if(!pos) return false;
+//	if (!pos) return false;
 //
 //	char response[NEXDOME_CMD_LEN]={0};
 //	if (nexdome_command(device, "b\n", response, sizeof(response), NEXDOME_SLEEP)) {
@@ -343,7 +345,7 @@ static bool nexdome_sync_azimuth(indigo_device *device, float azimuth) {
 
 
 //static bool nexdome_get_home_azimuth(indigo_device *device, float *azimuth) {
-//	if(!azimuth) return false;
+//	if (!azimuth) return false;
 //
 //	char response[NEXDOME_CMD_LEN]={0};
 //	if (nexdome_command(device, "i\n", response, sizeof(response), NEXDOME_SLEEP)) {
@@ -375,7 +377,7 @@ static bool nexdome_sync_azimuth(indigo_device *device, float azimuth) {
 
 
 static bool nexdome_get_park_azimuth(indigo_device *device, float *azimuth) {
-	if(!azimuth) return false;
+	if (!azimuth) return false;
 
 	char response[NEXDOME_CMD_LEN]={0};
 	if (nexdome_command(device, "n\n", response, sizeof(response), NEXDOME_SLEEP)) {
@@ -436,7 +438,7 @@ static bool nexdome_find_home(indigo_device *device) {
 
 
 //static bool nexdome_get_home_state(indigo_device *device, int *state) {
-//	if(!state) return false;
+//	if (!state) return false;
 //
 //	char response[NEXDOME_CMD_LEN]={0};
 //	if (nexdome_command(device, "z\n", response, sizeof(response), NEXDOME_SLEEP)) {
@@ -466,7 +468,7 @@ static bool nexdome_callibrate(indigo_device *device) {
 
 
 static bool nexdome_get_reversed_flag(indigo_device *device, bool *reversed) {
-	if(!reversed) return false;
+	if (!reversed) return false;
 
 	char response[NEXDOME_CMD_LEN]={0};
 	if (nexdome_command(device, "y\n", response, sizeof(response), NEXDOME_SLEEP)) {
@@ -536,7 +538,7 @@ static void dome_timer_callback(indigo_device *device) {
 
 	/* Check dome power */
 	float v_rotator, v_shutter;
-	if(!nexdome_get_voltages(device, &v_rotator, &v_shutter)) {
+	if (!nexdome_get_voltages(device, &v_rotator, &v_shutter)) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_get_voltages(): returned error");
 	} else {
 		/* Threshold taken from INDI driver */
@@ -562,11 +564,11 @@ static void dome_timer_callback(indigo_device *device) {
 	}
 
 	/* Handle dome rotation */
-	if(!nexdome_dome_state(device, &PRIVATE_DATA->dome_state)) {
+	if (!nexdome_dome_state(device, &PRIVATE_DATA->dome_state)) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_dome_state(): returned error");
 	}
 
-	if(!nexdome_get_azimuth(device, &PRIVATE_DATA->current_position)) {
+	if (!nexdome_get_azimuth(device, &PRIVATE_DATA->current_position)) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_get_azimuth(): returned error");
 	}
 
@@ -579,7 +581,7 @@ static void dome_timer_callback(indigo_device *device) {
 		DOME_STEPS_PROPERTY->state = INDIGO_BUSY_STATE;
 		indigo_update_property(device, DOME_STEPS_PROPERTY, NULL);
 		need_update = true;
-	} else if(need_update) {
+	} else if (need_update) {
 		if (!PRIVATE_DATA->callibration_requested && !PRIVATE_DATA->abort_requested && (indigo_azimuth_distance(PRIVATE_DATA->target_position, PRIVATE_DATA->current_position)*10) >= 1) {
 			DOME_HORIZONTAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
 			DOME_HORIZONTAL_COORDINATES_AZ_ITEM->number.value = PRIVATE_DATA->current_position;
@@ -594,12 +596,12 @@ static void dome_timer_callback(indigo_device *device) {
 			indigo_update_property(device, DOME_STEPS_PROPERTY, NULL);
 		}
 
-		if(NEXDOME_FIND_HOME_PROPERTY->state == INDIGO_BUSY_STATE) {
+		if (NEXDOME_FIND_HOME_PROPERTY->state == INDIGO_BUSY_STATE) {
 			NEXDOME_FIND_HOME_PROPERTY->state = INDIGO_OK_STATE;
 			indigo_set_switch(NEXDOME_FIND_HOME_PROPERTY, NEXDOME_FIND_HOME_ITEM, false);
 			indigo_update_property(device, NEXDOME_FIND_HOME_PROPERTY, "Home Found.");
 		}
-		if(NEXDOME_CALLIBRATE_PROPERTY->state == INDIGO_BUSY_STATE) {
+		if (NEXDOME_CALLIBRATE_PROPERTY->state == INDIGO_BUSY_STATE) {
 			NEXDOME_CALLIBRATE_PROPERTY->state = INDIGO_OK_STATE;
 			indigo_set_switch(NEXDOME_CALLIBRATE_PROPERTY, NEXDOME_CALLIBRATE_ITEM, false);
 			indigo_update_property(device, NEXDOME_CALLIBRATE_PROPERTY, "Callibration complete.");
@@ -618,7 +620,7 @@ static void dome_timer_callback(indigo_device *device) {
 
 	/* Handle dome shutter */
 	bool raining;
-	if(!nexdome_shutter_state(device, &PRIVATE_DATA->shutter_state, &raining)) {
+	if (!nexdome_shutter_state(device, &PRIVATE_DATA->shutter_state, &raining)) {
 		INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_shutter_state(): returned error");
 	}
 	if (PRIVATE_DATA->shutter_state != prev_shutter_state || DOME_SHUTTER_PROPERTY->state == INDIGO_BUSY_STATE) {
@@ -653,7 +655,7 @@ static void dome_timer_callback(indigo_device *device) {
 		if (indigo_fix_dome_azimuth(device, DOME_EQUATORIAL_COORDINATES_RA_ITEM->number.value, DOME_EQUATORIAL_COORDINATES_DEC_ITEM->number.value, DOME_HORIZONTAL_COORDINATES_AZ_ITEM->number.value, &az) &&
 		   (DOME_HORIZONTAL_COORDINATES_PROPERTY->state != INDIGO_BUSY_STATE)) {
 			PRIVATE_DATA->target_position = DOME_HORIZONTAL_COORDINATES_AZ_ITEM->number.target = az;
-			if(!nexdome_goto_azimuth(device, PRIVATE_DATA->target_position)) {
+			if (!nexdome_goto_azimuth(device, PRIVATE_DATA->target_position)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_goto_azimuth(%d): returned error", PRIVATE_DATA->handle);
 				DOME_HORIZONTAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
 				indigo_update_property(device, DOME_HORIZONTAL_COORDINATES_PROPERTY, NULL);
@@ -672,16 +674,11 @@ static void dome_timer_callback(indigo_device *device) {
 
 static indigo_result nexdome_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(NEXDOME_REVERSED_PROPERTY, property))
-			indigo_define_property(device, NEXDOME_REVERSED_PROPERTY, NULL);
-		if (indigo_property_match(NEXDOME_RESET_SHUTTER_COMM_PROPERTY, property))
-			indigo_define_property(device, NEXDOME_RESET_SHUTTER_COMM_PROPERTY, NULL);
-		if (indigo_property_match(NEXDOME_FIND_HOME_PROPERTY, property))
-			indigo_define_property(device, NEXDOME_FIND_HOME_PROPERTY, NULL);
-		if (indigo_property_match(NEXDOME_CALLIBRATE_PROPERTY, property))
-			indigo_define_property(device, NEXDOME_CALLIBRATE_PROPERTY, NULL);
-		if (indigo_property_match(NEXDOME_POWER_PROPERTY, property))
-			indigo_define_property(device, NEXDOME_POWER_PROPERTY, NULL);
+		indigo_define_matching_property(NEXDOME_REVERSED_PROPERTY);
+		indigo_define_matching_property(NEXDOME_RESET_SHUTTER_COMM_PROPERTY);
+		indigo_define_matching_property(NEXDOME_FIND_HOME_PROPERTY);
+		indigo_define_matching_property(NEXDOME_CALLIBRATE_PROPERTY);
+		indigo_define_matching_property(NEXDOME_POWER_PROPERTY);
 	}
 	return indigo_dome_enumerate_properties(device, NULL, NULL);
 }
@@ -803,7 +800,7 @@ static void dome_connect_callback(indigo_device *device) {
 					INDIGO_DRIVER_LOG(DRIVER_NAME, "%s with firmware V.%s connected.", name, firmware);
 
 					bool reversed;
-					if(!nexdome_get_reversed_flag(device, &reversed)) {
+					if (!nexdome_get_reversed_flag(device, &reversed)) {
 						INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_get_reversed_flag(): returned error");
 					}
 					if (reversed) {
@@ -818,11 +815,11 @@ static void dome_connect_callback(indigo_device *device) {
 					indigo_define_property(device, NEXDOME_CALLIBRATE_PROPERTY, NULL);
 					indigo_define_property(device, NEXDOME_POWER_PROPERTY, NULL);
 
-					if(!nexdome_get_azimuth(device, &PRIVATE_DATA->current_position)) {
+					if (!nexdome_get_azimuth(device, &PRIVATE_DATA->current_position)) {
 						INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_get_azimuth(): returned error");
 					}
 					PRIVATE_DATA->target_position = PRIVATE_DATA->current_position;
-					if(!nexdome_get_park_azimuth(device, &PRIVATE_DATA->park_azimuth)) {
+					if (!nexdome_get_park_azimuth(device, &PRIVATE_DATA->park_azimuth)) {
 						INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_get_park_azimuth(%d): returned error", PRIVATE_DATA->handle);
 					}
 					if ((indigo_azimuth_distance(PRIVATE_DATA->park_azimuth, PRIVATE_DATA->current_position)*100) <= 1) {
@@ -889,7 +886,7 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 			return INDIGO_OK;
 		}
 
-		if(!nexdome_get_azimuth(device, &PRIVATE_DATA->current_position)) {
+		if (!nexdome_get_azimuth(device, &PRIVATE_DATA->current_position)) {
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_get_azimuth(%d): returned error", PRIVATE_DATA->handle);
 		}
 
@@ -900,7 +897,7 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 			PRIVATE_DATA->target_position = (int)(PRIVATE_DATA->current_position + DOME_STEPS_ITEM->number.value + 360) % 360;
 		}
 
-		if(!nexdome_goto_azimuth(device, PRIVATE_DATA->target_position)) {
+		if (!nexdome_goto_azimuth(device, PRIVATE_DATA->target_position)) {
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_goto_azimuth(%d): returned error", PRIVATE_DATA->handle);
 			DOME_HORIZONTAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
 			DOME_HORIZONTAL_COORDINATES_AZ_ITEM->number.value = PRIVATE_DATA->current_position;
@@ -921,7 +918,7 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		indigo_property_copy_values(DOME_HORIZONTAL_COORDINATES_PROPERTY, property, false);
 		PRIVATE_DATA->target_position = DOME_HORIZONTAL_COORDINATES_AZ_ITEM->number.target;
 		if (DOME_PARK_PARKED_ITEM->sw.value) {
-			if(!nexdome_get_azimuth(device, &PRIVATE_DATA->current_position)) {
+			if (!nexdome_get_azimuth(device, &PRIVATE_DATA->current_position)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_get_azimuth(%d): returned error", PRIVATE_DATA->handle);
 			}
 			DOME_HORIZONTAL_COORDINATES_AZ_ITEM->number.value = PRIVATE_DATA->current_position;
@@ -931,14 +928,14 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		}
 
 		if (DOME_ON_HORIZONTAL_COORDINATES_SET_SYNC_ITEM->sw.value) {
-			if(!nexdome_sync_azimuth(device, PRIVATE_DATA->target_position)) {
+			if (!nexdome_sync_azimuth(device, PRIVATE_DATA->target_position)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_sync_azimuth(%d): returned error", PRIVATE_DATA->handle);
 				DOME_HORIZONTAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
 				indigo_update_property(device, DOME_HORIZONTAL_COORDINATES_PROPERTY, NULL);
 				return INDIGO_OK;
 			}
 		} else { /* GOTO */
-			if(!nexdome_goto_azimuth(device, PRIVATE_DATA->target_position)) {
+			if (!nexdome_goto_azimuth(device, PRIVATE_DATA->target_position)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_goto_azimuth(%d): returned error", PRIVATE_DATA->handle);
 				DOME_HORIZONTAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
 				indigo_update_property(device, DOME_HORIZONTAL_COORDINATES_PROPERTY, NULL);
@@ -966,7 +963,7 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		// -------------------------------------------------------------------------------- DOME_ABORT_MOTION
 		indigo_property_copy_values(DOME_ABORT_MOTION_PROPERTY, property, false);
 
-		if(!nexdome_abort(device)) {
+		if (!nexdome_abort(device)) {
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_abort(%d): returned error", PRIVATE_DATA->handle);
 			DOME_ABORT_MOTION_PROPERTY->state = INDIGO_ALERT_STATE;
 			DOME_ABORT_MOTION_ITEM->sw.value = false;
@@ -1009,10 +1006,10 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 			PRIVATE_DATA->park_requested = false;
 		} else if (DOME_PARK_PARKED_ITEM->sw.value) {
 			indigo_set_switch(DOME_PARK_PROPERTY, DOME_PARK_UNPARKED_ITEM, true);
-			if(!nexdome_get_park_azimuth(device, &PRIVATE_DATA->park_azimuth)) {
+			if (!nexdome_get_park_azimuth(device, &PRIVATE_DATA->park_azimuth)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_get_park_azimuth(%d): returned error", PRIVATE_DATA->handle);
 			}
-			if(!nexdome_goto_azimuth(device, PRIVATE_DATA->park_azimuth)) {
+			if (!nexdome_goto_azimuth(device, PRIVATE_DATA->park_azimuth)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_goto_azimuth(%d): returned error", PRIVATE_DATA->handle);
 			}
 			PRIVATE_DATA->target_position = PRIVATE_DATA->park_azimuth;
@@ -1030,7 +1027,7 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		// -------------------------------------------------------------------------------- NEXDOME_REVERED
 		indigo_property_copy_values(NEXDOME_REVERSED_PROPERTY, property, false);
 		NEXDOME_REVERSED_PROPERTY->state = INDIGO_OK_STATE;
-		if(!nexdome_set_reversed_flag(device, NEXDOME_REVERSED_YES_ITEM->sw.value)) {
+		if (!nexdome_set_reversed_flag(device, NEXDOME_REVERSED_YES_ITEM->sw.value)) {
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_set_reversed_flag(%d, %d): returned error", PRIVATE_DATA->handle, NEXDOME_REVERSED_YES_ITEM->sw.value);
 			NEXDOME_REVERSED_PROPERTY->state = INDIGO_ALERT_STATE;
 		}
@@ -1041,7 +1038,7 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		indigo_property_copy_values(NEXDOME_RESET_SHUTTER_COMM_PROPERTY, property, false);
 		if (NEXDOME_RESET_SHUTTER_COMM_ITEM->sw.value) {
 			NEXDOME_RESET_SHUTTER_COMM_PROPERTY->state = INDIGO_BUSY_STATE;
-			if(!nexdome_restart_shutter_communication(device)) {
+			if (!nexdome_restart_shutter_communication(device)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_restart_shutter_communication(%d): returned error", PRIVATE_DATA->handle);
 				NEXDOME_RESET_SHUTTER_COMM_PROPERTY->state = INDIGO_ALERT_STATE;
 			} else {
@@ -1059,7 +1056,7 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		indigo_property_copy_values(NEXDOME_FIND_HOME_PROPERTY, property, false);
 		if (NEXDOME_FIND_HOME_ITEM->sw.value) {
 			NEXDOME_FIND_HOME_PROPERTY->state = INDIGO_BUSY_STATE;
-			if(!nexdome_find_home(device)) {
+			if (!nexdome_find_home(device)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_find_home(%d): returned error", PRIVATE_DATA->handle);
 				indigo_set_switch(NEXDOME_FIND_HOME_PROPERTY, NEXDOME_FIND_HOME_ITEM, false);
 				NEXDOME_FIND_HOME_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -1074,7 +1071,7 @@ static indigo_result dome_change_property(indigo_device *device, indigo_client *
 		indigo_property_copy_values(NEXDOME_CALLIBRATE_PROPERTY, property, false);
 		if (NEXDOME_CALLIBRATE_ITEM->sw.value) {
 			NEXDOME_CALLIBRATE_PROPERTY->state = INDIGO_BUSY_STATE;
-			if(!nexdome_callibrate(device)) {
+			if (!nexdome_callibrate(device)) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "nexdome_callibrate(%d): returned error.", PRIVATE_DATA->handle);
 				indigo_set_switch(NEXDOME_CALLIBRATE_PROPERTY, NEXDOME_CALLIBRATE_ITEM, false);
 				NEXDOME_CALLIBRATE_PROPERTY->state = INDIGO_ALERT_STATE;

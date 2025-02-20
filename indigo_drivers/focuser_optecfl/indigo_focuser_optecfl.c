@@ -58,8 +58,9 @@ typedef struct {
 // -------------------------------------------------------------------------------- Low level communication routines
 
 static void focuser_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
 	int target = device->gp_bits & 0x3;
 	if (FOCUSER_MODE_PROPERTY->state == INDIGO_OK_STATE && FOCUSER_MODE_MANUAL_ITEM->sw.value) {
@@ -428,8 +429,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 
 static indigo_result focuser_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_FOCUSER_TYPE_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_TYPE_PROPERTY, NULL);
+		indigo_define_matching_property(X_FOCUSER_TYPE_PROPERTY);
 	}
 	return indigo_focuser_enumerate_properties(device, NULL, NULL);
 }

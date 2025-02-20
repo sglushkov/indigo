@@ -170,7 +170,7 @@ extern "C" {
 
 /** FILTER_FORCE_SYMMETRIC_RELATIONS property pointer, property is mandatory, property change request is fully handled by indigo_filter_change_property().
  */
-#define FILTER_FORCE_SYMMETRIC_RELATIONS_PROPERTY	(FILTER_DEVICE_CONTEXT->filter_force_SYMMETRIC_relations_property)
+#define FILTER_FORCE_SYMMETRIC_RELATIONS_PROPERTY	(FILTER_DEVICE_CONTEXT->filter_force_symmetric_relations_property)
 
 /** FILTER_FORCE_SYMMETRIC_RELATIONS.ENABLED property item pointer.
  */
@@ -201,7 +201,6 @@ extern "C" {
  */
 #define CCD_LENS_FOV_PIXEL_SCALE_HEIGHT_ITEM (CCD_LENS_FOV_PROPERTY->items+3)
 
-
 /** Filter device context structure.
  */
 typedef struct {
@@ -212,12 +211,11 @@ typedef struct {
 	indigo_property *filter_device_list_properties[INDIGO_FILTER_LIST_COUNT];
 	indigo_property *filter_related_device_list_properties[INDIGO_FILTER_LIST_COUNT];
 	indigo_property *filter_related_agent_list_property;
-	indigo_property *filter_force_SYMMETRIC_relations_property;
+	indigo_property *filter_force_symmetric_relations_property;
 	indigo_property *device_property_cache[INDIGO_FILTER_MAX_CACHED_PROPERTIES];
 	indigo_property *agent_property_cache[INDIGO_FILTER_MAX_CACHED_PROPERTIES];
 	indigo_property *connection_property_cache[INDIGO_FILTER_MAX_DEVICES];
 	bool running_process;
-	bool property_removed;
 	bool (*validate_related_agent)(indigo_device *device, indigo_property *info_property, int mask);
 	bool (*validate_device)(indigo_device *device, int index, indigo_property *info_property, int mask);
 	bool (*validate_related_device)(indigo_device *device, int index, indigo_property *info_property, int mask);
@@ -229,6 +227,20 @@ typedef struct {
 	double focal_length;
 	double fov_width, fov_height;
 } indigo_filter_context;
+
+#define INDIGO_FILTER_CCD_SELECTED 				(!FILTER_CCD_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_WHEEL_SELECTED 			(!FILTER_WHEEL_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_FOCUSER_SELECTED 		(!FILTER_FOCUSER_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_ROTATOR_SELECTED 		(!FILTER_ROTATOR_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_MOUNT_SELECTED 			(!FILTER_MOUNT_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_GUIDER_SELECTED 		(!FILTER_GUIDER_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_DOME_SELECTED 			(!FILTER_DOME_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_GPS_SELECTED 				(!FILTER_GPS_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_JOYSTICK_SELECTED 	(!FILTER_JOYSTICK_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_AUX_1_SELECTED 			(!FILTER_AUX_1_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_AUX_2_SELECTED 			(!FILTER_AUX_2_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_AUX_3_SELECTED 			(!FILTER_AUX_3_LIST_PROPERTY->items->sw.value)
+#define INDIGO_FILTER_AUX_4_SELECTED 			(!FILTER_AUX_4_LIST_PROPERTY->items->sw.value)
 
 /** Device attach callback function.
  */
@@ -261,16 +273,23 @@ extern indigo_result indigo_filter_delete_property(indigo_client *client, indigo
 extern indigo_result indigo_filter_client_detach(indigo_client *client);
 /** Find remote cached properties.
  */
-extern bool indigo_filter_cached_property(indigo_device *device, int index, char *name, indigo_property **device_property, indigo_property **agent_property);
+__attribute__((deprecated)) extern bool indigo_filter_cached_property(indigo_device *device, int index, char *name, indigo_property **device_property, indigo_property **agent_property);
 /** Forward property change to a different device.
  */
-extern indigo_result indigo_filter_forward_change_property(indigo_client *client, indigo_property *property, char *device_name);
+extern indigo_result indigo_filter_forward_change_property(indigo_client *client, indigo_property *property, char *device_name, char *property_name);
 /** Find the full name of the first related agent starting with a given base name.
  */
 extern char *indigo_filter_first_related_agent(indigo_device *device, char *base_name_1);
 /** Find the full name of the first related agent starting with any of given base names.
  */
 extern char *indigo_filter_first_related_agent_2(indigo_device *device, char *base_name_1, char *base_name_2);
+/** Return index of selected item on given switch and select the new one (or none for NULL).
+ */
+extern int indigo_save_switch_state(indigo_device *device, char *name, char *new_state);
+/** Restore selected item on given switch to index.
+ */
+extern void indigo_restore_switch_state(indigo_device *device, char *name, int index);
+
 
 #ifdef __cplusplus
 }

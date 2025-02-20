@@ -200,8 +200,9 @@ static bool talon6ror_open(indigo_device *device) {
 		FD_ZERO(&readout);
 		FD_SET(PRIVATE_DATA->handle, &readout);
 		long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
-		if (result == 0)
+		if (result == 0) {
 			break;
+		}
 		if (result < 0) {
 			pthread_mutex_unlock(&PRIVATE_DATA->mutex);
 			return false;
@@ -627,20 +628,13 @@ static indigo_result dome_attach(indigo_device *device) {
 
 static indigo_result dome_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_SENSORS_PROPERTY, property))
-			indigo_define_property(device, X_SENSORS_PROPERTY, NULL);
-		if (indigo_property_match(X_MOTOR_CONF_PROPERTY, property))
-			indigo_define_property(device, X_MOTOR_CONF_PROPERTY, NULL);
-		if (indigo_property_match(X_DELAY_CONF_PROPERTY, property))
-			indigo_define_property(device, X_DELAY_CONF_PROPERTY, NULL);
-		if (indigo_property_match(X_CLOSE_COND_PROPERTY, property))
-			indigo_define_property(device, X_CLOSE_COND_PROPERTY, NULL);
-		if (indigo_property_match(X_CLOSE_TIMER_PROPERTY, property))
-			indigo_define_property(device, X_CLOSE_TIMER_PROPERTY, NULL);
-		if (indigo_property_match(X_POSITION_PROPERTY, property))
-			indigo_define_property(device, X_POSITION_PROPERTY, NULL);
-		if (indigo_property_match(X_STATUS_PROPERTY, property))
-			indigo_define_property(device, X_STATUS_PROPERTY, NULL);
+		indigo_define_matching_property(X_SENSORS_PROPERTY);
+		indigo_define_matching_property(X_MOTOR_CONF_PROPERTY);
+		indigo_define_matching_property(X_DELAY_CONF_PROPERTY);
+		indigo_define_matching_property(X_CLOSE_COND_PROPERTY);
+		indigo_define_matching_property(X_CLOSE_TIMER_PROPERTY);
+		indigo_define_matching_property(X_POSITION_PROPERTY);
+		indigo_define_matching_property(X_STATUS_PROPERTY);
 
 	}
 	return indigo_dome_enumerate_properties(device, NULL, NULL);

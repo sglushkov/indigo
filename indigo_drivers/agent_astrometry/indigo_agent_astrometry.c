@@ -23,7 +23,7 @@
  \file indigo_agent_astrometry.c
  */
 
-#define DRIVER_VERSION 0x0010
+#define DRIVER_VERSION 0x0013
 #define DRIVER_NAME	"indigo_agent_astrometry"
 
 #include <stdio.h>
@@ -419,7 +419,10 @@ static bool astrometry_solve(indigo_device *device, void *image, unsigned long i
 				indigo_dslr_raw_image_s output_image = {0};
 				int rc = indigo_dslr_raw_process_image((void *)image, image_size, &output_image);
 				if (rc != LIBRAW_SUCCESS) {
-					if (output_image.data != NULL) free(output_image.data);
+					if (output_image.data != NULL) {
+						free(output_image.data);
+						output_image.data = NULL;
+					}
 					image = NULL;
 				}
 				ASTROMETRY_DEVICE_PRIVATE_DATA->frame_width = output_image.width;
@@ -766,10 +769,8 @@ static indigo_result agent_device_attach(indigo_device *device) {
 static indigo_result agent_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (client != NULL && client == FILTER_DEVICE_CONTEXT->client)
 		return INDIGO_OK;
-	if (indigo_property_match(AGENT_ASTROMETRY_INDEX_41XX_PROPERTY, property))
-		indigo_define_property(device, AGENT_ASTROMETRY_INDEX_41XX_PROPERTY, NULL);
-	if (indigo_property_match(AGENT_ASTROMETRY_INDEX_42XX_PROPERTY, property))
-		indigo_define_property(device, AGENT_ASTROMETRY_INDEX_42XX_PROPERTY, NULL);
+	indigo_define_matching_property(AGENT_ASTROMETRY_INDEX_41XX_PROPERTY);
+	indigo_define_matching_property(AGENT_ASTROMETRY_INDEX_42XX_PROPERTY);
 	return indigo_platesolver_enumerate_properties(device, client, property);
 }
 

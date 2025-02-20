@@ -58,17 +58,17 @@ extern "C" {
  */
 #define CCD_MAIN_GROUP                    "Camera"
 
-/** CCD Image group name string.
+/** Image group name string.
  */
 #define CCD_IMAGE_GROUP                   "Image"
 
-/** CCD Cooler group name string.
+/** Cooler group name string.
  */
 #define CCD_COOLER_GROUP                  "Cooler"
 
-/** CCD Advanced group name string.
+/** Advanced group name string.
  */
-#define CCD_ADVANCED_GROUP                "Advanced"
+#define CCD_ADVANCED_GROUP                ADVANCED_GROUP
 
 /** Device context pointer.
  */
@@ -140,6 +140,10 @@ extern "C" {
  */
 #define CCD_UPLOAD_MODE_BOTH_ITEM         (CCD_UPLOAD_MODE_PROPERTY->items+2)
 
+/** CCD_UPLOAD_MODE.NONE property item pointer.
+ */
+#define CCD_UPLOAD_MODE_NONE_ITEM         (CCD_UPLOAD_MODE_PROPERTY->items+3)
+
 /** CCD_PREVIEW property pointer, property is mandatory, read-write property, property change request is fully handled by indigo_ccd_change_property().
  */
 #define CCD_PREVIEW_PROPERTY         		(CCD_CONTEXT->ccd_preview_property)
@@ -167,6 +171,10 @@ extern "C" {
 /** CCD_LOCAL_MODE.PREFIX property item pointer.
  */
 #define CCD_LOCAL_MODE_PREFIX_ITEM        (CCD_LOCAL_MODE_PROPERTY->items+1)
+
+/** CCD_LOCAL_MODE.OBJECT property item pointer.
+ */
+#define CCD_LOCAL_MODE_OBJECT_ITEM        (CCD_LOCAL_MODE_PROPERTY->items+2)
 
 /** CCD_EXPOSURE property pointer, property is mandatory, property change request handler should set property items and state and call indigo_ccd_change_property().
  */

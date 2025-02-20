@@ -23,7 +23,7 @@
  \file indigo_mount_ioptron.c
  */
 
-#define DRIVER_VERSION 0x0029
+#define DRIVER_VERSION 0x002A
 #define DRIVER_NAME	"indigo_mount_ioptron"
 
 #include <stdlib.h>
@@ -105,8 +105,9 @@ static bool ieq_command(indigo_device *device, char *command, char *response, in
 		FD_ZERO(&readout);
 		FD_SET(PRIVATE_DATA->handle, &readout);
 		long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
-		if (result == 0)
+		if (result == 0) {
 			break;
+		}
 		if (result < 0) {
 			pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
 			return false;
@@ -130,18 +131,18 @@ static bool ieq_command(indigo_device *device, char *command, char *response, in
 			FD_ZERO(&readout);
 			FD_SET(PRIVATE_DATA->handle, &readout);
 			long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
-			if (result <= 0)
+			if (result <= 0) {
 				break;
+			}
 			result = read(PRIVATE_DATA->handle, &c, 1);
 			if (result < 1) {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "Failed to read from %s -> %s (%d)", DEVICE_PORT_ITEM->text.value, strerror(errno), errno);
 				pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
 				return false;
 			}
-			if (c < 0)
-				c = ':';
-			if (c == '#')
+			if (c == '#') {
 				break;
+			}
 			response[index++] = c;
 		}
 		response[index] = 0;
@@ -261,6 +262,7 @@ static void ieq_get_coords(indigo_device *device) {
 			}
 		}
 	}
+	indigo_eq_to_j2k(MOUNT_EPOCH_ITEM->number.value, &PRIVATE_DATA->currentRA, &PRIVATE_DATA->currentDec);
 }
 
 static bool ieq_get_utc(indigo_device *device, time_t *secs, int *utc_offset) {
@@ -925,7 +927,7 @@ static void mount_connect_callback(indigo_device *device) {
 						strcat(MOUNT_INFO_FIRMWARE_ITEM->text.value, "/");
 						strcat(MOUNT_INFO_FIRMWARE_ITEM->text.value, response);
 					}
-					if ( PRIVATE_DATA->protocol == 0x0300 && product == 26 ) {
+					if (PRIVATE_DATA->protocol == 0x0300 && product == 26) {
 						// "0026" has been reassigned in v3.10
 						strcpy(MOUNT_INFO_MODEL_ITEM->text.value, "CEM26");
 					}
@@ -960,7 +962,7 @@ static void mount_connect_callback(indigo_device *device) {
 				PRIVATE_DATA->no_park = false;
 				PRIVATE_DATA->protocol = 0x0300;
 			}
-			INDIGO_DRIVER_LOG(DRIVER_NAME, "Product:  %s (%s), firmware %s, protocol %d.%d %s", MOUNT_INFO_MODEL_ITEM->text.value, PRIVATE_DATA->product, MOUNT_INFO_FIRMWARE_ITEM->text.value, PRIVATE_DATA->protocol >> 8, PRIVATE_DATA->protocol & 0xFF, PRIVATE_DATA->hc8406 ? "HC8406" : (PRIVATE_DATA->hc8407 ? "HC8407" : "" ));
+			INDIGO_DRIVER_LOG(DRIVER_NAME, "Product:  %s (%s), firmware %s, protocol %d.%d %s", MOUNT_INFO_MODEL_ITEM->text.value, PRIVATE_DATA->product, MOUNT_INFO_FIRMWARE_ITEM->text.value, PRIVATE_DATA->protocol >> 8, PRIVATE_DATA->protocol & 0xFF, PRIVATE_DATA->hc8406 ? "HC8406" : (PRIVATE_DATA->hc8407 ? "HC8407" : ""));
 			if (PRIVATE_DATA->hc8406) {
 				MOUNT_PARK_PROPERTY->hidden = true;
 				MOUNT_TRACKING_PROPERTY->hidden = true;
@@ -1468,6 +1470,9 @@ static void mount_geographic_coordinates_callback(indigo_device *device) {
 static void mount_equatorial_coordinates_callback(indigo_device *device) {
 	char command[128], response[128];
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
+	double targetRa = MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target;
+	double targetDec = MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target;
+	indigo_j2k_to_eq(MOUNT_EPOCH_ITEM->number.value, &targetRa, &targetDec);
 	if (MOUNT_ON_COORDINATES_SET_TRACK_ITEM->sw.value) {
 		MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_BUSY_STATE;
 		if (PRIVATE_DATA->hc8406) {
@@ -1517,21 +1522,21 @@ static void mount_equatorial_coordinates_callback(indigo_device *device) {
 			ieq_command(device, ":ST1#", response, 1);
 		}
 		if (PRIVATE_DATA->hc8406)
-			sprintf(command, ":Sr %s#", indigo_dtos(MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target, "%02d:%02d:%04.1f"));
+			sprintf(command, ":Sr %s#", indigo_dtos(targetRa, "%02d:%02d:%04.1f"));
 		else if (PRIVATE_DATA->hc8407 || PRIVATE_DATA->protocol == 0x0000 || PRIVATE_DATA->protocol == 0x0100)
-			sprintf(command, ":Sr %s#", indigo_dtos(MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target, "%02d:%02d:%02.0f"));
+			sprintf(command, ":Sr %s#", indigo_dtos(targetRa, "%02d:%02d:%02.0f"));
 		else if (PRIVATE_DATA->protocol == 0x0200 || PRIVATE_DATA->protocol == 0x0205)
-			sprintf(command, ":Sr%08.0f#", MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target * 60 * 60 * 1000);
+			sprintf(command, ":Sr%08.0f#", targetRa * 60 * 60 * 1000);
 		else if (PRIVATE_DATA->protocol == 0x0300)
-			sprintf(command, ":SRA%09.0f#", MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target * 15 * 60 * 60 * 100);
+			sprintf(command, ":SRA%09.0f#", targetRa * 15 * 60 * 60 * 100);
 		if (!ieq_command(device, command, response, 1) || *response != '1') {
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "%s failed", command);
 			MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
 		} else {
 			if (PRIVATE_DATA->hc8406 || PRIVATE_DATA->hc8407 || PRIVATE_DATA->protocol == 0x0000 || PRIVATE_DATA->protocol == 0x0100)
-				sprintf(command, ":Sd %s#", indigo_dtos(MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target, "%+03d*%02d:%02.0f"));
+				sprintf(command, ":Sd %s#", indigo_dtos(targetDec, "%+03d*%02d:%02.0f"));
 			else if (PRIVATE_DATA->protocol >= 0x0200)
-				sprintf(command, ":Sd%+09.0f#", MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target * 60 * 60 * 100);
+				sprintf(command, ":Sd%+09.0f#", targetDec * 60 * 60 * 100);
 			if (!ieq_command(device, command, response, 1) || *response != '1') {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "%s failed", command);
 				MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -1558,21 +1563,21 @@ static void mount_equatorial_coordinates_callback(indigo_device *device) {
 		MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_OK_STATE;
 		char command[128], response[128];
 		if (PRIVATE_DATA->hc8406)
-			sprintf(command, ":Sr %s#", indigo_dtos(MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target, "%02d:%02d:%04.1f"));
+			sprintf(command, ":Sr %s#", indigo_dtos(targetRa, "%02d:%02d:%04.1f"));
 		else if (PRIVATE_DATA->hc8407 || PRIVATE_DATA->protocol == 0x0000 || PRIVATE_DATA->protocol == 0x0100)
-			sprintf(command, ":Sr %s#", indigo_dtos(MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target, "%02d:%02d:%02.0f"));
+			sprintf(command, ":Sr %s#", indigo_dtos(targetRa, "%02d:%02d:%02.0f"));
 		else if (PRIVATE_DATA->protocol == 0x0200 || PRIVATE_DATA->protocol == 0x0205)
-			sprintf(command, ":Sr%08.0f#", MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target * 60 * 60 * 1000);
+			sprintf(command, ":Sr%08.0f#", targetRa * 60 * 60 * 1000);
 		else if (PRIVATE_DATA->protocol == 0x0300)
-			sprintf(command, ":SRA%09.0f#", MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target * 15 * 60 * 60 * 100);
+			sprintf(command, ":SRA%09.0f#", targetRa * 15 * 60 * 60 * 100);
 		if (!ieq_command(device, command, response, 1) || *response != '1') {
 			INDIGO_DRIVER_ERROR(DRIVER_NAME, "%s failed", command);
 			MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
 		} else {
 			if (PRIVATE_DATA->hc8406 || PRIVATE_DATA->hc8407 || PRIVATE_DATA->protocol == 0x0000 || PRIVATE_DATA->protocol == 0x0100)
-				sprintf(command, ":Sd %s#", indigo_dtos(MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target, "%+03d*%02d:%02.0f"));
+				sprintf(command, ":Sd %s#", indigo_dtos(targetDec, "%+03d*%02d:%02.0f"));
 			else if (PRIVATE_DATA->protocol >= 0x0200)
-				sprintf(command, ":Sd%+08.0f#", MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target * 60 * 60 * 100);
+				sprintf(command, ":Sd%+08.0f#", targetDec * 60 * 60 * 100);
 			if (!ieq_command(device, command, response, 1) || *response != '1') {
 				INDIGO_DRIVER_ERROR(DRIVER_NAME, "%s failed", command);
 				MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -1880,7 +1885,6 @@ static indigo_result mount_attach(indigo_device *device) {
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_mount_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
 		// --------------------------------------------------------------------------------
-		SIMULATION_PROPERTY->hidden = true;
 		MOUNT_ON_COORDINATES_SET_PROPERTY->count = 2;
 		DEVICE_PORT_PROPERTY->hidden = false;
 		DEVICE_PORTS_PROPERTY->hidden = false;
@@ -2089,7 +2093,6 @@ static indigo_result guider_attach(indigo_device *device) {
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_guider_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
 		GUIDER_RATE_PROPERTY->hidden = false;
-		ADDITIONAL_INSTANCES_PROPERTY->hidden = DEVICE_CONTEXT->base_device != NULL;
 		INDIGO_DEVICE_ATTACH_LOG(DRIVER_NAME, device->name);
 		return indigo_guider_enumerate_properties(device, NULL, NULL);
 	}

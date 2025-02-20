@@ -101,8 +101,9 @@ static void sqm_close(indigo_device *device) {
 // -------------------------------------------------------------------------------- async handlers
 
 static void aux_timer_callback(indigo_device *device) {
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	char response[RESPONSE_LENGTH] = { 0 }, *pnt;
 	if (sqm_command(device, "rx", response)) {
 		char *tok = strtok_r(response, ",", &pnt);
@@ -221,10 +222,8 @@ static indigo_result aux_attach(indigo_device *device) {
 
 static indigo_result aux_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(AUX_INFO_PROPERTY, property))
-			indigo_define_property(device, AUX_INFO_PROPERTY, NULL);
-		if (indigo_property_match(AUX_WEATHER_PROPERTY, property))
-			indigo_define_property(device, AUX_WEATHER_PROPERTY, NULL);
+		indigo_define_matching_property(AUX_INFO_PROPERTY);
+		indigo_define_matching_property(AUX_WEATHER_PROPERTY);
 	}
 	return indigo_aux_enumerate_properties(device, NULL, NULL);
 }

@@ -1,6 +1,6 @@
 # Saving images from the camera driver
 
-Revision: 06.11.2022 (draft)
+Revision: 31.01.2025 (draft)
 
 Author: **Rumen G.Bogdanovski**
 
@@ -38,6 +38,7 @@ The legacy file name templates come as INDI standard heritage. Here **PREFIX** i
 INDIGO file name templates support a number of placeholders starting with "%" character, which will be expanded to different image properties in the file name. If "%" is present in the **PREFIX** INDIGO placeholder format is assumed and X-es in the suffix will not be replaced with with the file number.
 
 ### Valid placeholders:
+* **%o** - will be expanded to the object name in **CCD_LOCAL_MODE.OBJECT**
 
 * **%M** - will be expanded to the MD5 sum of the first 5kb of the file content. It can be used to provide unique file names and to check if the file is already downloaded by the client.
 
@@ -54,6 +55,16 @@ INDIGO file name templates support a number of placeholders starting with "%" ch
 * **%C** - expands to the filter name: "R", "G", "B", "Ha", "OIII" etc. This placeholder reads *FILTER* keyword set in the **CCD_FITS_HEADERS** property, if not set it will expand to "nofilter". INDIGO Imager Agent sets this keyword if filer wheel is selected.
 
 * **%nS** - expands to the sequential number of the file with the same name. Where 'n' is the number of digits used to represent the number and can be in the range [1, 5].
+
+* **%G** - expands to gain
+
+* **%O** - expands to offset
+
+* **%R** - expands to resolution
+
+* **%B** - expands to binning
+
+* **%P** - expands to focuser position
 
 ### Examples
 

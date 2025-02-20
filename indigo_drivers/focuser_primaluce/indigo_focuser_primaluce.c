@@ -23,7 +23,7 @@
  \file indigo_focuser_primaluce.c
  */
 
-#define DRIVER_VERSION 0x0006
+#define DRIVER_VERSION 0x0007
 #define DRIVER_NAME "indigo_focuser_primaluce"
 
 #include <stdlib.h>
@@ -195,7 +195,7 @@ static char *GET_MOT1_SPEED[] = { "res", "get", "MOT1", "SPEED", NULL };
 static char *SET_MOT1_SPEED[] = { "res", "set", "MOT1", "SPEED", NULL };
 static char *GET_MOT1_MST[] = { "res", "get", "MOT1", "STATUS", "MST", NULL };
 static char *CMD_MOT1_STEP[] = { "res", "cmd", "MOT1", "STEP", NULL };
-static char *CMD_MOT1_MOVE_REL[] = { "res", "cmd", "MOT1", "MOVE_REL", NULL };
+//static char *CMD_MOT1_MOVE_REL[] = { "res", "cmd", "MOT1", "MOVE_REL", NULL };
 static char *CMD_MOT1_MOT_STOP[] = { "res", "cmd", "MOT1", "MOT_STOP", NULL };
 static char *CMD_MOT2_STEP[] = { "res", "cmd", "MOT2", "STEP", NULL };
 static char *CMD_MOT2_MOT_STOP[] = { "res", "cmd", "MOT2", "MOT_STOP", NULL };
@@ -425,7 +425,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_focuser_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
 		// -------------------------------------------------------------------------------- X_CONFIG
-		X_CONFIG_PROPERTY = indigo_init_number_property(NULL, device->name, "X_CONFIG", "Advanced", "Configuration", INDIGO_OK_STATE, INDIGO_RO_PERM, 7);
+		X_CONFIG_PROPERTY = indigo_init_number_property(NULL, device->name, "X_CONFIG", FOCUSER_ADVANCED_GROUP, "Configuration", INDIGO_OK_STATE, INDIGO_RO_PERM, 7);
 		if (X_CONFIG_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_CONFIG_M1ACC_ITEM, "M1ACC", "Acceleration speed", 0, 10, 0, 0);
@@ -436,14 +436,14 @@ static indigo_result focuser_attach(indigo_device *device) {
 		indigo_init_number_item(X_CONFIG_M1CDEC_ITEM, "M1CDEC", "Deceleration current", 0, 10, 0, 0);
 		indigo_init_number_item(X_CONFIG_M1HOLD_ITEM, "M1HOLD", "Hold current", 0, 10, 0, 0);
 		// -------------------------------------------------------------------------------- X_STATE
-		X_STATE_PROPERTY = indigo_init_number_property(NULL, device->name, "X_STATE", "Advanced", "State", INDIGO_OK_STATE, INDIGO_RO_PERM, 3);
+		X_STATE_PROPERTY = indigo_init_number_property(NULL, device->name, "X_STATE", FOCUSER_ADVANCED_GROUP, "State", INDIGO_OK_STATE, INDIGO_RO_PERM, 3);
 		if (X_STATE_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_STATE_MOTOR_TEMP_ITEM, "MOTOR_TEMP", "Motor emperature (°C)", -50, 100, 0, 0);
 		indigo_init_number_item(X_STATE_VIN_12V_ITEM, "VIN_12V", "12V power (V)", 0, 50, 0, 0);
 		indigo_init_number_item(X_STATE_VIN_USB_ITEM, "VIN_USB", "USB power (V)", 0, 10, 0, 0);
 		// -------------------------------------------------------------------------------- X_WIFI
-		X_WIFI_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_WIFI", "Advanced", "WiFi mode", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 3);
+		X_WIFI_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_WIFI", FOCUSER_ADVANCED_GROUP, "WiFi mode", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 3);
 		if (X_WIFI_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_switch_item(X_WIFI_OFF_ITEM, "OFF", "Off", true);
@@ -452,13 +452,13 @@ static indigo_result focuser_attach(indigo_device *device) {
 		// TBD: STA doesn't work
 		X_WIFI_PROPERTY->count = 2;
 		// ---------------------------------------------------------------------------- X_WIFI_AP
-		X_WIFI_AP_PROPERTY = indigo_init_text_property(NULL, device->name, "X_WIFI_AP", "Advanced", "AP WiFi settings", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
+		X_WIFI_AP_PROPERTY = indigo_init_text_property(NULL, device->name, "X_WIFI_AP", FOCUSER_ADVANCED_GROUP, "AP WiFi settings", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
 		if (X_WIFI_AP_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_text_item(X_WIFI_AP_SSID_ITEM, "AP_SSID", "SSID", "");
 		indigo_init_text_item(X_WIFI_AP_PASSWORD_ITEM, "AP_PASSWORD", "Password", "");
 		// ---------------------------------------------------------------------------- X_WIFI_STA
-		X_WIFI_STA_PROPERTY = indigo_init_text_property(NULL, device->name, "X_WIFI_STA", "Advanced", "STA WiFi settings", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
+		X_WIFI_STA_PROPERTY = indigo_init_text_property(NULL, device->name, "X_WIFI_STA", FOCUSER_ADVANCED_GROUP, "STA WiFi settings", INDIGO_OK_STATE, INDIGO_RW_PERM, 2);
 		if (X_WIFI_STA_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_text_item(X_WIFI_STA_SSID_ITEM, "STA_SSID", "SSID", "");
@@ -466,14 +466,14 @@ static indigo_result focuser_attach(indigo_device *device) {
 		// TBD: STA doesn't work
 		X_WIFI_STA_PROPERTY->hidden = true;
 		// -------------------------------------------------------------------------------- X_LEDS
-		X_LEDS_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_LEDS", "Advanced", "LEDs", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 3);
+		X_LEDS_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_LEDS", FOCUSER_ADVANCED_GROUP, "LEDs", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 3);
 		if (X_LEDS_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_switch_item(X_LEDS_OFF_ITEM, "OFF", "Off", true);
 		indigo_init_switch_item(X_LEDS_DIM_ITEM, "DIM", "Dim", false);
 		indigo_init_switch_item(X_LEDS_ON_ITEM, "ON", "On", false);
 		// -------------------------------------------------------------------------------- X_RUNPRESET_L
-		X_RUNPRESET_L_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_L", "Advanced", "Preset light", INDIGO_OK_STATE, INDIGO_RO_PERM, 7);
+		X_RUNPRESET_L_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_L", FOCUSER_ADVANCED_GROUP, "Preset light", INDIGO_OK_STATE, INDIGO_RO_PERM, 7);
 		if (X_RUNPRESET_L_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_RUNPRESET_L_M1ACC_ITEM, "M1ACC", "Acceleration speed", 0, 10, 0, 0);
@@ -484,7 +484,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 		indigo_init_number_item(X_RUNPRESET_L_M1CDEC_ITEM, "M1CDEC", "Deceleration current", 0, 10, 0, 0);
 		indigo_init_number_item(X_RUNPRESET_L_M1HOLD_ITEM, "M1HOLD", "Hold current", 0, 10, 0, 0);
 		// -------------------------------------------------------------------------------- X_RUNPRESET_M
-		X_RUNPRESET_M_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_M", "Advanced", "Preset medium", INDIGO_OK_STATE, INDIGO_RO_PERM, 7);
+		X_RUNPRESET_M_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_M", FOCUSER_ADVANCED_GROUP, "Preset medium", INDIGO_OK_STATE, INDIGO_RO_PERM, 7);
 		if (X_RUNPRESET_M_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_RUNPRESET_M_M1ACC_ITEM, "M1ACC", "Acceleration speed", 0, 10, 0, 0);
@@ -495,7 +495,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 		indigo_init_number_item(X_RUNPRESET_M_M1CDEC_ITEM, "M1CDEC", "Deceleration current", 0, 10, 0, 0);
 		indigo_init_number_item(X_RUNPRESET_M_M1HOLD_ITEM, "M1HOLD", "Hold current", 0, 10, 0, 0);
 		// -------------------------------------------------------------------------------- X_RUNPRESET_S
-		X_RUNPRESET_S_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_S", "Advanced", "Preset slow", INDIGO_OK_STATE, INDIGO_RO_PERM, 7);
+		X_RUNPRESET_S_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_S", FOCUSER_ADVANCED_GROUP, "Preset slow", INDIGO_OK_STATE, INDIGO_RO_PERM, 7);
 		if (X_RUNPRESET_S_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_RUNPRESET_S_M1ACC_ITEM, "M1ACC", "Acceleration speed", 0, 10, 0, 0);
@@ -506,7 +506,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 		indigo_init_number_item(X_RUNPRESET_S_M1CDEC_ITEM, "M1CDEC", "Deceleration current", 0, 10, 0, 0);
 		indigo_init_number_item(X_RUNPRESET_S_M1HOLD_ITEM, "M1HOLD", "Hold current", 0, 10, 0, 0);
 		// -------------------------------------------------------------------------------- X_RUNPRESET_1
-		X_RUNPRESET_1_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_1", "Advanced", "Preset #1", INDIGO_OK_STATE, INDIGO_RW_PERM, 7);
+		X_RUNPRESET_1_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_1", FOCUSER_ADVANCED_GROUP, "Preset #1", INDIGO_OK_STATE, INDIGO_RW_PERM, 7);
 		if (X_RUNPRESET_1_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_RUNPRESET_1_M1ACC_ITEM, "M1ACC", "Acceleration speed", 0, 10, 0, 0);
@@ -517,7 +517,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 		indigo_init_number_item(X_RUNPRESET_1_M1CDEC_ITEM, "M1CDEC", "Deceleration current", 0, 10, 0, 0);
 		indigo_init_number_item(X_RUNPRESET_1_M1HOLD_ITEM, "M1HOLD", "Hold current", 0, 10, 0, 0);
 		// -------------------------------------------------------------------------------- X_RUNPRESET_2
-		X_RUNPRESET_2_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_2", "Advanced", "Preset #2", INDIGO_OK_STATE, INDIGO_RW_PERM, 7);
+		X_RUNPRESET_2_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_2", FOCUSER_ADVANCED_GROUP, "Preset #2", INDIGO_OK_STATE, INDIGO_RW_PERM, 7);
 		if (X_RUNPRESET_2_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_RUNPRESET_2_M1ACC_ITEM, "M1ACC", "Acceleration speed", 0, 10, 0, 0);
@@ -528,7 +528,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 		indigo_init_number_item(X_RUNPRESET_2_M1CDEC_ITEM, "M1CDEC", "Deceleration current", 0, 10, 0, 0);
 		indigo_init_number_item(X_RUNPRESET_2_M1HOLD_ITEM, "M1HOLD", "Hold current", 0, 10, 0, 0);
 		// -------------------------------------------------------------------------------- X_RUNPRESET_3
-		X_RUNPRESET_3_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_3", "Advanced", "Preset #3", INDIGO_OK_STATE, INDIGO_RW_PERM, 7);
+		X_RUNPRESET_3_PROPERTY = indigo_init_number_property(NULL, device->name, "X_RUNPRESET_3", FOCUSER_ADVANCED_GROUP, "Preset #3", INDIGO_OK_STATE, INDIGO_RW_PERM, 7);
 		if (X_RUNPRESET_3_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_number_item(X_RUNPRESET_3_M1ACC_ITEM, "M1ACC", "Acceleration speed", 0, 10, 0, 0);
@@ -539,7 +539,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 		indigo_init_number_item(X_RUNPRESET_3_M1CDEC_ITEM, "M1CDEC", "Deceleration current", 0, 10, 0, 0);
 		indigo_init_number_item(X_RUNPRESET_3_M1HOLD_ITEM, "M1HOLD", "Hold current", 0, 10, 0, 0);
 		// -------------------------------------------------------------------------------- X_RUNPRESET
-		X_RUNPRESET_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_RUNPRESET", "Advanced", "Presets", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 6);
+		X_RUNPRESET_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_RUNPRESET", FOCUSER_ADVANCED_GROUP, "Presets", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 6);
 		if (X_RUNPRESET_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_switch_item(X_RUNPRESET_L_ITEM, "L", "Preset light", false);
@@ -549,13 +549,13 @@ static indigo_result focuser_attach(indigo_device *device) {
 		indigo_init_switch_item(X_RUNPRESET_2_ITEM, "2", "Preset #2", false);
 		indigo_init_switch_item(X_RUNPRESET_3_ITEM, "3", "Preset #3", false);
 		// -------------------------------------------------------------------------------- X_HOLD_CURR
-		X_HOLD_CURR_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_HOLD_CURR", "Advanced", "Hold current", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 2);
+		X_HOLD_CURR_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_HOLD_CURR", FOCUSER_ADVANCED_GROUP, "Hold current", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 2);
 		if (X_HOLD_CURR_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_switch_item(X_HOLD_CURR_OFF_ITEM, "OFF", "Off", true);
 		indigo_init_switch_item(X_HOLD_CURR_ON_ITEM, "ON", "On", false);
 		// -------------------------------------------------------------------------------- X_CALIBRATE
-		X_CALIBRATE_F_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_CALIBRATE", "Advanced", "Calibrate focuser", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 3);
+		X_CALIBRATE_F_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_CALIBRATE", FOCUSER_ADVANCED_GROUP, "Calibrate focuser", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 3);
 		if (X_CALIBRATE_F_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_switch_item(X_CALIBRATE_F_START_ITEM, "START", "Start", false);
@@ -570,17 +570,6 @@ static indigo_result focuser_attach(indigo_device *device) {
 		FOCUSER_STEPS_ITEM->number.min = 0;
 		FOCUSER_STEPS_ITEM->number.max = 1000000;
 		strcpy(FOCUSER_STEPS_ITEM->number.format, "%.0f");
-#ifdef INDIGO_MACOS
-		for (int i = 0; i < DEVICE_PORTS_PROPERTY->count; i++) {
-			if (!strncmp(DEVICE_PORTS_PROPERTY->items[i].name, "/dev/cu.usbmodem", 16)) {
-				indigo_copy_value(DEVICE_PORT_ITEM->text.value, DEVICE_PORTS_PROPERTY->items[i].name);
-				break;
-			}
-		}
-#endif
-#ifdef INDIGO_LINUX
-		strcpy(DEVICE_PORT_ITEM->text.value, "/dev/usb_focuser");
-#endif
 		// --------------------------------------------------------------------------------
 		INFO_PROPERTY->count = 8;
 		FOCUSER_SPEED_ITEM->number.min = 0;
@@ -598,36 +587,21 @@ static indigo_result focuser_attach(indigo_device *device) {
 
 static indigo_result focuser_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_STATE_PROPERTY, property))
-			indigo_define_property(device, X_STATE_PROPERTY, NULL);
-		if (indigo_property_match(X_CONFIG_PROPERTY, property))
-			indigo_define_property(device, X_CONFIG_PROPERTY, NULL);
-		if (indigo_property_match(X_LEDS_PROPERTY, property))
-			indigo_define_property(device, X_LEDS_PROPERTY, NULL);
-		if (indigo_property_match(X_WIFI_PROPERTY, property))
-			indigo_define_property(device, X_WIFI_PROPERTY, NULL);
-		if (indigo_property_match(X_WIFI_AP_PROPERTY, property))
-			indigo_define_property(device, X_WIFI_AP_PROPERTY, NULL);
-		if (indigo_property_match(X_WIFI_STA_PROPERTY, property))
-			indigo_define_property(device, X_WIFI_STA_PROPERTY, NULL);
-		if (indigo_property_match(X_RUNPRESET_L_PROPERTY, property))
-			indigo_define_property(device, X_RUNPRESET_L_PROPERTY, NULL);
-		if (indigo_property_match(X_RUNPRESET_M_PROPERTY, property))
-			indigo_define_property(device, X_RUNPRESET_M_PROPERTY, NULL);
-		if (indigo_property_match(X_RUNPRESET_S_PROPERTY, property))
-			indigo_define_property(device, X_RUNPRESET_S_PROPERTY, NULL);
-		if (indigo_property_match(X_RUNPRESET_1_PROPERTY, property))
-			indigo_define_property(device, X_RUNPRESET_1_PROPERTY, NULL);
-		if (indigo_property_match(X_RUNPRESET_2_PROPERTY, property))
-			indigo_define_property(device, X_RUNPRESET_2_PROPERTY, NULL);
-		if (indigo_property_match(X_RUNPRESET_3_PROPERTY, property))
-			indigo_define_property(device, X_RUNPRESET_3_PROPERTY, NULL);
-		if (indigo_property_match(X_RUNPRESET_PROPERTY, property))
-			indigo_define_property(device, X_RUNPRESET_PROPERTY, NULL);
-		if (indigo_property_match(X_HOLD_CURR_PROPERTY, property))
-			indigo_define_property(device, X_HOLD_CURR_PROPERTY, NULL);
-		if (indigo_property_match(X_CALIBRATE_F_PROPERTY, property))
-			indigo_define_property(device, X_CALIBRATE_F_PROPERTY, NULL);
+		indigo_define_matching_property(X_STATE_PROPERTY);
+		indigo_define_matching_property(X_CONFIG_PROPERTY);
+		indigo_define_matching_property(X_LEDS_PROPERTY);
+		indigo_define_matching_property(X_WIFI_PROPERTY);
+		indigo_define_matching_property(X_WIFI_AP_PROPERTY);
+		indigo_define_matching_property(X_WIFI_STA_PROPERTY);
+		indigo_define_matching_property(X_RUNPRESET_L_PROPERTY);
+		indigo_define_matching_property(X_RUNPRESET_M_PROPERTY);
+		indigo_define_matching_property(X_RUNPRESET_S_PROPERTY);
+		indigo_define_matching_property(X_RUNPRESET_1_PROPERTY);
+		indigo_define_matching_property(X_RUNPRESET_2_PROPERTY);
+		indigo_define_matching_property(X_RUNPRESET_3_PROPERTY);
+		indigo_define_matching_property(X_RUNPRESET_PROPERTY);
+		indigo_define_matching_property(X_HOLD_CURR_PROPERTY);
+		indigo_define_matching_property(X_CALIBRATE_F_PROPERTY);
 	}
 	return indigo_focuser_enumerate_properties(device, NULL, NULL);
 }
@@ -635,8 +609,9 @@ static indigo_result focuser_enumerate_properties(indigo_device *device, indigo_
 static void focuser_timer_callback(indigo_device *device) {
 	char response[1024];
 	jsmntok_t tokens[128];
-	if (!IS_CONNECTED)
+	if (!IS_CONNECTED) {
 		return;
+	}
 	if (primaluce_command(device, "{\"req\":{\"get\":{\"EXT_T\":\"\", \"VIN_12V\": \"\", \"MOT1\":{\"NTC_T\":\"\"}}}}", response, sizeof(response), tokens, 128)) {
 		double temp = get_number(response, tokens, GET_EXT_T);
 		if (temp != FOCUSER_TEMPERATURE_ITEM->number.value) {
@@ -721,7 +696,7 @@ static void focuser_connection_handler(indigo_device *device) {
 				if ((text = get_string(response, tokens, GET_MOT1_ERROR)) && *text) {
 					indigo_send_message(device, "ERROR: %s", text);
 				}
-				if ( get_number(response, tokens, GET_CALRESTART_MOT1)) {
+				if (get_number(response, tokens, GET_CALRESTART_MOT1)) {
 					indigo_send_message(device, "ERROR: %s needs calibration", INFO_DEVICE_MODEL_ITEM->text.value);
 				}
 				PRIVATE_DATA->has_abs_pos = getToken(response, tokens, 0, GET_MOT1_ABS_POS) != -1;
@@ -904,8 +879,9 @@ static void focuser_position_handler(indigo_device *device) {
 			FOCUSER_POSITION_ITEM->number.value = get_number(response, tokens, PRIVATE_DATA->has_abs_pos ? GET_MOT1_ABS_POS : GET_MOT1_ABS_POS_STEP);
 			indigo_update_property(device, FOCUSER_POSITION_PROPERTY, NULL);
 		}
-		if (FOCUSER_POSITION_ITEM->number.target == FOCUSER_POSITION_ITEM->number.value)
+		if (FOCUSER_POSITION_ITEM->number.target == FOCUSER_POSITION_ITEM->number.value) {
 			break;
+		}
 	}
 	FOCUSER_POSITION_PROPERTY->state = FOCUSER_STEPS_PROPERTY->state = INDIGO_OK_STATE;
 	indigo_update_property(device, FOCUSER_STEPS_PROPERTY, NULL);
@@ -1354,14 +1330,12 @@ static indigo_result focuser_detach(indigo_device *device) {
 
 // -------------------------------------------------------------------------------- INDIGO rotator device implementation
 
-static indigo_result rotator_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property);
-
 static indigo_result rotator_attach(indigo_device *device) {
 	assert(device != NULL);
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_rotator_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
 		// -------------------------------------------------------------------------------- X_CALIBRATE
-		X_CALIBRATE_R_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_CALIBRATE_A", "Advanced", "Calibrate rotator", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 1);
+		X_CALIBRATE_R_PROPERTY = indigo_init_switch_property(NULL, device->name, "X_CALIBRATE_A", FOCUSER_ADVANCED_GROUP, "Calibrate rotator", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 1);
 		if (X_CALIBRATE_R_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_switch_item(X_CALIBRATE_R_START_ITEM, "START", "Start", false);
@@ -1389,7 +1363,7 @@ static void rotator_connection_handler(indigo_device *device) {
 					if ((text = get_string(response, tokens, GET_MOT2_ERROR)) && *text) {
 						indigo_send_message(device, "ERROR: %s", text);
 					}
-					if ( get_number(response, tokens, GET_CALRESTART_MOT2)) {
+					if (get_number(response, tokens, GET_CALRESTART_MOT2)) {
 						indigo_send_message(device, "ERROR: ARCO needs calibration");
 					}
 				}
@@ -1455,8 +1429,9 @@ static void rotator_position_handler(indigo_device *device) {
 			ROTATOR_POSITION_ITEM->number.value = get_number(response, tokens, PRIVATE_DATA->has_abs_pos ? GET_MOT2_ABS_POS : GET_MOT2_ABS_POS_DEG);
 			indigo_update_property(device, ROTATOR_POSITION_PROPERTY, NULL);
 		}
-		if (ROTATOR_POSITION_ITEM->number.target == ROTATOR_POSITION_ITEM->number.value)
+		if (ROTATOR_POSITION_ITEM->number.target == ROTATOR_POSITION_ITEM->number.value) {
 			break;
+		}
 	}
 	ROTATOR_POSITION_PROPERTY->state = INDIGO_OK_STATE;
 	indigo_update_property(device, ROTATOR_POSITION_PROPERTY, NULL);
@@ -1587,6 +1562,11 @@ indigo_result indigo_focuser_primaluce(indigo_driver_action action, indigo_drive
 		rotator_detach
 		);
 	
+	static indigo_device_match_pattern patterns[1] = { 0 };
+	strcpy(patterns[0].product_string, "CP2102N");
+	INDIGO_REGISER_MATCH_PATTERNS(focuser_template, patterns, 1);
+
+
 	SET_DRIVER_INFO(info, "PrimaluceLab Focuser/Rotator", __FUNCTION__, DRIVER_VERSION, false, last_action);
 	
 	if (action == last_action)

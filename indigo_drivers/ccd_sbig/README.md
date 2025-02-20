@@ -10,7 +10,7 @@ This driver supports hot-plug (multiple devices).
 
 ## Supported platforms
 
-This driver depends on 3rd party library and is supported on Linux (Intel 32/64 bit and ARM v6+) and MacOS.
+This driver depends on 3rd party library and is only partly supported on Linux (Intel 32/64 bit, ARM v6+ and ARM 64 bit) and MacOS, because Diffraction Limited/SBIG cancelled the suport of the closed source libraries for these platforms.
 
 ## License
 
@@ -24,36 +24,36 @@ indigo_server indigo_ccd_sbig
 
 Driver is developed and tested with:
 * SBIG ST-2000XCM
+* SBIG ST-2000XM
 * SBIG ST-7XE
 * SBIG CFW-8A
 * SBIG AO-7
 * SBIG Camera Simulator
 
 ## NOTES
+### Problem on ARM 64 bit architecture
+
+If the driver fails to load on a 64-bit Raspberry PI with the error:
+
+```
+ELF load command address/offset not page-aligned
+```
+
+The solution is add the folowing line to /boot/firmware/config.txt
+```
+kernel=kernel8.img
+```
+
 ### Legacy Filter wheels
 
 CFW8 and CFW6A are legacy filter wheels and can not be auto detected. In order to use
-them one should set environment variable SBIG_LEGACY_CFW to CFW8 or CFW6A like:
+them one should choose it from the options in SBIG_ADD_WHEEL proeprty.
 
-export SBIG_LEGACY_CFW=CFW8
-
-This will expose the device even it is not really present.
+This will expose the device even if it is not really present.
 
 ### AO-7
 
 AO-8 and later are auto detected, but AO-7 cannot be auto detected. In order to use it 
-one should set environment variable SBIG_LEGACY_AO to AO7 like:
-
-export SBIG_LEGACY_AO=AO7
+one should should choose it from the options in SBIG_ADD_AO proeprty.
 
 This will expose the device even if it is not really present.
-
-### MacOS SDK distributed separately (MacOS only)
-
-On MacOS the driver requires the SDK provided by the camera manufacturer:
-[SBIGDriverInstallerUniv.dmg](https://www.indigo-astronomy.org/download/SBIGDriverInstallerUniv.dmg)
-
-This third party software is not digitally signed by the vendor, therefore it may fail to load the camera
-firmware when camera is connected on the recent versions of MacOSX without disabling some security features
-of the operating system. If you are affected, please refer to Apple documentation how to enable loading of
-unsigned kernel extensions.

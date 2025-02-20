@@ -109,20 +109,20 @@ typedef struct {
 
 
 //------------------- Routines to deal with discovery string, mostly taken from libapogee examples.
-std::vector<std::string> GetDeviceVector( const std::string & msg ) {
+std::vector<std::string> GetDeviceVector(const std::string & msg) {
 	std::vector<std::string> devices;
 	const std::string startDelim("<d>");
 	const std::string stopDelim("</d>");
 
 	size_t pos = 0;
 	bool find = true;
-	while( find ) {
-		size_t posStart = msg.find( startDelim, pos );
-		if( std::string::npos == posStart ) {
+	while(find) {
+		size_t posStart = msg.find(startDelim, pos);
+		if (std::string::npos == posStart) {
 			break;
 		}
 		size_t posStop = msg.find(stopDelim, posStart + 1);
-		if(std::string::npos == posStop) {
+		if (std::string::npos == posStop) {
 			break;
 		}
 		size_t strLen = (posStop - posStart) - startDelim.size();
@@ -152,11 +152,11 @@ std::vector<std::string> MakeTokens(const std::string &str, const std::string &s
 
 std::string GetItemFromFindStr(const std::string & msg, const std::string & item) {
 	//search the single device input string for the requested item
-    std::vector<std::string> params = MakeTokens( msg, "," );
+    std::vector<std::string> params = MakeTokens(msg, ",");
 	std::vector<std::string>::iterator iter;
 
 	for(iter = params.begin(); iter != params.end(); ++iter) {
-		if( std::string::npos != (*iter).find(item)) {
+		if ( std::string::npos != (*iter).find(item)) {
 			std::string result = MakeTokens((*iter), "=").at(1);
 			return result;
 		}
@@ -220,7 +220,7 @@ std::string GetModelName(const std::string &msg) {
 
 bool IsDeviceFilterWheel(const std::string & msg) {
 	std::string str = GetItemFromFindStr(msg, "deviceType=");
-	return ( 0 == str.compare("filterWheel") ? true : false );
+	return (0 == str.compare("filterWheel") ? true : false);
 }
 
 
@@ -229,7 +229,7 @@ void checkStatus(const Apg::Status status) {
 		case Apg::Status_ConnectionError:
 		{
 			std::string errMsg("Status_ConnectionError");
-			std::runtime_error except( errMsg );
+			std::runtime_error except(errMsg);
 			throw except;
 		}
 		break;
@@ -237,7 +237,7 @@ void checkStatus(const Apg::Status status) {
 		case Apg::Status_DataError:
 		{
 			std::string errMsg("Status_DataError");
-			std::runtime_error except( errMsg );
+			std::runtime_error except(errMsg);
 			throw except;
 		}
 		break;
@@ -245,7 +245,7 @@ void checkStatus(const Apg::Status status) {
 		case Apg::Status_PatternError:
 		{
 			std::string errMsg("Status_PatternError");
-			std::runtime_error except( errMsg );
+			std::runtime_error except(errMsg);
 			throw except;
 		}
 		break;
@@ -253,7 +253,7 @@ void checkStatus(const Apg::Status status) {
 		case Apg::Status_Idle:
 		{
 			std::string errMsg("Status_Idle");
-			std::runtime_error except( errMsg );
+			std::runtime_error except(errMsg);
 			throw except;
 		}
 		break;
@@ -268,14 +268,10 @@ void checkStatus(const Apg::Status status) {
 // -------------------------------------------------------------------------------- INDIGO device implementation
 static indigo_result apg_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(APG_ADC_SPEED_PROPERTY, property))
-			indigo_define_property(device, APG_ADC_SPEED_PROPERTY, NULL);
-		if (indigo_property_match(APG_FAN_SPEED_PROPERTY, property))
-			indigo_define_property(device, APG_FAN_SPEED_PROPERTY, NULL);
-		if (indigo_property_match(APG_GAIN_PROPERTY, property))
-			indigo_define_property(device, APG_GAIN_PROPERTY, NULL);
-		if (indigo_property_match(APG_OFFSET_PROPERTY, property))
-			indigo_define_property(device, APG_OFFSET_PROPERTY, NULL);
+		indigo_define_matching_property(APG_ADC_SPEED_PROPERTY);
+		indigo_define_matching_property(APG_FAN_SPEED_PROPERTY);
+		indigo_define_matching_property(APG_GAIN_PROPERTY);
+		indigo_define_matching_property(APG_OFFSET_PROPERTY);
 	}
 	return indigo_ccd_enumerate_properties(device, NULL, NULL);
 }
@@ -577,8 +573,10 @@ static bool apogee_set_cooler(indigo_device *device, bool on, double target, dou
 
 
 static void apogee_close(indigo_device *device) {
-	if (!device->is_connected) return;
-
+	if (!device->is_connected) {
+		return;
+	}
+	
 	pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 	if (PRIVATE_DATA->camera != NULL) {
 		try {
@@ -600,8 +598,10 @@ static void apogee_close(indigo_device *device) {
 
 
 static void exposure_timer_callback(indigo_device *device) {
-	if (!CONNECTION_CONNECTED_ITEM->sw.value) return;
-
+	if (!CONNECTION_CONNECTED_ITEM->sw.value) {
+		return;
+	}
+	
 	PRIVATE_DATA->can_check_temperature = false;
 	if (CCD_EXPOSURE_PROPERTY->state == INDIGO_BUSY_STATE) {
 		CCD_EXPOSURE_ITEM->number.value = 0;
@@ -621,7 +621,9 @@ static void exposure_timer_callback(indigo_device *device) {
 
 
 static void ccd_temperature_callback(indigo_device *device) {
-	if (!CONNECTION_CONNECTED_ITEM->sw.value) return;
+	if (!CONNECTION_CONNECTED_ITEM->sw.value) {
+		return;
+	}
 	if (PRIVATE_DATA->can_check_temperature) {
 		bool at_setpoint;
 		if (apogee_set_cooler(device, CCD_COOLER_ON_ITEM->sw.value, PRIVATE_DATA->target_temperature, &PRIVATE_DATA->current_temperature, &PRIVATE_DATA->cooler_power, &at_setpoint)) {
@@ -993,7 +995,7 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		indigo_property_copy_values(APG_ADC_SPEED_PROPERTY, property, false);
 		pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 		for(int i = 0; i < APG_ADC_SPEED_PROPERTY->count; i++) {
-			if(APG_ADC_SPEED_PROPERTY->items[i].sw.value) {
+			if (APG_ADC_SPEED_PROPERTY->items[i].sw.value) {
 				try {
 					PRIVATE_DATA->camera->SetCcdAdcSpeed((Apg::AdcSpeed)(i+1));
 				} catch (std::runtime_error err) {
@@ -1015,7 +1017,7 @@ static indigo_result ccd_change_property(indigo_device *device, indigo_client *c
 		indigo_property_copy_values(APG_FAN_SPEED_PROPERTY, property, false);
 		pthread_mutex_lock(&PRIVATE_DATA->usb_mutex);
 		for(int i = 0; i < APG_FAN_SPEED_PROPERTY->count; i++) {
-			if(APG_FAN_SPEED_PROPERTY->items[i].sw.value) {
+			if (APG_FAN_SPEED_PROPERTY->items[i].sw.value) {
 				try {
 					PRIVATE_DATA->camera->SetFanMode((Apg::FanMode)i);
 				} catch (std::runtime_error err) {
@@ -1067,8 +1069,10 @@ static void ethernet_discover(char *network, bool cam_found = false);
 
 
 static void ethernet_lookup_callback(indigo_device *device) {
-	if (!CONNECTION_CONNECTED_ITEM->sw.value) return;
-
+	if (!CONNECTION_CONNECTED_ITEM->sw.value) {
+		return;
+	}
+	
 	INDIGO_DRIVER_DEBUG(DRIVER_NAME, "Looking up cameras in network %s", DEVICE_PORT_ITEM->text.value);
 	//ethernet_discover(DEVICE_PORT_ITEM->text.value, true);
 	ethernet_discover(DEVICE_PORT_ITEM->text.value);
@@ -1080,8 +1084,6 @@ static indigo_result ethernet_attach(indigo_device *device) {
 	assert(device != NULL);
 	if (indigo_device_attach(device, DRIVER_NAME, (indigo_version)DRIVER_VERSION, 0) == INDIGO_OK) {
 		INFO_PROPERTY->count = 2;
-		// -------------------------------------------------------------------------------- SIMULATION
-		SIMULATION_PROPERTY->hidden = true;
 		// -------------------------------------------------------------------------------- INFO
 		INFO_PROPERTY->hidden = true;
 		// -------------------------------------------------------------------------------- DEVICE_PORT
@@ -1202,7 +1204,7 @@ static void ethernet_discover(char *network, bool cam_found) {
 	for(iter = device_strings.begin(); iter != device_strings.end(); ++iter, ++i) {
 		discovery_string = (*iter);
 		if (IsDeviceFilterWheel(discovery_string)) continue;
-
+		
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "LIST device[%d]: %s", i, discovery_string.c_str());
 		interface = GetInterface(discovery_string);
 		if (interface.compare("ethernet") != 0) continue;
@@ -1220,7 +1222,9 @@ static void ethernet_discover(char *network, bool cam_found) {
 				}
 			}
 		}
-		if (found) continue;
+		if (found) {
+			continue;
+		}
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ATTACH device[%d]: %s", i, discovery_string.c_str());
 		apogee_private_data *private_data = (apogee_private_data *)indigo_safe_malloc(sizeof(apogee_private_data));
 		indigo_device *device = (indigo_device *)malloc(sizeof(indigo_device));
@@ -1280,18 +1284,18 @@ static void ethernet_discover(char *network, bool cam_found) {
 
 static void process_plug_event(indigo_device *unused) {
 	static indigo_device ccd_template = INDIGO_DEVICE_INITIALIZER(
-		"",
-		ccd_attach,
-		apg_enumerate_properties,
-		ccd_change_property,
-		NULL,
-		ccd_detach
-	);
+																																"",
+																																ccd_attach,
+																																apg_enumerate_properties,
+																																ccd_change_property,
+																																NULL,
+																																ccd_detach
+																																);
 	std::string msg;
 	std::string discovery_string;
 	std::vector<std::string> device_strings;
 	FindDeviceUsb look_usb;
-
+	
 	pthread_mutex_lock(&device_mutex);
 	try {
 		msg = look_usb.Find();
@@ -1305,7 +1309,9 @@ static void process_plug_event(indigo_device *unused) {
 		indigo_device *device;
 		for (int i = 0; i < MAX_DEVICES; i++) {
 			device = devices[i];
-			if (device == NULL)	continue;
+			if (device == NULL) {
+				continue;
+			}
 			if (device->is_connected) {
 				CONNECTION_CONNECTED_ITEM->sw.value = false;
 				CONNECTION_DISCONNECTED_ITEM->sw.value = true;
@@ -1321,14 +1327,14 @@ static void process_plug_event(indigo_device *unused) {
 			exit(0);
 		}
 	}
-
+	
 	device_strings = GetDeviceVector(msg);
 	std::vector<std::string>::iterator iter;
 	int i = 0;
 	for(iter = device_strings.begin(); iter != device_strings.end(); ++iter, ++i) {
 		discovery_string = (*iter);
 		if (IsDeviceFilterWheel(discovery_string)) continue;
-
+		
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "LIST device[%d]: %s", i, discovery_string.c_str());
 		std::string interface = GetInterface(discovery_string);
 		if (interface.compare("usb") != 0) continue;
@@ -1346,7 +1352,9 @@ static void process_plug_event(indigo_device *unused) {
 				}
 			}
 		}
-		if (found) continue;
+		if (found) {
+			continue;
+		}
 		INDIGO_DRIVER_DEBUG(DRIVER_NAME, "ATTACH device[%d]: %s", i, discovery_string.c_str());
 		apogee_private_data *private_data = (apogee_private_data *)malloc(sizeof(apogee_private_data));
 		assert(private_data != NULL);
@@ -1384,7 +1392,9 @@ static void process_unplug_event(indigo_device *unused) {
 		indigo_device *device;
 		for (int i = 0; i < MAX_DEVICES; i++) {
 			device = devices[i];
-			if (device == NULL) continue;
+			if (device == NULL) {
+				continue;
+			}
 			if (device->is_connected) {
 				CONNECTION_CONNECTED_ITEM->sw.value = false;
 				CONNECTION_DISCONNECTED_ITEM->sw.value = true;
@@ -1400,7 +1410,7 @@ static void process_unplug_event(indigo_device *unused) {
 			exit(0);
 		}
 	}
-	device_strings = GetDeviceVector( msg );
+	device_strings = GetDeviceVector(msg);
 	for (int j = 0; j < MAX_DEVICES; j++) {
 		indigo_device *device = devices[j];
 		if (device) {
@@ -1441,14 +1451,15 @@ static void process_unplug_event(indigo_device *unused) {
 
 
 static int hotplug_callback(libusb_context *ctx, libusb_device *dev, libusb_hotplug_event event, void *user_data) {
-
+	
 	struct libusb_device_descriptor descriptor;
-
+	
 	switch (event) {
 		case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED: {
 			libusb_get_device_descriptor(dev, &descriptor);
-			if (descriptor.idVendor != UsbFrmwr::APOGEE_VID)
+			if (descriptor.idVendor != UsbFrmwr::APOGEE_VID) {
 				break;
+			}
 			indigo_set_timer(NULL, 0.5, process_plug_event, NULL);
 			break;
 		}
@@ -1458,14 +1469,15 @@ static int hotplug_callback(libusb_context *ctx, libusb_device *dev, libusb_hotp
 		}
 	}
 	return 0;
-};
+}
 
 
 static void remove_all_devices() {
 	for (int i = 0; i < MAX_DEVICES; i++) {
 		indigo_device **device = &devices[i];
-		if (*device == NULL)
+		if (*device == NULL) {
 			continue;
+		}
 		indigo_detach_device(*device);
 		if (((apogee_private_data *)(*device)->private_data)->buffer)
 			free(((apogee_private_data *)(*device)->private_data)->buffer);

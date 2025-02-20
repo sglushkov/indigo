@@ -69,27 +69,27 @@ char *ptp_property_fuji_code_name(uint16_t code) {
 		case ptp_property_fuji_Zoom: return "ADV_Zoom";
 		case ptp_property_fuji_NoiseReduction: return "ADV_NoiseReduction";
 		case ptp_property_fuji_LockSetting: return "ADV_LockSetting";
-		case ptp_property_fuji_ControlPriority: return "ADV_ControlPriority";
+		case ptp_property_fuji_ControlPriority: return "DSLR_ControlPriority";
 		case ptp_property_fuji_AutoFocus: return "ADV_AutoFocus";
 		case ptp_property_fuji_AutoFocusState: return "ADV_AutoFocusState";
-		case ptp_property_fuji_CardSave: return "ADV_CardSave";
+		case ptp_property_fuji_CardSave: return "DSLR_CardSave";
 	}
 	return ptp_property_code_name(code);
 }
 
 char *ptp_property_fuji_code_label(uint16_t code) {
 	switch (code) {
-		case ptp_property_fuji_FilmSimulation: return "FilmSimulation";
-		case ptp_property_fuji_DynamicRange: return "DynamicRange";
-		case ptp_property_fuji_ColorSpace: return "ColorSpace";
+		case ptp_property_fuji_FilmSimulation: return "Film Simulation";
+		case ptp_property_fuji_DynamicRange: return "Dynamic Range";
+		case ptp_property_fuji_ColorSpace: return "Color Space";
 		case ptp_property_fuji_CompressionSetting: return "Compression";
 		case ptp_property_fuji_Zoom: return "Zoom";
-		case ptp_property_fuji_NoiseReduction: return "NoiseReduction";
-		case ptp_property_fuji_LockSetting: return "LockSetting";
-		case ptp_property_fuji_ControlPriority: return "ControlPriority";
+		case ptp_property_fuji_NoiseReduction: return "Noise Reduction";
+		case ptp_property_fuji_LockSetting: return "Lock Setting";
+		case ptp_property_fuji_ControlPriority: return "Control Priority";
 		case ptp_property_fuji_AutoFocus: return "AutoFocus";
-		case ptp_property_fuji_AutoFocusState: return "AutoFocusState";
-		case ptp_property_fuji_CardSave: return "CardSave";
+		case ptp_property_fuji_AutoFocusState: return "AutoFocus State";
+		case ptp_property_fuji_CardSave: return "Card Save";
 	}
 	return ptp_property_code_label(code);
 }
@@ -329,7 +329,7 @@ static void ptp_fuji_get_event(indigo_device *device) {
 	for (int i = 0; FUJI_CHECK_PROPERTIES[i]; i++) {
 		uint16_t code = FUJI_CHECK_PROPERTIES[i];
 		ptp_property *prop = ptp_property_supported(device, FUJI_CHECK_PROPERTIES[i]);
-		if ( ! prop ) {
+		if (! prop) {
 			continue;
 		}
 		if (ptp_transaction_1_0_i(device, ptp_operation_GetDevicePropValue, code, &buffer, &size)) {
@@ -340,9 +340,10 @@ static void ptp_fuji_get_event(indigo_device *device) {
 			ptp_fuji_fix_property(device, prop);
 			ptp_update_property(device, prop);
 		}
-		if (buffer)
+		if (buffer) {
 			free(buffer);
-		buffer = NULL;
+			buffer = NULL;
+		}
 	}
 	// check event?
 	if (ptp_transaction_1_0_i(device, ptp_operation_GetDevicePropValue, ptp_property_fuji_GetEvent, &buffer, &size)) {
@@ -386,8 +387,9 @@ static void ptp_fuji_get_event(indigo_device *device) {
 								}
 							} else {
 								indigo_process_dslr_image(device, image_buffer, image_size, ext, false);
-								if (PRIVATE_DATA->image_buffer)
+								if (PRIVATE_DATA->image_buffer) {
 									free(PRIVATE_DATA->image_buffer);
+								}
 								PRIVATE_DATA->image_buffer = image_buffer;
 								image_buffer = NULL;
 							}
@@ -402,8 +404,10 @@ static void ptp_fuji_get_event(indigo_device *device) {
 			INDIGO_DRIVER_DEBUG(DRIVER_NAME, "unknown signature: %02x %02x %02x %02x %02x %02x %02x %02x", ((char *)buffer)[0] & 0xFF, ((char *)buffer)[1] & 0xFF, ((char *)buffer)[2] & 0xFF, ((char *)buffer)[3] & 0xFF, ((char *)buffer)[4] & 0xFF, ((char *)buffer)[5] & 0xFF, ((char *)buffer)[6] & 0xFF, ((char *)buffer)[7] & 0xFF);
 		}
 	}
-	if (buffer)
+	if (buffer) {
 		free(buffer);
+		buffer = NULL;
+	}
 }
 
 static void ptp_fuji_check_event(indigo_device *device) {
@@ -457,8 +461,10 @@ bool ptp_fuji_initialise(indigo_device *device) {
 					ptp_decode_property(buffer, size, device, PRIVATE_DATA->properties + last);
 				}
 			}
-			if (buffer)
+			if (buffer) {
 				free(buffer);
+				buffer = NULL;
+			}
 		}
 	}
 	if (!ptp_property_supported(device, ptp_property_FNumber)) {
@@ -475,8 +481,10 @@ bool ptp_fuji_initialise(indigo_device *device) {
 				ptp_decode_property(buffer, size, device, PRIVATE_DATA->properties + last);
 			}
 		}
-		if (buffer)
+		if (buffer) {
 			free(buffer);
+			buffer = NULL;
+		}
 	}
 	ptp_fuji_get_event(device);
 	indigo_set_timer(device, 0.5, ptp_fuji_check_event, &PRIVATE_DATA->event_checker);
@@ -585,7 +593,7 @@ bool ptp_fuji_exposure(indigo_device *device) {
 	result = ptp_fuji_set_control_priority(device, true);
 	ptp_property *card_save = ptp_property_supported(device, ptp_property_fuji_CardSave);
 	if (result && card_save) {
-		if (DSLR_DELETE_IMAGE_ON_ITEM->sw.value) {
+		if (DSLR_DELETE_IMAGE_ON_ITEM->sw.value || PRIVATE_DATA->model.product == 703) { // Temporary fix, switching to FUJI_CARD_SAVE_ON_RAW_JPEG leads to random failures with X-T1
 			result = result && ptp_set_switch_property(device, card_save, FUJI_CARD_SAVE_OFF);
 		} else {
 			result = result && ptp_set_switch_property(device, card_save, FUJI_CARD_SAVE_ON_RAW_JPEG);
@@ -605,10 +613,11 @@ bool ptp_fuji_exposure(indigo_device *device) {
 			if (buffer) {
 				(void)ptp_decode_uint16(buffer, &value);
 				free(buffer);
+				buffer = NULL;
 			}
 		}
 
-		if ( property->value.sw.value == 0xffffffff ) {
+		if (property->value.sw.value == 0xffffffff) {
 			// Bulb
 			value = 0x0500;
 			result = result && ptp_transaction_0_1_o(device, ptp_operation_SetDevicePropValue, ptp_property_fuji_AutoFocus, &value, sizeof(uint16_t));
@@ -686,20 +695,26 @@ bool ptp_fuji_liveview(indigo_device *device) {
 			if (count != 1) {
 				if (retry_count++ > 100) {
 					// abort
-					if (buffer)
+					if (buffer) {
 						free(buffer);
+						buffer = NULL;
+					}
 					INDIGO_DRIVER_LOG(DRIVER_NAME, "liveview failed to start.");
 					ptp_transaction_1_0(device, ptp_operation_TerminateOpenCapture, FUJI_LIVEVIEW_HANDLE);
 					return false;
 				}
+				indigo_usleep(100000);  // 100ms
 				continue;
 			}
 			source = ptp_decode_uint32(source, &handle);
 			free(buffer);
+			buffer = NULL;
 			//result = handle == FUJI_LIVEVIEW_HANDLE;
 			result = result && ptp_transaction_1_0_i(device, ptp_operation_GetObjectInfo, handle, &buffer, &size);
-			if (buffer)
+			if (buffer) {
 				free(buffer);
+				buffer = NULL;
+			}
 			result = result && ptp_transaction_1_0_i(device, ptp_operation_GetObject, handle, &buffer, &size);
 			if (result) {
 				if (CCD_UPLOAD_MODE_LOCAL_ITEM->sw.value || CCD_UPLOAD_MODE_BOTH_ITEM->sw.value) {
@@ -711,8 +726,9 @@ bool ptp_fuji_liveview(indigo_device *device) {
 					indigo_update_property(device, CCD_IMAGE_PROPERTY, NULL);
 				}
 				indigo_process_dslr_image(device, buffer, size, ".jpeg", true);
-				if (PRIVATE_DATA->image_buffer)
+				if (PRIVATE_DATA->image_buffer) {
 					free(PRIVATE_DATA->image_buffer);
+				}
 				PRIVATE_DATA->image_buffer = buffer;
 				buffer = NULL;
 				ptp_transaction_1_0(device, ptp_operation_DeleteObject, handle);

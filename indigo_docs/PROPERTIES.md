@@ -57,7 +57,7 @@ Properties are implemented by driver base class in [indigo_driver.c](https://git
 |  |  |  |  | LOCAL | yes |  |
 |  |  |  |  | BOTH | yes |  |
 | CCD_LOCAL_MODE | text | no | yes | DIR | yes |  |
-|  |  |  |  | PREFIX | yes | XXX or XXXX is replaced by sequence or a template with %M (MD5), %E/%nE (exposure), %D/%xD (date), %H/%xH (time), %C (filter name), %nS (sequence) format specifier. |
+|  |  |  |  | PREFIX | yes | XXX or XXXX is replaced by sequence or a template with %M (MD5), %E/%nE (exposure), %D/%xD (date), %H/%xH (time), %C (filter name), %nS (sequence), %F (frame type), %T (chip temperature), %G (gain), %O (offset), %R (resolution), %B (binning), %P (focuser position) format specifier. |
 | CCD_EXPOSURE | number | no | yes | EXPOSURE | yes |  |
 | CCD_STREAMING | number | no | no | EXPOSURE | yes | The same as CCD_EXPOSURE, but will upload COUNT images. Use COUNT -1 for endless loop. |
 |  |  |  |  | COUNT | yes |  |
@@ -221,7 +221,7 @@ Properties are implemented by focuser driver base class in [indigo_focuser_drive
 | MOUNT_ALIGNMENT_SELECT_POINTS | switch | no | no | point id | yes |  |
 | MOUNT_ALIGNMENT_DELETE_POINTS_PROPERTY | switch | no | no | point id | yes |  |
 | MOUNT_ALIGNMENT_RESET | switch | no | no | RESET | yes |  |
-| MOUNT_EPOCH | number | no | yes | EPOCH | yes |  |
+| MOUNT_EPOCH | number | no | yes | EPOCH | yes | Valid values are 0, 1900, 1950, 2000 and 2050 |
 | MOUNT_SIDE_OF_PIER | switch | no | no | EAST | yes |  |
 |  |  |  |  | WEST | yes |  |
 | MOUNT_PEC | switch | no | no | ENABLED | yes |  |

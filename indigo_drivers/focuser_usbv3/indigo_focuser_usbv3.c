@@ -23,7 +23,7 @@
  \file indigo_focuser_usbv3.c
  */
 
-#define DRIVER_VERSION 0x0003
+#define DRIVER_VERSION 0x0004
 #define DRIVER_NAME "indigo_focuser_usbv3"
 
 #include <stdlib.h>
@@ -80,8 +80,9 @@ static char *usbv3_response(indigo_device *device) {
 			pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
 			return "";
 		}
-		if (c == '\n')
+		if (c == '\n') {
 			continue;
+		}
 		if (c == '\r') {
 			break;
 		}
@@ -200,17 +201,6 @@ static indigo_result focuser_attach(indigo_device *device) {
 		// -------------------------------------------------------------------------------- DEVICE_PORT, DEVICE_PORTS
 		DEVICE_PORT_PROPERTY->hidden = false;
 		DEVICE_PORTS_PROPERTY->hidden = false;
-#ifdef INDIGO_MACOS
-		for (int i = 0; i < DEVICE_PORTS_PROPERTY->count; i++) {
-			if (!strncmp(DEVICE_PORTS_PROPERTY->items[i].name, "/dev/cu.usbmodem", 16)) {
-				indigo_copy_value(DEVICE_PORT_ITEM->text.value, DEVICE_PORTS_PROPERTY->items[i].name);
-				break;
-			}
-		}
-#endif
-#ifdef INDIGO_LINUX
-		strcpy(DEVICE_PORT_ITEM->text.value, "/dev/usb_focuser");
-#endif
 		// -------------------------------------------------------------------------------- FOCUSER_REVERSE_MOTION
 		FOCUSER_REVERSE_MOTION_PROPERTY->hidden = false;
 		// -------------------------------------------------------------------------------- FOCUSER_TEMPERATURE
@@ -241,8 +231,7 @@ static indigo_result focuser_attach(indigo_device *device) {
 
 static indigo_result focuser_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(X_FOCUSER_STEP_SIZE_PROPERTY, property))
-			indigo_define_property(device, X_FOCUSER_STEP_SIZE_PROPERTY, NULL);
+		indigo_define_matching_property(X_FOCUSER_STEP_SIZE_PROPERTY);
 	}
 	return indigo_focuser_enumerate_properties(device, NULL, NULL);
 }
@@ -396,6 +385,11 @@ indigo_result indigo_focuser_usbv3(indigo_driver_action action, indigo_driver_in
 		NULL,
 		focuser_detach
 	);
+
+	static indigo_device_match_pattern patterns[1] = { 0 };
+	strcpy(patterns[0].vendor_string, "CCS");
+	strcpy(patterns[0].product_string, "SERIAL DEMO");
+	INDIGO_REGISER_MATCH_PATTERNS(focuser_template, patterns, 1);
 
 	SET_DRIVER_INFO(info, "USB_Focus v3 Focuser", __FUNCTION__, DRIVER_VERSION, false, last_action);
 

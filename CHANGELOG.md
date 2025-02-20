@@ -2,6 +2,617 @@
 
 All notable changes to INDIGO framework will be documented in this file.
 
+# [2.0-314] - 18 Feb Tue 2025
+## Overall:
+- indigo_ccd_driver:
+	- fix Jpeg quality step
+
+- race fixed in cancel timer
+
+- fix memory leak related to large text properties
+
+## New Drivers:
+
+- indigo_ccd_svb2:
+	- SVBONY OEM Camera driver produced by Touptek
+
+## Driver Fixes:
+- indigo_agent_scripting:
+	- do not add new scripts to execute on load by default
+
+	- Sequencer.js:
+		- make select_image_format(), select_frame_type(), select_camera_mode() and select_filter() accept both label and item name and remove _by_label() versions
+
+		- make select_program(), select_aperture(), select_shutter() and select_iso() accept both label and item name and remove _by_label() versions
+
+		- fix loop counting
+
+- indigo_ccd_toupcam & oem:
+	- SDK updated to version 57.27650.20250209
+
+- indigo_mount_lx200:
+	- do not mix home and park commands - it confuses some firmwares
+	- Implement OnStep switch and analog AUX outputs
+	- JTW GTR Manticore (OnStep) mount uses 230400 bps
+
+- indigo_ccd_qhy2:
+	- SDK updated to version 24.12.26
+
+- indigo_ccd_ptp:
+	- handle insufficient USB permissions gracefully
+
+# [2.0-312] - 03 Feb Mon 2025
+## Overall:
+- indigo_property_copy_values() for BLOBs fixed
+
+- fix several potential leaks and memry management errors
+
+- indigo_raw_utils: fix division by zero
+
+- code cleanup and silence many warnings
+
+- DSO catalogue cleanup
+
+- if-match-define pattern replaced with indigo_define_matching_property()
+
+- indigo_ccd_driver:
+	- added CCD_LOCAL_MODE.OBJECT
+	- added object name placeholder (%o) to the filename pattern
+
+- indigo_docs: update CCD_DRIVER_SAVED_IMAGES.md
+
+## Driver fixes:
+- agent_imager:
+	- AGENT_IMAGER_CAPTURE property added to prevent deadlock with platesolvers
+
+- indigo_agent_scripting:
+	- Sequencer.js: add select_frame_type_by_label()
+	- Sequencer.js: add select_camera_mode_by_label()
+	- Sequencer.js: add select_image_format_by_label()
+	- Sequencer.js: add select_filter_by_label()
+	- Sequencer.js: add select_iso_by_label()
+	- Sequencer.js: add select_aperture_by_label()
+	- Sequencer.js: add select_shutter_by_label()
+	- Sequencer.js: add select_program_by_label()
+	- Sequencer.js: failure() fixed to send the provided message
+	- Sequencer.js: make name_template optional for capture_batch() and capture_stream()
+	- Sequencer.js: add set_file_template()
+	-  equencer.js: add set_object_name()
+	- Sequencer.js: fix current/total exposure time calculation
+	- Sequencer.js: SEQUENCE_RESET resets SEQUENCE_STATE state to Ok
+	- Sequencer.js: obsolete start_guiding_exposure() - added optional exposure paramter to start_guiding()
+	- Sequencer.js: obsolete calibrate_guiding_exposure() - added optional exposure paramter to calibrate_guiding()
+	- Sequencer.js: proeprty label changes
+
+- indigo_agent_astrometry & indigo_agent_astap:
+	- add AGENT_PLATESOLVER_MOUNT_SETTLE_TIME property
+	- mirrored image BLOB added
+	- Guider agent can be image source again (fixed regression)
+	- related agents handling cleanup
+
+- indigo_ccd_touptek & OEM:
+	- verify if pixel format retrieval was successful
+
+- indigo_ccd_asi:
+	- typo fixed
+
+- indigo_mount_lx200:
+	- use correct port 9999 for onstep tcp connection
+	- typo fixed
+
+- indigo_focuser_moonlite:
+	- typo fixed
+
+- indigo_guider_cgusbst4:
+	- typo fixed
+
+- indigo_mount_asi:
+	- code cleanup
+	- typo fixed
+
+- indigo_mount_ioptron:
+	- typo fixed
+
+- indigo_focuser_astroasis:
+	- typo fixed
+
+- indigo_rotator_asi:
+	- typo fixed
+
+- indigo_wheel_astroasis:
+	- typo fixed
+
+- indigo_aux_asiair:
+	- typo fixed
+
+- indigo_mount_synscan:
+	- Implement custom RA and Dec tracking
+	- code cleanup
+
+# [2.0-310] - 07 Jan Tue 2025
+## Overall:
+- indigo_ccd driver: setting CCD_LOCAL_MODE with non-existent or non-writable folder raises alert
+
+## Driver fixes:
+- indigo_agent_scripting:
+	- Sequencer.js: optional name added to Sequence constructor, to let the user know which sequence is running
+	- progress in steps added
+	- total sequence exposure time added to SEQUENCE_STATE
+	- ignore alert handling fixed
+
+- indigo_agent_imager:
+	- frame capture on remote servers fixed
+
+- indigo_agent_guider:
+	- frame capture on remote servers fixed
+
+- indigo_agent_astrometry:
+	- frame capture on remote servers fixed
+	- better handling of the imager agent process state
+
+- indigo_agent_astap:
+	- frame capture on remote servers fixed
+	- better handling of the imager agent process state
+
+- indigo_ccd_svb:
+	- update SDK v.1.13.2
+
+# [2.0-308] - 02 Jan Thu 2025
+## Overall:
+
+## Driver fixes:
+- indigo_agent_scripting:
+	- Sequencer.js: clear_focuser_selection(), calibrate_guiding_exposure(exposure), start_guiding_exposure(exposure) and clear_guider_selection() functions added
+
+- indigo_agent_guider:
+	- make possible to wait for all stars to reapear before resume guiding via RESET_ON_GUIDING_ERROR_WAIT_ALL_STARS
+
+- indigo_agent_imager:
+	- macro photography mode added to process features (focus bracketing during batch capture)
+
+- indigo_ccd_playerone:
+	- update README.md with iOptrin camera support
+
+- indigo_ccd_simulator:
+	- MAGNITUDE_LIMIT added to GUIDER_SETTINGS
+
+- indigo_ccd_altair:
+	- sdk updated v.57.27348.20241224
+
+- indigo_ccd_bresser:
+	- sdk updated v.57.27250.20241216
+
+- indigo_ccd_mallin:
+	- sdk updated v.57.27348.20241224
+
+- indigo_ccd_ogma:
+	- sdk updated v.57.27348.20241224
+
+- indigo_ccd_rising:
+	- sdk updated v.57.27348.20241224
+
+- indigo_ccd_omegonpro:
+	- sdk updated v.57.27348.20241224
+
+- indigo_ccd_ssg:
+	- sdk updated v.57.27348.20241224
+
+- indigo_ccd_touptek:
+	- sdk updated v.57.27348.20241224
+
+- indigo_wheel_asi:
+	- add macOS arm64 SDK
+
+# [2.0-306] - 14 Dec Sat 2024
+
+## Overall:
+- indigo_client:
+	- show driver name when initialization fails
+
+- indigo_server:
+	- add OS and arch to the welcome message
+
+## Driver fixes:
+- indigo_agent_imager:
+	- selection cleared during pause on transit
+	- clear include and exclude regions when CCD_FRAME changes
+
+- indigo_agent_guider:
+	- clear include and exclude regions when CCD_FRAME changes
+
+- indigo_agent_mount:
+	- AGENT_COORDINATES_PROPAGATE_THESHOLD label changet to a more descriptive one
+
+- indigo_agent_alpaca:
+	- support for bayered images added
+
+- indigo_ccd_playerone:
+	- updated SDK to v.3.7.1
+
+- indigo_ccd_asi:
+	- updated SDK to 1.37
+	- add macOS on arm64 support
+
+- indigo_fcuser_asi:
+	- add macOS on arm64 support
+
+- indigo_ccd_ptp:
+	- fix crash with Fuji camera in a specific configurtion
+	- DSLR_DELETE_IMAGE_OFF ignored for Fuji X-T1
+
+- indigo_ccd_simulator:
+	- CCD_FRAME added
+
+
+# [2.0-304] - 5 Dec Thu 2024
+
+## Overall:
+- indigo_docs:
+	- update IMAGING_AF_TUNING.md
+
+## Driver fixes:
+- indigo_focuser_fc3:
+	- fix device identification
+
+- indigo_ccd_atik:
+	- read temperature flag handling fixed
+
+- indigo_ccd_atik2:
+	- pre-exposure handling fixed
+
+- indigo_ccd_ptp:
+	- item labels changed
+	- Canon - 2s delay used only if some kind of mirror lockup is supported
+
+# [2.0-302] - 2 Dec Mon 2024
+
+## Overall:
+- indigo_ccd_driver:
+	- %R for resolution and %B for binning support added to image file name templates
+	- indigo_ccd_driver: add JD to the fits header
+
+- "Conflicting driver XXX is already loaded" lossage moved to INDIGO_ERROR
+
+## New Drivers:
+- indigo_cdd_atik2
+	- Legacy Atik driver - CCD/USB2.0 and macOS only (to handle missing Apple Silicon support in Atik SDK)
+
+## Driver fixes:
+- indigo_agent_guider:
+	- label text unification
+	- remove selection resizing according to binning as it causes problems
+	- binning change resets selection, include and exclude regions
+	- reset the selection if the selection contains no stars at start
+	- fix regression in calibration introduced in 2.0-300
+	- fix unhandled case when no stars are detected
+	- better quality estimator for DONUTS guiding (more tests needed)
+
+- indigo_agent_imager:
+	- clear star selection on binning change
+	- remove selection resizing according to binning as it causes problems
+	- binning change resets selection, include and exclude regions
+
+- indigo_agent_mount:
+	- typo fix
+
+- indigo_agent_scripting:
+	- ducktape engine upgraded to version 2.7
+
+- indigo_ccd_touptek & OEM:
+	- fix CCD_FRAME_BITS_PER_PIXEL
+
+- indigo_ccd_atik:
+	- SDK updated to 2024.11.26.2038
+
+# [2.0-300] - 16 Nov Sat 2024
+
+## Driver fixes:
+- indigo_agent_imager:
+	- optional include/exclude regions added to selection property
+
+- indigo_agent_guider:
+	- optional include/exclude regions added to selection property
+	- better error handling for DONUTS guiding
+	- fix SNR calculation for DONUTS guiding
+
+- indigo_ccd_ptp:
+	- fix retry sequence for FUJIFILM X-Pro3
+
+# [2.0-298] - 07 Nov Thu 2024
+
+## Overall:
+- ccd_driver:
+	- TIFF generation fixed
+
+## Driver fixes:
+- indigo_agent_imager:
+	- experimental bahtinov focusing added
+	- estimator property items labels changed
+	- focus routines refactoring
+	- add "Error:" and "Warning:" prefixes to some messages to show them color coded in clients
+	- do not show warning if stars are less than requested if U-Curve is not used
+	- focuser movement can be controlled by joystick buttons
+	- remove the flat bottom of gaus_blur() - better for iterative focusing simulation but U-Curve simulation deteriorated a bit.
+	- single frame preview process added
+	- separation of AGENT_IMAGER_FOCUS_INITIAL_ITEM to AGENT_IMAGER_FOCUS_ITERATVE_INITIAL_ITEM and  
+	  AGENT_IMAGER_FOCUS_UCURVE_STEP_ITEM and synchronization from AGENT_IMAGER_FOCUS_FINAL_ITEM to
+	  AGENT_IMAGER_FOCUS_ITERATVE_FINAL_ITEM. New clients should prefer AGENT_IMAGER_FOCUS_UCURVE_STEP_ITEM,
+	  AGENT_IMAGER_FOCUS_ITERATVE_INITIAL_ITEM and AGENT_IMAGER_FOCUS_ITERATVE_FINAL_ITEM if present over
+	  AGENT_IMAGER_FOCUS_INITIAL_ITEM and AGENT_IMAGER_FOCUS_FINAL_ITEM retained for backward compatibility only.
+	- final estimator evaluated in iterative focusing to guess process result
+	- avoid estimator change while process is running
+	- AGENT_IMAGER_STATS_FOCUS_POSITION added to AGENT_IMAGER_STATS
+	- focus estimator change resets stats
+	- fix U-Curve midpoint detection
+
+- indigo_agent_mount
+	- meridian flip fixed
+
+- indigo_agent_guider:
+	- single frame preview process added
+	- subframing disabled for multistar
+
+- indigo_ccd_simulator
+	- CCD Bahtinov Mask Simulator device added
+	- bad free() fixed
+	- remove some useless debug messages
+
+- indigo_ccd_qhy2
+	- updated SDK V2024.10.30
+	- native ARM support added to macOS build
+	
+- indigo_ccd_svb
+	- updated SDK v1.12.8
+
+indigo_wheel_playerone:
+	- update SDK v.1.2.1
+
+- indigo_mount_synscan
+	- equatorial coordinates state transition fixed
+
+- indigo_ccd_ptp
+	- Fuji control priority bug fixed
+
+- indigo_focuser_astroasis
+	- SDK updated to v.2.0.2
+	- fix enumeration
+	- follow the convention to use #XX as device suffix not (XX)
+	- add factory reset
+
+## New Drivers:
+- indigo_wheel_astroasis
+	- Astroasis wheel driver
+
+# [2.0-296] - 26 Oct Sat 2024 [This is a huge release]
+## Overall:
+- INDIGO Licence is simplified and made it GPL compatible
+
+- indigo_raw_utils:
+	- add indigo_find_stars_precise_filtered()
+	- fix wrong threshold for HFD calculation
+
+- indigo_docs:
+	- update DRIVER_DEVELOPMENT_BASICS.md
+	- update INDIGO_SERVER_AND_DRIVERS_GUIDE.md to reflect the new serial port autoselection mechanism
+	- CLIENT_DEVELOPMENT_BASICS.md - explain how to handle property change asynchronously
+	- clarify some points in POLAR_ALIGNMENT.md
+
+- ccd_driver:
+	- more format specifiers added to image name (like %G for gain etc)
+
+- multi instance support fixed for non-hotplug drivers
+
+- filter_agents:
+	- main groups of selected devices are mapped to the agent namespace
+
+- Forced consistent usage of SIMULATION property
+
+- double to hexagesimal conversion corner case fixed
+
+- BAYERPAT for X-Trans masks fixed
+
+- indigo_usbserial_utils:
+	- add indigo_enumerate_usb_serial_devices()
+	- usbserial devices are labeled with device name for better identification
+	- auto:// prefix added to let INDIGO select the best serial port for the device
+
+- mount drivers:
+	- EPOCH handling unified
+
+- proeprty snooping refactored and fixed
+
+- property_removed removed from indigo_filter_context, indigo_filter_cached_property() marked as deprecated
+
+- indigo_bus: crash in logging fixed
+
+- indigo_examples:
+	- dynamic_driver_client.c enhanced
+	- fix executable_driver_client.c
+
+- indigo_list_usbserial: new utility program to list usbserial devices with VID, PID, Vendor and Product names
+
+## New Drivers:
+- indigo_focuser_lacerta:
+	- Lacerta focusers driver added
+
+- indigo_ccd_pentax:
+	- Pentax camera driver added
+
+## Driver fixes:
+- indigo_agent_scripting:
+	- Sequencer.js: compensation mode control added
+
+- indigo_agent_guider:
+	- reengineered star selection
+	- last guiding log is mapped to /guiding URL on tcp server
+	- star selection reset when mount is slewed
+	- proper handling of camera change
+	- add CLEAR_SELECTION process
+	- configurable behaviour on lost guiding stars added
+	- refactored to use snooping instead of cached properties
+	- overall rengineereing and cleanup
+
+- indigo_agent_imager:
+	- reengineered star selection
+	- better sample collection for U-Curve focusing
+	- multistar U-Curve focusing added
+	- fix peak and FWHM item population
+	- add MAX_STARS_TO_USE item to AGENT_IMAGER_STATS property
+	- apply the delay for all types of frames
+	- abort batch race fixed
+	- proeper handling of camera change
+	- focuser temperature added to FITS metadata
+	- star selection reset when mount is slewed
+	- remove unused BACKLASH_IN and OUT items
+	- add CLEAR_SELECTION process
+	- autofocus redesign
+	- refactored to use snooping instead of cached properties
+	- overall reengineering and cleanup
+
+- indigo_agent_mount:
+	- limits handling fixed
+	- indigo_agent_mount: increase slew timeout to hadle speeds >= 1 deg/s
+	- overall reengineering and cleanup
+
+- indigo_agent_alpaca:
+	- item name arrays made static
+
+- indigo_ccd_touptek & OEMs:
+	- update SDK 57.26598.20240928
+	- remove old message
+
+- indigo_ccd_playerone:
+	- update SDK v3.7.0
+
+- indigo_ccd_asi:
+	- make property handling non blocking
+
+- indigo_mount_nexstar:
+	- safer guiding isolation
+	- port autoselection added
+
+- agent_auxiliary:
+	- related agents switch added
+
+- indigo_ccd_sbig:
+	- show message at camera plug to reload the dirver - SDK lists devices only once
+	- remove double AO attch log
+	- fixed stale devices on change
+	- fix device slot alocation
+	- remove use of environment variables - AO and wheel can be selected
+	- README.md updated
+
+- indigo_ccd_simulator:
+	- temperature fluctuation added
+
+- indigo_ccd_andor:
+	- add install target to Makefile
+
+- indigo_ccd_ptp:
+	- crash on uknown camera fixed
+	- filtering of vendor properties fixed
+
+- indigo_mount_rainbow:
+	- implement handshake at open to identiify if it is a Rainbow Astro mount
+
+- indigo_focuser_asi:
+	- use global indigo_device_enumeration_mutex to avoid driver locks
+	- typo fix
+
+- indigo_focuser_astroasis:
+	- use global indigo_device_enumeration_mutex to avoid driver locks
+	- update SDK
+	- SDK messages mapped to indigo debug level
+
+- indigo_guider_asi:
+	- use global indigo_device_enumeration_mutex to avoid driver locks
+
+- indigo_guider_gpusb:
+	- use global indigo_device_enumeration_mutex to avoid driver locks
+
+- indigo_wheel_asi:
+	- use global indigo_device_enumeration_mutex to avoid driver locks
+
+- indigo_wheel_fli:
+	- use global indigo_device_enumeration_mutex to avoid driver locks
+
+- indigo_wheel_mi:
+	- use global indigo_device_enumeration_mutex to avoid driver locks
+
+- indigo_wheel_playerone:
+	- use global indigo_device_enumeration_mutex to avoid driver locks
+	- typo fixed
+
+- indigo_gps_nmea:
+	- autoselect devices that contain GPS / GNSS in their product strings
+
+- indigo_aux_uch:
+	- make port auto selectable
+
+- indigo_mount_asi:
+	- make port auto selectable
+
+- indigo_mount_pmc8:
+	- typo fixed
+
+- indigo_aux_ppb:
+	- make port auto selectable
+
+- indigo_focuser_dmfc:
+	- make port auto selectable
+
+- indigo_focuser_primaluce:
+	- make port auto selectable
+
+- indigo_focuser_wemacro:
+	- make port auto selectable
+
+- indigo_focuser_usbv3:
+	- make port auto selectable
+
+- indigo_rotator_falcon:
+	- port autoselection added
+
+- indigo_guider_cgusbst4:
+	- make port auto selectable
+
+- indigo_mount_lx200:
+	- make port auto selectable
+
+## Obsolated drivers:
+
+- indigo_agent_lx200_server
+- indigo_agent_alignment
+- indigo_ccd_gphoto2
+- indigo_ccd_ica
+- indigo_guider_eqmac
+
+# [2.0-294] - 11 Aug Sun 2024
+## Overall:
+- CCD_UPLOAD_MODE_NONE_ITEM added to CCD_UPLOAD_MODE_PROPERTY, hidden by default
+
+## Driver Fixes:
+- indigo_ccd_simulator:
+	- CCD_UPLOAD_MODE_NONE_ITEM on CCD_UPLOAD_MODE_PROPERTY implemented for DSLR simulator
+
+- indigo_ccd_ptp:
+	- CCD_UPLOAD_MODE_NONE_ITEM on CCD_UPLOAD_MODE_PROPERTY implemented for Nikon and Canon (doesn't download the image from the camera at all)
+
+- indigo_ccd_sbig:
+	- SDK updated, external SDK not needed for macOS anymore
+	
+- indigo_focuser_primaluce:
+	- max value for FOCUSER_STEPS fixed
+	
+- indigo_mount_ioptron:
+	- no_park flag settings fixed
+	
+- indigo_mount_starbook:
+	- added support for firmware version lower than 2.7
+	
+- indigo_ccd_mi:
+	- SDK updated to 0.11.1 / 0.10.1
+
 # [2.0-292] - 01 Aug Thu 2024
 ## Overall:
 - indigo_make_psf_map() added to raw utils

@@ -41,9 +41,6 @@
 #include <indigo/indigo_io.h>
 #include "indigo_aux_wcv4ec.h"
 
-
-#define AUX_ADVANCED_GROUP "Advanced"
-
 #define PRIVATE_DATA												((wcv4ec_private_data *)device->private_data)
 
 #define AUX_LIGHT_SWITCH_PROPERTY          	(PRIVATE_DATA->light_switch_property)
@@ -230,7 +227,7 @@ static void aux_update_states(indigo_device *device) {
 	}
 
 	// timeout if open or close get stuck somewhere
-	if(time(NULL) - PRIVATE_DATA->operation_start_time > 60 && PRIVATE_DATA->operation_start_time > 0) {
+	if (time(NULL) - PRIVATE_DATA->operation_start_time > 60 && PRIVATE_DATA->operation_start_time > 0) {
 		AUX_COVER_CLOSE_ITEM->sw.value = false;
 		AUX_COVER_OPEN_ITEM->sw.value = false;
 		AUX_COVER_PROPERTY->state = INDIGO_ALERT_STATE;
@@ -338,24 +335,17 @@ static indigo_result aux_attach(indigo_device *device) {
 
 static indigo_result aux_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
 	if (IS_CONNECTED) {
-		if (indigo_property_match(AUX_LIGHT_SWITCH_PROPERTY, property))
-			indigo_define_property(device, AUX_LIGHT_SWITCH_PROPERTY, NULL);
-		if (indigo_property_match(AUX_LIGHT_INTENSITY_PROPERTY, property))
-			indigo_define_property(device, AUX_LIGHT_INTENSITY_PROPERTY, NULL);
-		if (indigo_property_match(AUX_COVER_PROPERTY, property))
-			indigo_define_property(device, AUX_COVER_PROPERTY, NULL);
-		if (indigo_property_match(AUX_DETECT_OPEN_CLOSE_PROPERTY, property))
-			indigo_define_property(device, AUX_DETECT_OPEN_CLOSE_PROPERTY, NULL);
-		if (indigo_property_match(AUX_SET_OPEN_CLOSE_PROPERTY, property))
-			indigo_define_property(device, AUX_SET_OPEN_CLOSE_PROPERTY, NULL);
-		if (indigo_property_match(AUX_HEATER_PROPERTY, property))
-			indigo_define_property(device, AUX_HEATER_PROPERTY, NULL);
+		indigo_define_matching_property(AUX_LIGHT_SWITCH_PROPERTY);
+		indigo_define_matching_property(AUX_LIGHT_INTENSITY_PROPERTY);
+		indigo_define_matching_property(AUX_COVER_PROPERTY);
+		indigo_define_matching_property(AUX_DETECT_OPEN_CLOSE_PROPERTY);
+		indigo_define_matching_property(AUX_SET_OPEN_CLOSE_PROPERTY);
+		indigo_define_matching_property(AUX_HEATER_PROPERTY);
 	}
 	return indigo_aux_enumerate_properties(device, NULL, NULL);
 }
 
 static void aux_connection_handler(indigo_device *device) {
-	char response[16];
 	pthread_mutex_lock(&PRIVATE_DATA->mutex);
 	if (CONNECTION_CONNECTED_ITEM->sw.value) {
 		wcv4ec_status_t wc_stat = {0};

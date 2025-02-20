@@ -42,6 +42,28 @@
 #include <CoreFoundation/CoreFoundation.h>
 #endif
 
+#if defined(__APPLE__) || defined(__MACH__)
+  #define OS_NAME "macOS"
+#elif defined(__linux__)
+  #define OS_NAME "Linux"
+#elif defined(__unix__)
+  #define OS_NAME "Unix"
+#else
+  #define OS_NAME "Unknown OS"
+#endif
+
+#if defined(__x86_64__) || defined(_M_X64)
+  #define ARCH_NAME "x86_64"
+#elif defined(__i386) || defined(_M_IX86)
+  #define ARCH_NAME "x86"
+#elif defined(__aarch64__)
+  #define ARCH_NAME "arm64"
+#elif defined(__arm__) || defined(_M_ARM)
+  #define ARCH_NAME "armhf"
+#else
+  #define ARCH_NAME "unknown arch"
+#endif
+
 #include <indigo/indigo_bus.h>
 #include <indigo/indigo_io.h>
 #include <indigo/indigo_server_tcp.h>
@@ -107,7 +129,6 @@
 #include "focuser_lakeside/indigo_focuser_lakeside.h"
 #include "agent_imager/indigo_agent_imager.h"
 #include "focuser_asi/indigo_focuser_asi.h"
-#include "agent_alignment/indigo_agent_alignment.h"
 #include "agent_mount/indigo_agent_mount.h"
 #include "ao_sx/indigo_ao_sx.h"
 #include "ccd_uvc/indigo_ccd_uvc.h"
@@ -175,6 +196,11 @@
 #include "ccd_bresser/indigo_ccd_bresser.h"
 #include "focuser_optecfl/indigo_focuser_optecfl.h"
 #include "focuser_fc3/indigo_focuser_fc3.h"
+#include "focuser_lacerta/indigo_focuser_lacerta.h"
+#include "ccd_pentax/indigo_ccd_pentax.h"
+#include "rotator_asi/indigo_rotator_asi.h"
+#include "focuser_astroasis/indigo_focuser_astroasis.h"
+#include "wheel_astroasis/indigo_wheel_astroasis.h"
 #ifndef __aarch64__
 #include "ccd_sbig/indigo_ccd_sbig.h"
 #endif
@@ -182,8 +208,6 @@
 #include "ccd_qsi/indigo_ccd_qsi.h"
 #include "gps_nmea/indigo_gps_nmea.h"
 #ifdef INDIGO_MACOS
-#include "ccd_ica/indigo_ccd_ica.h"
-#include "guider_eqmac/indigo_guider_eqmac.h"
 #include "focuser_wemacro_bt/indigo_focuser_wemacro_bt.h"
 #include "focuser_mjkzz_bt/indigo_focuser_mjkzz_bt.h"
 #endif
@@ -191,22 +215,22 @@
 #include "ccd_gphoto2/indigo_ccd_gphoto2.h"
 #endif
 #include "agent_snoop/indigo_agent_snoop.h"
-#include "agent_lx200_server/indigo_agent_lx200_server.h"
 #include "agent_scripting/indigo_agent_scripting.h"
+#ifdef INDIGO_MACOS
+#include "ccd_atik2/indigo_ccd_atik2.h"
+#endif
 #endif
 
 #define SERVER_NAME         "INDIGO Server"
 
 driver_entry_point static_drivers[] = {
 #ifdef STATIC_DRIVERS
-	indigo_agent_alignment,
 	indigo_agent_alpaca,
 	indigo_agent_astrometry,
 	indigo_agent_astap,
 	indigo_agent_auxiliary,
 	indigo_agent_guider,
 	indigo_agent_imager,
-	indigo_agent_lx200_server,
 	indigo_agent_config,
 	indigo_agent_scripting,
 	indigo_agent_mount,
@@ -238,19 +262,20 @@ driver_entry_point static_drivers[] = {
 	indigo_ccd_apogee,
 	indigo_ccd_asi,
 	indigo_ccd_atik,
+#ifdef INDIGO_MACOS
+	indigo_ccd_atik2,
+#endif
 	indigo_ccd_bresser,
 	indigo_ccd_dsi,
 	indigo_ccd_fli,
 #ifdef INDIGO_LINUX
 	indigo_ccd_gphoto2,
 #endif
-#ifdef INDIGO_MACOS
-	indigo_ccd_ica,
-#endif
 	indigo_ccd_iidc,
 	indigo_ccd_mi,
 	indigo_ccd_ogma,
 	indigo_ccd_omegonpro,
+	indigo_ccd_pentax,
 	indigo_ccd_playerone,
 	indigo_ccd_ptp,
 	indigo_ccd_qhy2,
@@ -275,6 +300,7 @@ driver_entry_point static_drivers[] = {
 	indigo_dome_skyroof,
 	indigo_dome_talon6ror,
 	indigo_focuser_asi,
+	indigo_focuser_astroasis,
 	indigo_focuser_astromechanics,
 	indigo_focuser_dmfc,
 	indigo_focuser_dsd,
@@ -284,6 +310,7 @@ driver_entry_point static_drivers[] = {
 	indigo_focuser_focusdreampro,
 	indigo_focuser_fli,
 	indigo_focuser_ioptron,
+	indigo_focuser_lacerta,
 	indigo_focuser_lakeside,
 	indigo_focuser_lunatico,
 	indigo_focuser_mjkzz,
@@ -310,9 +337,6 @@ driver_entry_point static_drivers[] = {
 	indigo_gps_simulator,
 	indigo_guider_asi,
 	indigo_guider_cgusbst4,
-#ifdef INDIGO_MACOS
-	indigo_guider_eqmac,
-#endif
 	indigo_guider_gpusb,
 	indigo_mount_asi,
 	indigo_mount_ioptron,
@@ -325,11 +349,13 @@ driver_entry_point static_drivers[] = {
 	indigo_mount_starbook,
 	indigo_mount_synscan,
 	indigo_mount_temma,
+	indigo_rotator_asi,
 	indigo_rotator_falcon,
 	indigo_rotator_lunatico,
 	indigo_rotator_optec,
 	indigo_rotator_simulator,
 	indigo_wheel_asi,
+	indigo_wheel_astroasis,
 	indigo_wheel_atik,
 	indigo_wheel_fli,
 	indigo_wheel_indigo,
@@ -349,7 +375,9 @@ driver_entry_point static_drivers[] = {
 static struct {
 	char *name;
 	char *description;
-} dynamic_drivers[INDIGO_MAX_DRIVERS] = {
+}
+
+dynamic_drivers[INDIGO_MAX_DRIVERS] = {
 	NULL
 };
 
@@ -1461,6 +1489,7 @@ static void add_drivers(const char *folder) {
 								}
 								if (token) {
 									for (int i = 0; i < dynamic_drivers_count; i++) {
+										//indigo_error("dynamic_drivers[%d].name = %s", i, dynamic_drivers[i].name);
 										if (!strcmp(dynamic_drivers[i].name, token)) {
 											token = NULL;
 											break;
@@ -1497,7 +1526,7 @@ static void add_drivers(const char *folder) {
 static void server_main() {
 	indigo_start_usb_event_handler();
 	indigo_start();
-	indigo_log("INDIGO server %d.%d-%s built on %s %s", (INDIGO_VERSION_CURRENT >> 8) & 0xFF, INDIGO_VERSION_CURRENT & 0xFF, INDIGO_BUILD, INDIGO_BUILD_TIME, INDIGO_BUILD_COMMIT);
+	indigo_log("INDIGO server %d.%d-%s %s/%s built on %s %s", (INDIGO_VERSION_CURRENT >> 8) & 0xFF, INDIGO_VERSION_CURRENT & 0xFF, INDIGO_BUILD, OS_NAME, ARCH_NAME, INDIGO_BUILD_TIME, INDIGO_BUILD_COMMIT);
 
 	indigo_use_blob_caching = true;
 
@@ -1812,7 +1841,7 @@ int main(int argc, const char * argv[]) {
 		} else if (!strcmp(argv[i], "-l") || !strcmp(argv[i], "--use-syslog")) {
 			indigo_use_syslog = true;
 		} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
-			printf("INDIGO server v.%d.%d-%s built on %s %s.\n", (INDIGO_VERSION_CURRENT >> 8) & 0xFF, INDIGO_VERSION_CURRENT & 0xFF, INDIGO_BUILD, __DATE__, __TIME__);
+			printf("INDIGO server v.%d.%d-%s %s/%s built on %s %s.\n", (INDIGO_VERSION_CURRENT >> 8) & 0xFF, INDIGO_VERSION_CURRENT & 0xFF, INDIGO_BUILD, OS_NAME, ARCH_NAME, __DATE__, __TIME__);
 			printf("usage: %s [-h | --help]\n", argv[0]);
 			printf("       %s [options] indigo_driver_name indigo_driver_name ...\n", argv[0]);
 			printf("options:\n"
@@ -1879,9 +1908,13 @@ int main(int argc, const char * argv[]) {
 				server_main();
 				return EXIT_SUCCESS;
 			} else {
-				if (waitpid(server_pid, NULL, 0) == -1 ) {
-					INDIGO_ERROR(indigo_error("waitpid() failed with error: %s", strerror(errno)));
-					return EXIT_FAILURE;
+				while (waitpid(server_pid, NULL, 0) == -1 && keep_server_running) {
+					if (errno == EINTR) {
+						INDIGO_ERROR(indigo_error("waitpid(%d) interrupted: %s", server_pid, strerror(errno)));
+					} else {
+						INDIGO_ERROR(indigo_error("waitpid(%d) failed: %s", server_pid, strerror(errno)));
+						return EXIT_FAILURE;
+					}
 				}
 				use_sigkill = false;
 				if (keep_server_running) {

@@ -23,7 +23,7 @@
  \file indigo_agent_scripting.c
  */
 
-#define DRIVER_VERSION 0x0008
+#define DRIVER_VERSION 0x0009
 
 #define DRIVER_NAME	"indigo_agent_scripting"
 
@@ -88,9 +88,9 @@ typedef struct {
 	indigo_timer *timers[MAX_TIMER_COUNT];
 	duk_context *ctx;
 	pthread_mutex_t mutex;
-} agent_private_data;
+} scripting_agent_private_data;
 
-static agent_private_data *private_data = NULL;
+static scripting_agent_private_data *private_data = NULL;
 static indigo_device *agent_device = NULL;
 static indigo_client *agent_client = NULL;
 
@@ -861,7 +861,7 @@ static indigo_result agent_device_attach(indigo_device *device) {
 		if (AGENT_SCRIPTING_ON_LOAD_SCRIPT_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		AGENT_SCRIPTING_ON_LOAD_SCRIPT_PROPERTY->count = 1;
-		indigo_init_switch_item(AGENT_SCRIPTING_ON_LOAD_SCRIPT_PROPERTY->items, AGENT_SCRIPTING_ADD_SCRIPT_PROPERTY_NAME, "New script", true);
+		indigo_init_switch_item(AGENT_SCRIPTING_ON_LOAD_SCRIPT_PROPERTY->items, AGENT_SCRIPTING_ADD_SCRIPT_PROPERTY_NAME, "New script", false);
 		AGENT_SCRIPTING_ON_UNLOAD_SCRIPT_PROPERTY = indigo_init_switch_property(NULL, device->name, AGENT_SCRIPTING_ON_UNLOAD_SCRIPT_PROPERTY_NAME, AGENT_MAIN_GROUP, "Execute on agent unload", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ANY_OF_MANY_RULE, MAX_ITEMS);
 		if (AGENT_SCRIPTING_ON_UNLOAD_SCRIPT_PROPERTY == NULL)
 			return INDIGO_FAILED;
@@ -937,18 +937,12 @@ static indigo_result agent_device_attach(indigo_device *device) {
 }
 
 static indigo_result agent_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
-	if (indigo_property_match(AGENT_SCRIPTING_RUN_SCRIPT_PROPERTY, property))
-		indigo_define_property(device, AGENT_SCRIPTING_RUN_SCRIPT_PROPERTY, NULL);
-	if (indigo_property_match(AGENT_SCRIPTING_ADD_SCRIPT_PROPERTY, property))
-		indigo_define_property(device, AGENT_SCRIPTING_ADD_SCRIPT_PROPERTY, NULL);
-	if (indigo_property_match(AGENT_SCRIPTING_EXECUTE_SCRIPT_PROPERTY, property))
-		indigo_define_property(device, AGENT_SCRIPTING_EXECUTE_SCRIPT_PROPERTY, NULL);
-	if (indigo_property_match(AGENT_SCRIPTING_DELETE_SCRIPT_PROPERTY, property))
-		indigo_define_property(device, AGENT_SCRIPTING_DELETE_SCRIPT_PROPERTY, NULL);
-	if (indigo_property_match(AGENT_SCRIPTING_ON_LOAD_SCRIPT_PROPERTY, property))
-		indigo_define_property(device, AGENT_SCRIPTING_ON_LOAD_SCRIPT_PROPERTY, NULL);
-	if (indigo_property_match(AGENT_SCRIPTING_ON_UNLOAD_SCRIPT_PROPERTY, property))
-		indigo_define_property(device, AGENT_SCRIPTING_ON_UNLOAD_SCRIPT_PROPERTY, NULL);
+	indigo_define_matching_property(AGENT_SCRIPTING_RUN_SCRIPT_PROPERTY);
+	indigo_define_matching_property(AGENT_SCRIPTING_ADD_SCRIPT_PROPERTY);
+	indigo_define_matching_property(AGENT_SCRIPTING_EXECUTE_SCRIPT_PROPERTY);
+	indigo_define_matching_property(AGENT_SCRIPTING_DELETE_SCRIPT_PROPERTY);
+	indigo_define_matching_property(AGENT_SCRIPTING_ON_LOAD_SCRIPT_PROPERTY);
+	indigo_define_matching_property(AGENT_SCRIPTING_ON_UNLOAD_SCRIPT_PROPERTY);
 	for (int i = 0; i < MAX_USER_SCRIPT_COUNT; i++) {
 		indigo_property *script_property = AGENT_SCRIPTING_SCRIPT_PROPERTY(i);
 		if (script_property)
@@ -1225,15 +1219,17 @@ static indigo_result agent_device_detach(indigo_device *device) {
 	indigo_release_property(AGENT_SCRIPTING_EXECUTE_SCRIPT_PROPERTY);
 	for (int i = 0; i < MAX_USER_SCRIPT_COUNT; i++) {
 		indigo_property *script_property = AGENT_SCRIPTING_SCRIPT_PROPERTY(i);
-		if (script_property)
+		if (script_property) {
 			indigo_release_property(script_property);
+		}
 	}
 	for (int i = 0; i < MAX_CACHED_PROPERTY_COUNT; i++) {
 		indigo_property *cached_property = PRIVATE_DATA->agent_cached_property[i];
-		if (cached_property)
+		if (cached_property) {
 			indigo_release_property(cached_property);
+		}
 	}
-
+	
 	return indigo_device_detach(device);
 }
 
@@ -1352,7 +1348,7 @@ indigo_result indigo_agent_scripting(indigo_driver_action action, indigo_driver_
 	switch(action) {
 		case INDIGO_DRIVER_INIT:
 			last_action = action;
-			private_data = indigo_safe_malloc(sizeof(agent_private_data));
+			private_data = indigo_safe_malloc(sizeof(scripting_agent_private_data));
 			agent_device = indigo_safe_malloc_copy(sizeof(indigo_device), &agent_device_template);
 			agent_device->private_data = private_data;
 			indigo_attach_device(agent_device);

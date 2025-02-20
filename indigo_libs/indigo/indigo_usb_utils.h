@@ -43,7 +43,7 @@ extern "C" {
 #endif
 
 extern indigo_result indigo_get_usb_path(libusb_device* handle, char *path);
-	
+
 #ifdef __cplusplus
 }
 #endif

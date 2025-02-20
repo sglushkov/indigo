@@ -32,6 +32,7 @@
 #include <indigo/indigo_bus.h>
 #include <indigo/indigo_names.h>
 #include <indigo/indigo_timer.h>
+#include <indigo/indigo_usbserial_utils.h>
 
 #ifdef INDIGO_LINUX
 #include <malloc.h>
@@ -48,6 +49,12 @@
 #define MALLOCED_SIZE _msize
 #endif
 
+#ifndef UT2JD
+#define DELTA_UTC_UT1    (-0.477677 / 86400.0)
+#define UT2JD(t)         ((t) / 86400.0 + 2440587.5 + DELTA_UTC_UT1)
+#define JDNOW            UT2JD(time(NULL))
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -55,6 +62,14 @@ extern "C" {
 /** Main group name string.
  */
 #define MAIN_GROUP                    "Main"
+
+/** Advanced group name string.
+ */
+#define ADVANCED_GROUP            		"Advanced"
+
+/** Site group name string.
+ */
+#define SITE_GROUP            				"Site"
 
 /** Device context pointer.
  */
@@ -271,7 +286,7 @@ typedef struct {
 */
 
 #define INDIGO_DRIVER_LOG(driver_name, fmt, ...) INDIGO_LOG(indigo_log("%s: " fmt, driver_name, ##__VA_ARGS__))
-#define INDIGO_DRIVER_ERROR(driver_name, fmt, ...) INDIGO_ERROR(indigo_error("%s[%s:%d, %p]: " fmt, driver_name, __FUNCTION__, __LINE__, pthread_self(), ##__VA_ARGS__))
+#define INDIGO_DRIVER_ERROR(driver_name, fmt, ...) INDIGO_ERROR(indigo_error("%s[%s:%d]: " fmt, driver_name, __FUNCTION__, __LINE__, ##__VA_ARGS__))
 #define INDIGO_DRIVER_DEBUG(driver_name, fmt, ...) INDIGO_DEBUG_DRIVER(indigo_debug("%s[%s:%d]: " fmt, driver_name, __FUNCTION__, __LINE__, ##__VA_ARGS__))
 #define INDIGO_DRIVER_TRACE(driver_name, fmt, ...) INDIGO_TRACE_DRIVER(indigo_trace("%s[%s:%d]: " fmt, driver_name,__FUNCTION__, __LINE__, ##__VA_ARGS__))
 
@@ -283,7 +298,7 @@ typedef struct {
 
 #define SET_DRIVER_INFO(dinfo, ddescr, dname, dversion, dmulti, dstatus)\
 {\
-	if(dinfo) {\
+	if (dinfo) {\
 		indigo_copy_name(dinfo->description, ddescr);\
 		indigo_copy_name(dinfo->name, dname);\
 		dinfo->version = dversion;\
@@ -409,6 +424,10 @@ extern void indigo_lock_master_device(indigo_device *device);
  */
 extern void indigo_unlock_master_device(indigo_device *device);
 
+
+/** Global mutex for device enumeration. Should be locked for device enumeration in the drivers.
+ */
+extern pthread_mutex_t indigo_device_enumeration_mutex;
 
 #ifdef __cplusplus
 }

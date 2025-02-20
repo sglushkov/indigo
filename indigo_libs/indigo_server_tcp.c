@@ -103,7 +103,7 @@ static void start_worker_thread(int *client_socket) {
 	char c;
 	void *free_on_exit = NULL;
 	pthread_mutex_t *unlock_at_exit = NULL;
-
+	
 	if (recv(socket, &c, 1, MSG_PEEK) == 1) {
 		if (c == '<') {
 			INDIGO_TRACE(indigo_trace("%d <- // Protocol switched to XML", socket));
@@ -289,7 +289,11 @@ static void start_worker_thread(int *client_socket) {
 							char file_name[256];
 							struct stat file_stat;
 							int handle;
-							sprintf(file_name, "%s/%s", getenv("HOME"), resource->file_name);
+							if (*resource->file_name == '/') {
+								strcpy(file_name, resource->file_name);
+							} else {
+								sprintf(file_name, "%s/%s", getenv("HOME"), resource->file_name);
+							}
 							if (stat(file_name, &file_stat) < 0 || (handle = open(file_name, O_RDONLY)) < 0) {
 								INDIGO_PRINTF(socket, "HTTP/1.1 404 Not found\r\n");
 								INDIGO_PRINTF(socket, "Content-Type: text/plain\r\n");
@@ -298,9 +302,12 @@ static void start_worker_thread(int *client_socket) {
 								INDIGO_TRACE(indigo_trace("%d <- // Failed to stat/open file (%s, %s)", socket, file_name, strerror(errno)));
 								goto failure;
 							} else {
+								const char *base_name = strrchr(file_name, '/');
+								base_name = base_name ? base_name + 1 : file_name;
 								INDIGO_PRINTF(socket, "HTTP/1.1 200 OK\r\n");
 								INDIGO_PRINTF(socket, "Server: INDIGO/%d.%d-%s\r\n", (INDIGO_VERSION_CURRENT >> 8) & 0xFF, INDIGO_VERSION_CURRENT & 0xFF, INDIGO_BUILD);
 								INDIGO_PRINTF(socket, "Content-Type: %s\r\n", resource->content_type);
+								INDIGO_PRINTF(socket, "Content-Disposition: attachment; filename=%s\r\n", base_name);
 								INDIGO_PRINTF(socket, "Content-Length: %d\r\n", file_stat.st_size);
 								INDIGO_PRINTF(socket, "\r\n");
 								long remaining = file_stat.st_size;
@@ -401,10 +408,12 @@ failure:
 	close(socket);
 	server_callback(--client_count);
 	free(client_socket);
-	if (free_on_exit)
+	if (free_on_exit) {
 		free(free_on_exit);
-	if (unlock_at_exit)
+	}
+	if (unlock_at_exit) {
 		pthread_mutex_unlock(unlock_at_exit);
+	}
 	INDIGO_TRACE(indigo_trace("%d <- // Worker thread finished", socket));
 }
 
@@ -539,7 +548,7 @@ indigo_result indigo_server_start(indigo_server_tcp_callback callback) {
 		indigo_error("Can't bind server socket (%s)", strerror(errno));
 		return INDIGO_CANT_START_SERVER;
 	}
-
+	
 #ifdef INDIGO_LINUX
 	int val = 1;
 	if (setsockopt(server_socket, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) < 0) {
@@ -547,7 +556,7 @@ indigo_result indigo_server_start(indigo_server_tcp_callback callback) {
 		return INDIGO_CANT_START_SERVER;
 	}
 #endif
-
+	
 	unsigned int length = sizeof(server_address);
 	if (getsockname(server_socket, (struct sockaddr *)&server_address, &length) == -1) {
 		close(server_socket);
@@ -567,8 +576,9 @@ indigo_result indigo_server_start(indigo_server_tcp_callback callback) {
 	while (1) {
 		client_socket = accept(server_socket, (struct sockaddr *)&client_name, &name_len);
 		if (client_socket == -1) {
-			if (shutdown_initiated)
+			if (shutdown_initiated) {
 				break;
+			}
 			indigo_error("Can't accept connection (%s)", strerror(errno));
 		} else {
 			struct timeval timeout;

@@ -23,7 +23,7 @@
  \file indigo_mount_pmc8.c
  */
 
-#define DRIVER_VERSION 0x0008
+#define DRIVER_VERSION 0x0009
 #define DRIVER_NAME	"indigo_mount_pmc8"
 
 #include <stdlib.h>
@@ -209,8 +209,9 @@ static bool pmc8_command(indigo_device *device, char *command, char *response, i
 		tv.tv_sec = 0;
 		tv.tv_usec = 10000;
 		long result = select(PRIVATE_DATA->handle+1, &readout, NULL, NULL, &tv);
-		if (result == 0)
+		if (result == 0) {
 			break;
+		}
 		if (result < 0) {
 			pthread_mutex_unlock(&PRIVATE_DATA->port_mutex);
 			return false;
@@ -227,14 +228,15 @@ static bool pmc8_command(indigo_device *device, char *command, char *response, i
 		}
 	}
 	for (int repeat = 10; ; repeat--) {
-	// write command
+		// write command
 		if (PRIVATE_DATA->proto == INDIGO_PROTOCOL_UDP) {
 			send(PRIVATE_DATA->handle, command, strlen(command), 0);
 		} else {
 			indigo_write(PRIVATE_DATA->handle, command, strlen(command));
 		}
-		if (sleep > 0)
+		if (sleep > 0) {
 			indigo_usleep(sleep);
+		}
 		// read response
 		if (response != NULL) {
 			fd_set readout;
@@ -263,8 +265,9 @@ static bool pmc8_command(indigo_device *device, char *command, char *response, i
 						break;
 					}
 					response[bytes_read++] = c;
-					if (c == '!' || c == '%' || c == '#')
+					if (c == '!' || c == '%' || c == '#') {
 						break;
+					}
 				}
 				response[bytes_read] = 0;
 			}
@@ -422,8 +425,6 @@ static indigo_result mount_attach(indigo_device *device) {
 	assert(device != NULL);
 	assert(PRIVATE_DATA != NULL);
 	if (indigo_mount_attach(device, DRIVER_NAME, DRIVER_VERSION) == INDIGO_OK) {
-		// -------------------------------------------------------------------------------- SIMULATION
-		SIMULATION_PROPERTY->hidden = true;
 		// -------------------------------------------------------------------------------- DEVICE_PORT
 		strcpy(DEVICE_PORT_ITEM->text.value, "udp://192.168.47.1");
 		DEVICE_PORT_PROPERTY->state = INDIGO_OK_STATE;
@@ -450,7 +451,7 @@ static indigo_result mount_attach(indigo_device *device) {
 		indigo_init_switch_item(CONNECTION_SERIAL_DTR_ITEM, CONNECTION_SERIAL_DTR_ITEM_NAME, "Serial (clear DTR)", false);
 		// -------------------------------------------------------------------------------- MOUNT_TYPE
 		MOUNT_TYPE_PROPERTY = indigo_init_switch_property(NULL, device->name, MOUNT_TYPE_PROPERTY_NAME, MAIN_GROUP, "Mount type", INDIGO_OK_STATE, INDIGO_RW_PERM, INDIGO_ONE_OF_MANY_RULE, 4);
-		if (CONNECTION_MODE_PROPERTY == NULL)
+		if (MOUNT_TYPE_PROPERTY == NULL)
 			return INDIGO_FAILED;
 		indigo_init_switch_item(MOUNT_TYPE_G11, MOUNT_TYPE_G11_NAME, MODELS[0].name, false);
 		indigo_init_switch_item(MOUNT_TYPE_TITAN, MOUNT_TYPE_TITAN_NAME, MODELS[1].name, false);
@@ -466,10 +467,8 @@ static indigo_result mount_attach(indigo_device *device) {
 }
 
 static indigo_result mount_enumerate_properties(indigo_device *device, indigo_client *client, indigo_property *property) {
-	if (indigo_property_match(CONNECTION_MODE_PROPERTY, property))
-		indigo_define_property(device, CONNECTION_MODE_PROPERTY, NULL);
-	if (indigo_property_match(MOUNT_TYPE_PROPERTY, property))
-		indigo_define_property(device, MOUNT_TYPE_PROPERTY, NULL);
+	indigo_define_matching_property(CONNECTION_MODE_PROPERTY);
+	indigo_define_matching_property(MOUNT_TYPE_PROPERTY);
 	return indigo_mount_enumerate_properties(device, NULL, NULL);
 }
 
@@ -487,33 +486,37 @@ static void position_timer_callback(indigo_device *device) {
 			uint32_t dec_count = MODELS[PRIVATE_DATA->type].count[1];
 			double ha_angle = ((double)raw_ha / ra_count) * 24;
 			double dec_angle = ((double)raw_dec / dec_count) * 360;
-			double ha;
+			double lst = indigo_lst(NULL, MOUNT_GEOGRAPHIC_COORDINATES_LONGITUDE_ITEM->number.value);
+			double ha, ra, dec;
 			if (MOUNT_GEOGRAPHIC_COORDINATES_LATITUDE_ITEM->number.value >= 0) {
 				if (raw_dec >= -1) {
-					MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.value = 90 - dec_angle;
+					dec = 90 - dec_angle;
 					ha = ha_angle - 6;
 					side_of_pier = MOUNT_SIDE_OF_PIER_WEST_ITEM;
 				} else {
-					MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.value = 90 + dec_angle;
+					dec = 90 + dec_angle;
 					ha = ha_angle + 6;
 					side_of_pier = MOUNT_SIDE_OF_PIER_EAST_ITEM;
 				}
 			} else {
 				if (raw_dec >= -1) {
-					MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.value = -90 + dec_angle;
+					dec = -90 + dec_angle;
 					ha = -(ha_angle - 6);
 					side_of_pier = MOUNT_SIDE_OF_PIER_EAST_ITEM;
 				} else {
-					MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.value = -90 - dec_angle;
+					dec = -90 - dec_angle;
 					ha = -(ha_angle + 6);
 					side_of_pier = MOUNT_SIDE_OF_PIER_WEST_ITEM;
 				}
 			}
-			MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value = indigo_lst(NULL, MOUNT_GEOGRAPHIC_COORDINATES_LONGITUDE_ITEM->number.value) - ha;
-			if (MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value < 0)
-				MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value += 24;
-			else if (MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value > 24)
-				MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value -= 24;
+			ra = lst - ha;
+			if (ra < 0)
+				ra += 24;
+			else if (ra > 24)
+				ra -= 24;
+			indigo_eq_to_j2k(MOUNT_EPOCH_ITEM->number.value, &ra, &dec);
+			MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.value = ra;
+			MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.value = dec;
 			if (!side_of_pier->sw.value) {
 				indigo_set_switch(MOUNT_SIDE_OF_PIER_PROPERTY, side_of_pier, true);
 				indigo_update_property(device, MOUNT_SIDE_OF_PIER_PROPERTY, NULL);
@@ -563,9 +566,11 @@ static void mount_equatorial_coordinates_handler(indigo_device *device) {
 	pmc8_stop_tracking(device);
 	indigo_usleep(200000);
 	for (int i = 0; i < 3 && MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state == INDIGO_BUSY_STATE; i++) {
-		double lst = indigo_lst(NULL, MOUNT_GEOGRAPHIC_COORDINATES_LONGITUDE_ITEM->number.value);
-		double ha_angle = lst - MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target;
+		double ra_angle = MOUNT_EQUATORIAL_COORDINATES_RA_ITEM->number.target;
 		double dec_angle = MOUNT_EQUATORIAL_COORDINATES_DEC_ITEM->number.target;
+		indigo_j2k_to_eq(MOUNT_EPOCH_ITEM->number.value, &ra_angle, &dec_angle);
+		double lst = indigo_lst(NULL, MOUNT_GEOGRAPHIC_COORDINATES_LONGITUDE_ITEM->number.value);
+		double ha_angle = lst - ra_angle;
 		if (ha_angle < -12) {
 			ha_angle += 24;
 		} else if (ha_angle >= 12) {
@@ -595,14 +600,16 @@ static void mount_equatorial_coordinates_handler(indigo_device *device) {
 		if (!pmc8_point(device, raw_ha, raw_dec)) {
 			MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
 		}
-		if (MOUNT_ON_COORDINATES_SET_SYNC_ITEM->sw.value)
-			break;		
+		if (MOUNT_ON_COORDINATES_SET_SYNC_ITEM->sw.value) {
+			break;
+		}		
 		indigo_usleep(1000000);
 		while (MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state == INDIGO_BUSY_STATE) {
 			int32_t ra_rate, dec_rate;
 			if (pmc8_get_rate(device, &ra_rate, &dec_rate)) {
-				if (ra_rate <= PRIVATE_DATA->rate[2] && dec_rate == 0)
+				if (ra_rate <= PRIVATE_DATA->rate[2] && dec_rate == 0) {
 					break;
+				}
 			} else {
 				MOUNT_EQUATORIAL_COORDINATES_PROPERTY->state = INDIGO_ALERT_STATE;
 			}

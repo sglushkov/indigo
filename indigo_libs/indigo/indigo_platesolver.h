@@ -106,6 +106,9 @@ extern "C" {
 #define AGENT_PLATESOLVER_GOTO_SETTINGS_RA_ITEM		(AGENT_PLATESOLVER_GOTO_SETTINGS_PROPERTY->items+0)
 #define AGENT_PLATESOLVER_GOTO_SETTINGS_DEC_ITEM	(AGENT_PLATESOLVER_GOTO_SETTINGS_PROPERTY->items+1)
 
+#define AGENT_PLATESOLVER_MOUNT_SETTLE_TIME_PROPERTY	(INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->mount_settle_time_property)
+#define AGENT_PLATESOLVER_MOUNT_SETTLE_TIME_ITEM		(AGENT_PLATESOLVER_MOUNT_SETTLE_TIME_PROPERTY->items+0)
+
 #define AGENT_PLATESOLVER_ABORT_PROPERTY			(INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->abort_property)
 #define AGENT_PLATESOLVER_ABORT_ITEM					(AGENT_PLATESOLVER_ABORT_PROPERTY->items+0)
 
@@ -116,12 +119,17 @@ extern "C" {
 #define AGENT_PLATESOLVER_IMAGE_PROPERTY			(INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->image_property)
 #define AGENT_PLATESOLVER_IMAGE_ITEM					(AGENT_PLATESOLVER_IMAGE_PROPERTY->items+0)
 
+#define AGENT_PLATESOLVER_IMAGE_OUTPUT_PROPERTY	(INDIGO_PLATESOLVER_DEVICE_PRIVATE_DATA->image_output_property)
+#define AGENT_PLATESOLVER_IMAGE_OUTPUT_ITEM			(AGENT_PLATESOLVER_IMAGE_OUTPUT_PROPERTY->items+0)
+
 /** Plate solver  structure.
  */
 typedef struct {
 	indigo_device *device;
 	void *image;
-	unsigned long size;
+	long size;
+	char format[INDIGO_NAME_SIZE];
+	char image_url[INDIGO_VALUE_SIZE];
 } indigo_platesolver_task;
 
 /** Platesolver private data structure.
@@ -134,10 +142,12 @@ typedef struct {
 	indigo_property *start_process_property;
 	indigo_property *abort_property;
 	indigo_property *image_property;
+	indigo_property *image_output_property;
 	indigo_property *exposure_settings_property;
 	indigo_property *polar_alignment_state_property;
 	indigo_property *polar_alignment_settings_property;
 	indigo_property *precise_goto_settings_property;
+	indigo_property *mount_settle_time_property;
 	indigo_property *solve_images_property;
 	indigo_property_state mount_process_state;
 	indigo_spherical_point_t eq_coordinates;
@@ -160,7 +170,6 @@ typedef struct {
 	bool failed;
 	bool abort_process_requested;
 	int saved_sync_mode;
-	bool can_start_exposure;
 } platesolver_private_data;
 
 extern bool indigo_platesolver_validate_executable(const char *executable);
